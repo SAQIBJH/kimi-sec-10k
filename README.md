@@ -101,4 +101,4 @@ See `utils/local_storage.py` for the implementation.
 
 ## License
 
-Proprietary - Market Intelligence Platform
+Proprietary - Market Intelligence Platfor

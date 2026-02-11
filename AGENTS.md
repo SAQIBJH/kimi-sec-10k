@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-The Research Portal is a production-level **Streamlit application** for market research and financial news analysis. It is developed for **Coresight Research** and provides real-time financial data visualization, SEC filing access, and curated financial news.
+The Research Portal is a production-level **Streamlit application** for market research and financial news analysis, developed for **Coresight Research**. It provides real-time financial data visualization, SEC filing access, and curated financial news from a MySQL database.
 
 ### Key Features
 - **Market Data**: Income statement views, financial metrics, and historical data with company selection
@@ -15,14 +15,16 @@ The Research Portal is a production-level **Streamlit application** for market r
 
 ## Technology Stack
 
-| Layer | Technology |
-|-------|------------|
-| **Framework** | Streamlit >= 1.28.0 |
-| **Language** | Python 3.13+ |
-| **Database** | MySQL with SQLAlchemy 2.0+ |
-| **Visualization** | Plotly >= 5.18.0 |
-| **Data Processing** | Pandas >= 2.0.0, NumPy >= 1.24.0 |
-| **Environment** | python-dotenv >= 1.0.0 |
+| Layer | Technology | Version |
+|-------|------------|---------|
+| **Framework** | Streamlit | >= 1.54.0 |
+| **Language** | Python | >= 3.13 |
+| **Database** | MySQL | 8.0+ (via SQLAlchemy 2.0+ and PyMySQL) |
+| **Visualization** | Plotly | >= 6.5.0 |
+| **Data Processing** | Pandas | >= 2.3.0 |
+| **Data Processing** | NumPy | >= 2.4.0 |
+| **Environment** | python-dotenv | >= 1.2.0 |
+| **Security** | cryptography | >= 46.0.0 (for MySQL SSL) |
 
 ---
 
@@ -41,7 +43,7 @@ app/
 │   └── navigation.py      # Header, footer, and navigation components
 ├── data/                   # Data layer
 │   ├── models.py          # Pydantic-style dataclasses for Market Data
-│   ├── dummy_data.py      # News repository with dummy data
+│   ├── dummy_data.py      # News repository with dummy data and repositories
 │   └── repository.py      # SQLAlchemy repositories for companies and income statements
 ├── pages/                  # Page implementations
 │   ├── market_data.py     # Income Statement view implementation
@@ -166,6 +168,11 @@ Stores annual income statement data from Alpha Vantage.
 | gross_profit | DECIMAL | Gross profit |
 | operating_income | DECIMAL | Operating income |
 | net_income | DECIMAL | Net income |
+| selling_general_and_administrative | DECIMAL | SG&A expenses |
+| research_and_development | DECIMAL | R&D expenses |
+| depreciation_and_amortization | DECIMAL | D&A expenses |
+| interest_expense | DECIMAL | Interest expense |
+| interest_income | DECIMAL | Interest income |
 | ... | ... | Additional financial fields |
 
 ---
@@ -183,7 +190,7 @@ class CompanyRepository:
     def get_all_sources() -> List[str]: ...
     
     @staticmethod
-    def get_companies_by_source(source: str) -> List[Company]: ...
+    def get_companies_by_source() -> List[Company]: ...
 
 class IncomeStatementRepository:
     @staticmethod
@@ -370,12 +377,69 @@ The Market Data page renders custom HTML tables:
 
 ---
 
-## Security Considerations
+## Build and Test Commands
 
-1. **Environment Variables**: All secrets stored in `.env` (not committed)
-2. **SQL Injection**: Repository layer uses parameterized queries with SQLAlchemy `text()`
-3. **Secret Key**: Used for session management (change in production)
-4. **Debug Mode**: Disabled automatically in production environment
+### Manual Testing
+
+```bash
+# Test Market Data page
+cd app && streamlit run marketdata.py
+
+# Test Newsroom page
+cd app && streamlit run pages/newsroom.py
+```
+
+### Database Import
+
+```bash
+# Import company data
+mysql -u root -p secfiling < coreiq_companies_202602110336.sql
+
+# Import financial data
+mysql -u root -p secfiling < coreiq_av_financials_income_statement_202602110149.sql
+mysql -u root -p secfiling < coreiq_av_financials_balance_sheet_202602110149.sql
+mysql -u root -p secfiling < coreiq_av_financials_cash_flow_202602110149.sql
+
+# Import news data
+mysql -u root -p secfiling < coreiq_av_market_news_sentiment_202602110147.sql
+```
+
+---
+
+## Code Style Guidelines
+
+### Python Style
+
+- **Type hints**: Use type hints for function signatures and return types
+- **Docstrings**: Use Google-style docstrings for all public functions
+- **Dataclasses**: Use `@dataclass` for data models
+- **Static methods**: Repository methods should be `@staticmethod`
+
+### File Organization
+
+```python
+"""
+Module docstring describing purpose.
+"""
+# 1. Standard library imports
+import os
+from typing import List, Optional
+
+# 2. Third-party imports
+import streamlit as st
+import pandas as pd
+
+# 3. Local imports
+from components.styles import COLORS
+from data.models import Company
+```
+
+### Naming Conventions
+
+- **Functions/variables**: `snake_case`
+- **Classes**: `PascalCase`
+- **Constants**: `UPPER_CASE`
+- **Private**: `_leading_underscore`
 
 ---
 
@@ -400,6 +464,15 @@ tests/
 
 ---
 
+## Security Considerations
+
+1. **Environment Variables**: All secrets stored in `.env` (not committed)
+2. **SQL Injection**: Repository layer uses parameterized queries with SQLAlchemy `text()`
+3. **Secret Key**: Used for session management (change in production)
+4. **Debug Mode**: Disabled automatically in production environment
+
+---
+
 ## Deployment Notes
 
 ### Production Checklist
@@ -409,18 +482,6 @@ tests/
 3. Configure production database credentials
 4. Verify database connection pooling settings
 5. Ensure all SQL files are imported to MySQL
-
-### MySQL Data Import
-
-```bash
-# Import company data
-mysql -u root -p secfiling < coreiq_companies_202602110336.sql
-
-# Import financial data
-mysql -u root -p secfiling < coreiq_av_financials_income_statement_202602110149.sql
-mysql -u root -p secfiling < coreiq_av_financials_balance_sheet_202602110149.sql
-mysql -u root -p secfiling < coreiq_av_financials_cash_flow_202602110149.sql
-```
 
 ---
 

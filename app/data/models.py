@@ -1,9 +1,47 @@
 """
-Data models for Market Data page.
+Data models for Market Data and Newsroom pages.
 """
 from dataclasses import dataclass
-from datetime import date
-from typing import Optional, List
+from datetime import date, datetime
+from typing import Optional, List, Dict, Any
+
+
+@dataclass
+class TickerSentiment:
+    """Ticker sentiment data from news article."""
+    ticker: str
+    relevance_score: str
+    ticker_sentiment_label: str
+    ticker_sentiment_score: str
+
+
+@dataclass
+class NewsArticle:
+    """News article model from coreiq_av_market_news_sentiment table."""
+    id: int
+    title: str
+    summary: str
+    url: str
+    source: str
+    source_domain: str
+    time_published: datetime
+    time_published_raw: str
+    overall_sentiment_score: float
+    overall_sentiment_label: str
+    banner_image: Optional[str]
+    ticker_sentiment: List[TickerSentiment]
+    topics: List[Dict[str, str]]
+    category_within_source: str
+    
+    @property
+    def formatted_date(self) -> str:
+        """Format date as 'January 21, 2026'."""
+        return self.time_published.strftime("%B %d, %Y")
+    
+    @property
+    def company_tickers(self) -> List[str]:
+        """Get list of company tickers."""
+        return [ts.ticker for ts in self.ticker_sentiment]
 
 
 @dataclass
