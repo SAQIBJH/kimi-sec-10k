@@ -1,11 +1,15 @@
 """
 Data repository for fetching market data from database.
 """
-from typing import List, Optional, Tuple
-from datetime import date
+from typing import List, Optional, Tuple, Dict, Any
+from datetime import date, datetime, timedelta
+import json
 
 from core.database import db_manager
-from data.models import Company, IncomeStatementLineItem, FiscalPeriod, IncomeStatementData
+from data.models import (
+    Company, IncomeStatementLineItem, FiscalPeriod, IncomeStatementData,
+    NewsArticle, TickerSentiment
+)
 
 
 class CompanyRepository:
@@ -171,3 +175,196 @@ class IncomeStatementRepository:
             periods=periods,
             line_items=line_items
         )
+
+
+class NewsRepository:
+    """Repository for coreiq_av_market_news_sentiment table."""
+    
+    @staticmethod
+    def _parse_ticker_sentiment(ticker_sentiment_json: str) -> List[TickerSentiment]:
+        """Parse ticker_sentiment JSON string into list of TickerSentiment objects."""
+        if not ticker_sentiment_json:
+            return []
+        try:
+            data = json.loads(ticker_sentiment_json)
+            return [
+                TickerSentiment(
+                    ticker=ts.get('ticker', ''),
+                    relevance_score=ts.get('relevance_score', '0'),
+                    ticker_sentiment_label=ts.get('ticker_sentiment_label', 'Neutral'),
+                    ticker_sentiment_score=ts.get('ticker_sentiment_score', '0')
+                )
+                for ts in data
+            ]
+        except (json.JSONDecodeError, TypeError):
+            return []
+    
+    @staticmethod
+    def _parse_topics(topics_json: str) -> List[Dict[str, str]]:
+        """Parse topics JSON string into list of topic dictionaries."""
+        if not topics_json:
+            return []
+        try:
+            return json.loads(topics_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
+    
+    @staticmethod
+    def get_articles(
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        sector: Optional[str] = None,
+        company_ticker: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> List[NewsArticle]:
+        """
+        Get news articles with optional filtering.
+        
+        Args:
+            date_from: Start date filter
+            date_to: End date filter  
+            sector: Filter by company sector (primary_industry_coresight)
+            company_ticker: Filter by specific company ticker
+            limit: Maximum number of articles to return
+            offset: Offset for pagination
+        """
+        # Build base query
+        query = """
+            SELECT 
+                id,
+                title,
+                summary,
+                url,
+                source_name as source,
+                source_domain,
+                time_published_utc as time_published,
+                time_published_raw,
+                overall_sentiment_score,
+                overall_sentiment_label,
+                banner_image,
+                ticker_sentiment_json,
+                topics_json,
+                category_within_source,
+                raw_json
+            FROM coreiq_av_market_news_sentiment
+            WHERE 1=1
+        """
+        params = {}
+        
+        # Add date filters
+        if date_from:
+            query += " AND DATE(time_published_utc) >= :date_from"
+            params['date_from'] = date_from
+        
+        if date_to:
+            query += " AND DATE(time_published_utc) <= :date_to"
+            params['date_to'] = date_to
+        
+        # Add sector filter - requires join with companies table
+        if sector:
+            query += """ AND EXISTS (
+                SELECT 1 FROM coreiq_companies c 
+                WHERE c.primary_industry_coresight = :sector
+                AND (
+                    JSON_CONTAINS(ticker_sentiment_json, JSON_OBJECT('ticker', c.ticker))
+                    OR ticker_sentiment_json LIKE CONCAT('%"ticker": "', c.ticker, '"%')
+                )
+            )"""
+            params['sector'] = sector
+        
+        # Add company ticker filter
+        if company_ticker:
+            query += """ AND (
+                JSON_CONTAINS(ticker_sentiment_json, JSON_OBJECT('ticker', :company_ticker))
+                OR ticker_sentiment_json LIKE CONCAT('%"ticker": "', :company_ticker, '"%')
+            )"""
+            params['company_ticker'] = company_ticker
+        
+        # Order by publication date (newest first)
+        query += " ORDER BY time_published_utc DESC"
+        
+        # Add limit and offset
+        query += " LIMIT :limit OFFSET :offset"
+        params['limit'] = limit
+        params['offset'] = offset
+        
+        results = db_manager.execute_query(query, params)
+        
+        articles = []
+        for row in results:
+            # Parse JSON fields
+            raw_json_data = {}
+            if row.get('raw_json'):
+                try:
+                    raw_json_data = json.loads(row['raw_json'])
+                except json.JSONDecodeError:
+                    pass
+            
+            article = NewsArticle(
+                id=row['id'],
+                title=row['title'] or raw_json_data.get('title', ''),
+                summary=row['summary'] or raw_json_data.get('summary', ''),
+                url=row['url'] or raw_json_data.get('url', ''),
+                source=row['source'] or raw_json_data.get('source', ''),
+                source_domain=row['source_domain'] or raw_json_data.get('source_domain', ''),
+                time_published=row['time_published'],
+                time_published_raw=row['time_published_raw'] or '',
+                overall_sentiment_score=float(row['overall_sentiment_score']) if row['overall_sentiment_score'] else 0.0,
+                overall_sentiment_label=row['overall_sentiment_label'] or 'Neutral',
+                banner_image=row['banner_image'],
+                ticker_sentiment=NewsRepository._parse_ticker_sentiment(
+                    row['ticker_sentiment_json'] or raw_json_data.get('ticker_sentiment', '[]')
+                ),
+                topics=NewsRepository._parse_topics(
+                    row['topics_json'] or raw_json_data.get('topics', '[]')
+                ),
+                category_within_source=row['category_within_source'] or ''
+            )
+            articles.append(article)
+        
+        return articles
+    
+    @staticmethod
+    def get_sectors() -> List[str]:
+        """Get distinct sectors (primary_industry_coresight) from companies table."""
+        query = """
+            SELECT DISTINCT primary_industry_coresight as sector
+            FROM coreiq_companies
+            WHERE primary_industry_coresight IS NOT NULL
+              AND primary_industry_coresight != ''
+            ORDER BY primary_industry_coresight
+        """
+        results = db_manager.execute_query(query)
+        return [row['sector'] for row in results if row['sector']]
+    
+    @staticmethod
+    def get_companies() -> List[Dict[str, str]]:
+        """Get companies with ticker and name for dropdown."""
+        query = """
+            SELECT 
+                ticker,
+                COALESCE(name_coresight, name) as display_name
+            FROM coreiq_companies
+            WHERE ticker IS NOT NULL
+            ORDER BY display_name
+        """
+        results = db_manager.execute_query(query)
+        return [
+            {'ticker': row['ticker'], 'name': row['display_name']}
+            for row in results
+        ]
+    
+    @staticmethod
+    def get_company_name_by_ticker(ticker: str) -> Optional[str]:
+        """Get company display name by ticker."""
+        query = """
+            SELECT COALESCE(name_coresight, name) as display_name
+            FROM coreiq_companies
+            WHERE ticker = :ticker
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {'ticker': ticker})
+        if results:
+            return results[0]['display_name']
+        return ticker  # Return ticker if company not found

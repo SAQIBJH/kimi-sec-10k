@@ -6,7 +6,9 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 from enum import Enum
-
+from dotenv import load_dotenv
+# Load environment variables from .env file in development
+load_dotenv()
 
 class Environment(Enum):
     """Application environments."""
