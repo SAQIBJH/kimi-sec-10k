@@ -1,37 +1,45 @@
-# Research Portal
+# Research Portal v3.0
 
-A production-level Streamlit application for market research and financial news.
+A production-level Streamlit application for market research and financial news analysis.
 
 ## Features
 
-- **Market Data**: Real-time price charts, financial metrics, and historical data
-- **Newsroom**: Curated financial news with filtering and categorization
+- **Market Data Dashboard**: Income Statement, Balance Sheet, Cash Flow with tab navigation
+- **Company Profile**: Company information with visual data tables
+- **Newsroom**: Curated financial news with filtering
+- **Earnings Calls**: Transcript viewing with speaker sections
+- **Unified Navigation**: Single entry point, all pages on one port
 - **State Management**: Persistent user preferences using local storage
 - **Responsive Design**: Professional UI matching Figma specifications
-- **Database Ready**: Architecture prepared for MySQL integration (Phase 2)
+- **Database**: MySQL integration with SQLAlchemy ORM
 
 ## Architecture
 
 ```
 app/
-├── core/               # Configuration and database layer
-│   ├── config.py      # Environment-based configuration
-│   └── database.py    # MySQL connector (Phase 2 ready)
-├── components/         # Reusable UI components
-│   ├── styles.py      # Design tokens and CSS
-│   ├── layout.py      # Layout primitives
-│   ├── charts.py      # Chart components
-│   ├── tables.py      # Data table components
-│   └── navigation.py  # Navigation components
-├── data/              # Data layer
-│   ├── models.py      # Pydantic-style data models
-│   └── dummy_data.py  # Dummy data and repositories
-├── pages/             # Page implementations
-│   ├── market_data.py # Market Data page
-│   └── newsroom.py    # Newsroom page
-├── utils/             # Utilities
-│   └── local_storage.py # Local storage state management
-└── main.py            # Application entry point
+├── main.py              # Unified entry point (single port)
+├── core/                # Configuration and database layer
+│   ├── config.py       # Environment-based configuration
+│   └── database.py     # MySQL connector with connection pooling
+├── components/          # Reusable UI components
+│   ├── styles.py       # Design tokens and CSS
+│   ├── layout.py       # Layout primitives
+│   ├── charts.py       # Chart components
+│   ├── tables.py       # Data table components
+│   ├── navigation.py   # Navigation components
+│   └── toolbar.py      # Tab toolbar for Market Data
+├── data/               # Data layer
+│   ├── models.py       # Data models
+│   ├── repository.py   # Repository pattern with SQLAlchemy
+│   └── dummy_data.py   # Sample data
+├── pages/              # Page implementations
+│   ├── home.py         # Homepage
+│   ├── market_data.py  # Market Data with tabs
+│   ├── company_profile.py
+│   ├── newsroom.py
+│   └── earnings_calls.py
+└── utils/              # Utilities
+    └── local_storage.py # Local storage state management
 ```
 
 ## Quick Start
@@ -46,7 +54,7 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# Edit .env with your settings
+# Edit .env with your database settings
 ```
 
 ### 3. Run the Application
@@ -56,33 +64,45 @@ cd app
 streamlit run main.py
 ```
 
-## Phase 2: Database Integration
+Access at: **http://localhost:8502**
 
-To connect to a MySQL database:
+## URL Routes
 
-1. Uncomment database dependencies in `requirements.txt`
-2. Configure database credentials in `.env`
-3. Uncomment the SQLAlchemy implementation in `core/database.py`
-4. The repository pattern in `data/dummy_data.py` will automatically use the database
+| Page | URL |
+|------|-----|
+| Homepage | `http://localhost:8502/` |
+| Market Data | `http://localhost:8502/?page=market_data` |
+| Company Profile | `http://localhost:8502/?page=company_profile&ticker=M` |
+| Newsroom | `http://localhost:8502/?page=newsroom` |
+| Earnings Calls | `http://localhost:8502/?page=earnings_calls` |
+
+## Market Data Tabs
+
+| Tab | URL Parameter |
+|-----|---------------|
+| Income Statement | `?page=market_data&tab=income_statement` |
+| Balance Sheet | `?page=market_data&tab=balance_sheet` |
+| Cash Flow | `?page=market_data&tab=cash_flow` |
+| Key Stats | `?page=market_data&tab=key_stats` |
+| Company Profile | `?page=market_data&tab=company_profile` |
 
 ## Design System
 
-The application uses a consistent design system defined in `components/styles.py`:
+The application uses Coresight Research brand colors and design tokens:
 
-- **Colors**: Professional color palette with semantic variants
-- **Typography**: Inter font family with consistent sizing
-- **Spacing**: 8px base grid system
-- **Components**: Cards, badges, metrics, and form elements
+- **Primary Red**: `#D62E2F`
+- **Dark Text**: `#323232`
+- **Border Gray**: `#CBCACA`
+- **Background**: `#F2F2F2`
 
 ## State Management
 
-User selections are persisted across sessions using local storage:
+User selections are persisted across sessions:
 
-- Selected SEC filing/ticker
-- Date range (start and end dates)
+- Selected company ticker
+- Date ranges
+- Tab selections
 - Filter preferences
-
-See `utils/local_storage.py` for the implementation.
 
 ## Development
 
@@ -90,15 +110,15 @@ See `utils/local_storage.py` for the implementation.
 
 1. Create a new file in `app/pages/`
 2. Implement a `render_page()` function
-3. Add the page to `Page` enum in `components/navigation.py`
-4. Update `main.py` to route to the new page
+3. Add route in `main.py`
+4. Update navigation in `components/navigation.py`
 
-### Adding a New Component
+### Navigation Mode
 
-1. Create reusable components in `app/components/`
-2. Use design tokens from `styles.py`
-3. Document component props and usage
+By default, all links open in the same tab. To change this behavior, modify the `target` attribute in:
+- `components/navigation.py` (header links)
+- `components/toolbar.py` (tab links)
 
 ## License
 
-Proprietary - Market Intelligence Platfor
+Proprietary - Coresight Research

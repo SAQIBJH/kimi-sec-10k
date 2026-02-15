@@ -28,6 +28,8 @@ class StorageKey(Enum):
     MARKETDATA_SELECTED_TAB = "marketdata_selected_tab"
     MARKETDATA_DATE_START = "marketdata_date_start"
     MARKETDATA_DATE_END = "marketdata_date_end"
+    # Global company selection (used across all pages)
+    COMPANY_SELECTED = "company_selected"
 
 
 @dataclass
@@ -319,3 +321,21 @@ def set_marketdata_date_range(start: str, end: str) -> bool:
     success_start = local_storage.set(StorageKey.MARKETDATA_DATE_START, start)
     success_end = local_storage.set(StorageKey.MARKETDATA_DATE_END, end)
     return success_start and success_end
+
+
+# Global company selection functions (used across all pages)
+def get_selected_company() -> Optional[str]:
+    """Get the globally selected company ticker (used across all pages)."""
+    return local_storage.get(StorageKey.COMPANY_SELECTED)
+
+
+def set_selected_company(ticker: str) -> bool:
+    """Save the globally selected company ticker (used across all pages)."""
+    # Also update marketdata company for backward compatibility
+    set_marketdata_company(ticker)
+    return local_storage.set(StorageKey.COMPANY_SELECTED, ticker)
+
+
+def clear_selected_company() -> bool:
+    """Clear the selected company."""
+    return local_storage.delete(StorageKey.COMPANY_SELECTED)

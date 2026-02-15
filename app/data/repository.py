@@ -8,7 +8,9 @@ import json
 from core.database import db_manager
 from data.models import (
     Company, IncomeStatementLineItem, FiscalPeriod, IncomeStatementData,
-    NewsArticle, TickerSentiment
+    NewsArticle, TickerSentiment, CompanyOverview, EarningsCall,
+    BalanceSheetLineItem, BalanceSheetData,
+    CashFlowLineItem, CashFlowData
 )
 
 
@@ -58,6 +60,23 @@ class CompanyRepository:
             name_coresight=row['name_coresight'],
             exchange=row['exchange'],
         )
+    
+    @staticmethod
+    def get_companies() -> List[Dict[str, str]]:
+        """Get companies with ticker and name for dropdown."""
+        query = """
+            SELECT 
+                ticker,
+                COALESCE(name_coresight, name) as display_name
+            FROM coreiq_companies
+            WHERE ticker IS NOT NULL
+            ORDER BY display_name
+        """
+        results = db_manager.execute_query(query)
+        return [
+            {'ticker': row['ticker'], 'name': row['display_name']}
+            for row in results
+        ]
 
 
 class IncomeStatementRepository:
@@ -123,9 +142,12 @@ class IncomeStatementRepository:
         if not company:
             raise ValueError(f"Company not found: {ticker}")
         
-        # Fetch raw data
+        # Fetch raw data - use DISTINCT to avoid duplicates
         query = """
-            SELECT *
+            SELECT DISTINCT fiscal_date_ending, total_revenue, cost_of_revenue, 
+                   gross_profit, selling_general_and_administrative, research_and_development,
+                   depreciation_and_amortization, operating_income, interest_expense,
+                   interest_income, net_income, reported_currency
             FROM coreiq_av_financials_income_statement
             WHERE ticker = :ticker
               AND fiscal_date_ending BETWEEN :start_date AND :end_date
@@ -175,6 +197,25 @@ class IncomeStatementRepository:
             periods=periods,
             line_items=line_items
         )
+    
+    @staticmethod
+    def get_reported_currency(ticker: str, fiscal_date: date) -> str:
+        """Get the reported currency for a specific fiscal period."""
+        query = """
+            SELECT reported_currency
+            FROM coreiq_av_financials_income_statement
+            WHERE ticker = :ticker
+              AND fiscal_date_ending = :fiscal_date
+              AND report_type = 'annual'
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {
+            "ticker": ticker,
+            "fiscal_date": fiscal_date
+        })
+        if results and results[0].get('reported_currency'):
+            return results[0]['reported_currency']
+        return "USD"  # Default fallback
 
 
 class NewsRepository:
@@ -368,3 +409,827 @@ class NewsRepository:
         if results:
             return results[0]['display_name']
         return ticker  # Return ticker if company not found
+
+
+class CompanyOverviewRepository:
+    """Repository for coreiq_av_company_overview table."""
+    
+    @staticmethod
+    def get_company_overview(ticker: str) -> Optional[CompanyOverview]:
+        """
+        Get company overview by ticker.
+        
+        Args:
+            ticker: Company ticker symbol
+            
+        Returns:
+            CompanyOverview object or None if not found
+        """
+        query = """
+            SELECT 
+                ticker,
+                name,
+                exchange,
+                currency,
+                country,
+                sector,
+                industry,
+                company_description,
+                official_site,
+                fiscal_year_end,
+                cik,
+                market_capitalization,
+                pe_ratio,
+                eps,
+                dividend_yield,
+                analyst_target_price,
+                raw_json,
+                fetched_at_utc
+            FROM coreiq_av_company_overview
+            WHERE ticker = :ticker
+            ORDER BY fetched_at_utc DESC
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        
+        if not results:
+            return None
+        
+        row = results[0]
+        
+        # Parse raw_json for additional fields
+        raw_json_data = {}
+        if row.get('raw_json'):
+            try:
+                raw_json_data = json.loads(row['raw_json'])
+            except json.JSONDecodeError:
+                pass
+        
+        # Helper function to safely get float from various formats
+        def safe_float(value, default=None):
+            if value is None:
+                return default
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                return default
+        
+        # Helper function to safely get int
+        def safe_int(value, default=None):
+            if value is None:
+                return default
+            try:
+                return int(float(value))
+            except (ValueError, TypeError):
+                return default
+        
+        return CompanyOverview(
+            ticker=row['ticker'] or ticker,
+            name=row['name'] or ticker,
+            exchange=row['exchange'],
+            currency=row['currency'],
+            country=row['country'],
+            sector=row['sector'],
+            industry=row['industry'],
+            company_description=row['company_description'],
+            official_site=row['official_site'],
+            fiscal_year_end=row['fiscal_year_end'],
+            cik=row['cik'],
+            market_capitalization=safe_int(row['market_capitalization']),
+            pe_ratio=safe_float(row['pe_ratio']),
+            eps=safe_float(row['eps']),
+            dividend_yield=safe_float(row['dividend_yield']),
+            analyst_target_price=safe_float(row['analyst_target_price']),
+            fetched_at_utc=row['fetched_at_utc'],
+            # From raw_json
+            address=raw_json_data.get('Address'),
+            revenue_ttm=safe_float(raw_json_data.get('RevenueTTM')),
+            ebitda=safe_float(raw_json_data.get('EBITDA')),
+            profit_margin=safe_float(raw_json_data.get('ProfitMargin')),
+            shares_outstanding=safe_int(raw_json_data.get('SharesOutstanding')),
+            week_52_high=safe_float(raw_json_data.get('52WeekHigh')),
+            week_52_low=safe_float(raw_json_data.get('52WeekLow')),
+            dividend_per_share=safe_float(raw_json_data.get('DividendPerShare')),
+            latest_quarter=raw_json_data.get('LatestQuarter'),
+            # Placeholder fields - not in database
+            employees="N/A",
+            year_founded="N/A",
+            professionals_profiled="N/A",
+            coverage_summary="N/A",
+            coverage_list="N/A",
+            relationships="N/A",
+            projects="N/A",
+            activity_logs="N/A"
+        )
+    
+    @staticmethod
+    def company_exists(ticker: str) -> bool:
+        """Check if company overview exists for ticker."""
+        query = """
+            SELECT 1
+            FROM coreiq_av_company_overview
+            WHERE ticker = :ticker
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        return len(results) > 0
+
+
+class EarningsCallRepository:
+    """Repository for coreiq_av_earnings_call_transcripts table."""
+    
+    @staticmethod
+    def get_companies_with_earnings() -> List[Dict[str, str]]:
+        """Get only companies that have earnings call transcripts.
+        
+        Returns:
+            List of dicts with 'ticker' and 'name' keys.
+        """
+        query = """
+            SELECT DISTINCT 
+                c.ticker,
+                COALESCE(c.name_coresight, c.name) as display_name
+            FROM coreiq_companies c
+            INNER JOIN coreiq_av_earnings_call_transcripts e ON c.ticker = e.ticker
+            WHERE e.ticker IS NOT NULL
+            ORDER BY display_name
+        """
+        results = db_manager.execute_query(query)
+        return [
+            {'ticker': row['ticker'], 'name': row['display_name']}
+            for row in results
+        ]
+    
+    @staticmethod
+    def get_earnings_calls(
+        ticker: Optional[str] = None,
+        year: Optional[int] = None,
+        quarter: Optional[int] = None,
+        has_transcript_only: bool = True,
+        limit: int = 100
+    ) -> List[EarningsCall]:
+        """Get earnings calls with optional filtering.
+        
+        Args:
+            ticker: Filter by company ticker
+            year: Filter by year
+            quarter: Filter by quarter (1-4)
+            has_transcript_only: Only return calls with transcripts
+            limit: Maximum number of results
+            
+        Returns:
+            List of EarningsCall objects
+        """
+        query = """
+            SELECT 
+                id,
+                source,
+                ticker,
+                quarter,
+                year,
+                q,
+                transcript_text,
+                has_transcript,
+                title,
+                event_datetime_utc,
+                fetched_at_utc
+            FROM coreiq_av_earnings_call_transcripts
+            WHERE 1=1
+        """
+        params = {}
+        
+        if ticker:
+            query += " AND ticker = :ticker"
+            params['ticker'] = ticker
+        
+        if year:
+            query += " AND year = :year"
+            params['year'] = year
+        
+        if quarter:
+            query += " AND q = :quarter"
+            params['quarter'] = quarter
+        
+        if has_transcript_only:
+            query += " AND has_transcript = 1"
+        
+        query += " ORDER BY year DESC, q DESC"
+        query += " LIMIT :limit"
+        params['limit'] = limit
+        
+        results = db_manager.execute_query(query, params)
+        
+        earnings_calls = []
+        for row in results:
+            earnings_calls.append(EarningsCall(
+                id=row['id'],
+                source=row['source'],
+                ticker=row['ticker'],
+                quarter=row['quarter'],
+                year=row['year'],
+                q=row['q'],
+                transcript_text=row['transcript_text'],
+                has_transcript=bool(row['has_transcript']),
+                title=row['title'],
+                event_datetime_utc=row['event_datetime_utc'],
+                fetched_at_utc=row['fetched_at_utc']
+            ))
+        
+        return earnings_calls
+    
+    @staticmethod
+    def get_earnings_call_by_id(earnings_id: int) -> Optional[EarningsCall]:
+        """Get a single earnings call by ID."""
+        query = """
+            SELECT 
+                id,
+                source,
+                ticker,
+                quarter,
+                year,
+                q,
+                transcript_text,
+                has_transcript,
+                title,
+                event_datetime_utc,
+                fetched_at_utc
+            FROM coreiq_av_earnings_call_transcripts
+            WHERE id = :id
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {"id": earnings_id})
+        
+        if not results:
+            return None
+        
+        row = results[0]
+        return EarningsCall(
+            id=row['id'],
+            source=row['source'],
+            ticker=row['ticker'],
+            quarter=row['quarter'],
+            year=row['year'],
+            q=row['q'],
+            transcript_text=row['transcript_text'],
+            has_transcript=bool(row['has_transcript']),
+            title=row['title'],
+            event_datetime_utc=row['event_datetime_utc'],
+            fetched_at_utc=row['fetched_at_utc']
+        )
+    
+    @staticmethod
+    def get_available_years(ticker: Optional[str] = None) -> List[int]:
+        """Get distinct years available for earnings calls.
+        
+        Args:
+            ticker: Optional ticker to filter by
+            
+        Returns:
+            List of years (descending order)
+        """
+        query = """
+            SELECT DISTINCT year 
+            FROM coreiq_av_earnings_call_transcripts
+            WHERE year IS NOT NULL
+        """
+        params = {}
+        
+        if ticker:
+            query += " AND ticker = :ticker"
+            params['ticker'] = ticker
+        
+        query += " ORDER BY year DESC"
+        
+        results = db_manager.execute_query(query, params)
+        return [row['year'] for row in results]
+    
+    @staticmethod
+    def get_available_quarters(ticker: Optional[str] = None, year: Optional[int] = None) -> List[int]:
+        """Get distinct quarters available.
+        
+        Args:
+            ticker: Optional ticker to filter by
+            year: Optional year to filter by
+            
+        Returns:
+            List of quarters (1-4)
+        """
+        query = """
+            SELECT DISTINCT q 
+            FROM coreiq_av_earnings_call_transcripts
+            WHERE q IS NOT NULL
+        """
+        params = {}
+        
+        if ticker:
+            query += " AND ticker = :ticker"
+            params['ticker'] = ticker
+        
+        if year:
+            query += " AND year = :year"
+            params['year'] = year
+        
+        query += " ORDER BY q"
+        
+        results = db_manager.execute_query(query, params)
+        return [row['q'] for row in results]
+
+
+class BalanceSheetRepository:
+    """Repository for coreiq_av_financials_balance_sheet table.
+    
+    Uses raw_json column for data extraction as per manager requirements.
+    """
+    
+    # Mapping of UI labels to raw_json keys
+    # Organized by section: Assets, Liabilities, Shareholders' Equity
+    # IMPORTANT: Totals come AFTER their components (at the bottom)
+    LINE_ITEMS = [
+        # ASSETS - Current
+        ("Cash & Cash Equivalents", "cashAndCashEquivalentsAtCarryingValue", False, "assets"),
+        ("Cash & Short Term Investments", "cashAndShortTermInvestments", False, "assets"),
+        ("Inventory", "inventory", False, "assets"),
+        ("Current Net Receivables", "currentNetReceivables", False, "assets"),
+        ("Other Current Assets", "otherCurrentAssets", False, "assets"),
+        ("Total Current Assets", "totalCurrentAssets", False, "assets"),
+        
+        # ASSETS - Non-Current
+        ("Property Plant & Equipment", "propertyPlantEquipment", False, "assets"),
+        ("Intangible Assets", "intangibleAssets", False, "assets"),
+        ("Intangible Assets Excl. Goodwill", "intangibleAssetsExcludingGoodwill", False, "assets"),
+        ("Goodwill", "goodwill", False, "assets"),
+        ("Long Term Investments", "longTermInvestments", False, "assets"),
+        ("Other Non-Current Assets", "otherNonCurrentAssets", False, "assets"),
+        ("Total Non-Current Assets", "totalNonCurrentAssets", False, "assets"),
+        
+        # ASSETS - Total
+        ("Total Assets", "totalAssets", False, "assets"),
+        
+        # LIABILITIES - Current
+        ("Current Accounts Payable", "currentAccountsPayable", False, "liabilities"),
+        ("Deferred Revenue", "deferredRevenue", False, "liabilities"),
+        ("Current Debt", "currentDebt", False, "liabilities"),
+        ("Short Term Debt", "shortTermDebt", False, "liabilities"),
+        ("Other Current Liabilities", "otherCurrentLiabilities", False, "liabilities"),
+        ("Total Current Liabilities", "totalCurrentLiabilities", False, "liabilities"),
+        
+        # LIABILITIES - Non-Current
+        ("Long Term Debt", "longTermDebt", False, "liabilities"),
+        ("Long Term Debt Noncurrent", "longTermDebtNoncurrent", False, "liabilities"),
+        ("Capital Lease Obligations", "capitalLeaseObligations", False, "liabilities"),
+        ("Other Non-Current Liabilities", "otherNonCurrentLiabilities", False, "liabilities"),
+        ("Total Non-Current Liabilities", "totalNonCurrentLiabilities", False, "liabilities"),
+        
+        # LIABILITIES - Total
+        ("Total Liabilities", "totalLiabilities", False, "liabilities"),
+        
+        # SHAREHOLDERS' EQUITY - Components
+        ("Common Stock", "commonStock", False, "equity"),
+        ("Retained Earnings", "retainedEarnings", False, "equity"),
+        ("Treasury Stock", "treasuryStock", False, "equity"),
+        
+        # SHAREHOLDERS' EQUITY - Total
+        ("Total Shareholder Equity", "totalShareholderEquity", False, "equity"),
+    ]
+    
+    @staticmethod
+    def get_date_range(ticker: str) -> Tuple[Optional[date], Optional[date]]:
+        """Get min and max fiscal dates for a ticker."""
+        query = """
+            SELECT 
+                MIN(fiscal_date_ending) as min_date,
+                MAX(fiscal_date_ending) as max_date
+            FROM coreiq_av_financials_balance_sheet
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        if not results:
+            return None, None
+        row = results[0]
+        return row['min_date'], row['max_date']
+    
+    @staticmethod
+    def get_available_dates(ticker: str) -> List[date]:
+        """Get all available fiscal dates for dropdown."""
+        query = """
+            SELECT DISTINCT fiscal_date_ending
+            FROM coreiq_av_financials_balance_sheet
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+            ORDER BY fiscal_date_ending ASC
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        return [row['fiscal_date_ending'] for row in results]
+    
+    @staticmethod
+    def _parse_raw_json(raw_json: Any) -> Dict[str, Any]:
+        """Parse raw_json field from database."""
+        if raw_json is None:
+            return {}
+        if isinstance(raw_json, str):
+            try:
+                return json.loads(raw_json)
+            except json.JSONDecodeError:
+                return {}
+        if isinstance(raw_json, dict):
+            return raw_json
+        return {}
+    
+    @staticmethod
+    def _get_nested_value(data: Dict[str, Any], key: str) -> Optional[float]:
+        """Get value from nested dict structure."""
+        if not data:
+            return None
+        # Try direct key first
+        if key in data:
+            val = data[key]
+            if val is not None and val != "None":
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return None
+        # Try camelCase conversion for some common variations
+        return None
+    
+    @staticmethod
+    def get_balance_sheet_data(
+        ticker: str,
+        start_date: date,
+        end_date: date
+    ) -> BalanceSheetData:
+        """Get balance sheet data for date range using raw_json."""
+        # Fetch company info
+        company = CompanyRepository.get_company_by_ticker(ticker)
+        if not company:
+            raise ValueError(f"Company not found: {ticker}")
+        
+        # Fetch raw_json data
+        query = """
+            SELECT fiscal_date_ending, raw_json, reported_currency
+            FROM coreiq_av_financials_balance_sheet
+            WHERE ticker = :ticker
+              AND fiscal_date_ending BETWEEN :start_date AND :end_date
+              AND report_type = 'annual'
+            ORDER BY fiscal_date_ending ASC
+        """
+        results = db_manager.execute_query(query, {
+            "ticker": ticker,
+            "start_date": start_date,
+            "end_date": end_date
+        })
+        
+        if not results:
+            # Return empty structure
+            return BalanceSheetData(
+                company=company,
+                periods=[],
+                line_items=[]
+            )
+        
+        # Create periods from results
+        periods = [
+            FiscalPeriod.from_date(row['fiscal_date_ending'])
+            for row in results
+        ]
+        
+        # Parse all raw_json data
+        json_data_list = [
+            BalanceSheetRepository._parse_raw_json(row['raw_json'])
+            for row in results
+        ]
+        
+        # Build line items from raw_json
+        line_items = []
+        for label, json_key, is_calc, section in BalanceSheetRepository.LINE_ITEMS:
+            values = []
+            for json_data in json_data_list:
+                val = BalanceSheetRepository._get_nested_value(json_data, json_key)
+                if val is not None:
+                    # Convert to millions
+                    values.append(val / 1_000_000)
+                else:
+                    values.append(None)
+            
+            # Only add line item if at least one period has data
+            if any(v is not None for v in values):
+                line_items.append(BalanceSheetLineItem(
+                    label=label,
+                    key=json_key,
+                    values=values,
+                    is_calculated=is_calc,
+                    section=section
+                ))
+        
+        return BalanceSheetData(
+            company=company,
+            periods=periods,
+            line_items=line_items
+        )
+    
+    @staticmethod
+    def get_reported_currency(ticker: str, fiscal_date: date) -> str:
+        """Get the reported currency for a specific fiscal period."""
+        query = """
+            SELECT reported_currency
+            FROM coreiq_av_financials_balance_sheet
+            WHERE ticker = :ticker
+              AND fiscal_date_ending = :fiscal_date
+              AND report_type = 'annual'
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {
+            "ticker": ticker,
+            "fiscal_date": fiscal_date
+        })
+        if results and results[0].get('reported_currency'):
+            return results[0]['reported_currency']
+        return "USD"  # Default fallback
+
+
+class CashFlowRepository:
+    """Repository for coreiq_av_financials_cash_flow table.
+    
+    Uses raw_json column for data extraction.
+    """
+    
+    # Mapping of UI labels to raw_json keys
+    # Organized by section: Operating, Investing, Financing
+    # IMPORTANT: Totals come AFTER their components (at the bottom)
+    LINE_ITEMS = [
+        # OPERATING ACTIVITIES
+        ("Net Income", "netIncome", False, "operating"),
+        ("Depreciation & Amortization", "depreciationDepletionAndAmortization", False, "operating"),
+        ("Deferred Tax", "deferredIncomeTax", False, "operating"),
+        ("Stock-Based Compensation", "stockBasedCompensation", False, "operating"),
+        ("Change in Working Capital", "changeInWorkingCapital", False, "operating"),
+        ("Accounts Receivable", "changeInReceivables", False, "operating"),
+        ("Inventory", "changeInInventory", False, "operating"),
+        ("Accounts Payable", "changeInPayables", False, "operating"),
+        ("Other Operating Activities", "changeInOtherOperatingAssets", False, "operating"),
+        ("Operating Cash Flow", "operatingCashflow", False, "operating"),
+        
+        # INVESTING ACTIVITIES
+        ("Capital Expenditures", "capitalExpenditures", False, "investing"),
+        ("Acquisitions", "acquisitions", False, "investing"),
+        ("Purchases of Investments", "purchaseOfInvestment", False, "investing"),
+        ("Sales/Maturities of Investments", "saleOfInvestment", False, "investing"),
+        ("Other Investing Activities", "otherCashflowFromInvestment", False, "investing"),
+        ("Investing Cash Flow", "cashflowFromInvestment", False, "investing"),
+        
+        # FINANCING ACTIVITIES
+        ("Debt Repayment", "debtRepayment", False, "financing"),
+        ("Common Stock Issued", "commonStockIssued", False, "financing"),
+        ("Common Stock Repurchased", "commonStockRepurchased", False, "financing"),
+        ("Dividends Paid", "dividendsPaid", False, "financing"),
+        ("Other Financing Activities", "otherCashflowFromFinancing", False, "financing"),
+        ("Financing Cash Flow", "cashflowFromFinancing", False, "financing"),
+        
+        # SUMMARY
+        ("Effect of Forex Changes", "exchangeRateChanges", False, "summary"),
+        ("Net Change in Cash", "netChangeInCash", False, "summary"),
+        ("Cash at Beginning of Period", "cashAtBeginningOfPeriod", False, "summary"),
+        ("Cash at End of Period", "cashAtEndOfPeriod", False, "summary"),
+    ]
+    
+    @staticmethod
+    def get_date_range(ticker: str) -> Tuple[Optional[date], Optional[date]]:
+        """Get min and max fiscal dates for a ticker."""
+        query = """
+            SELECT 
+                MIN(fiscal_date_ending) as min_date,
+                MAX(fiscal_date_ending) as max_date
+            FROM coreiq_av_financials_cash_flow
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        if not results:
+            return None, None
+        row = results[0]
+        return row['min_date'], row['max_date']
+    
+    @staticmethod
+    def get_available_dates(ticker: str) -> List[date]:
+        """Get all available fiscal dates for dropdown."""
+        query = """
+            SELECT DISTINCT fiscal_date_ending
+            FROM coreiq_av_financials_cash_flow
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+            ORDER BY fiscal_date_ending ASC
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        return [row['fiscal_date_ending'] for row in results]
+    
+    @staticmethod
+    def _parse_raw_json(raw_json: Any) -> Dict[str, Any]:
+        """Parse raw_json field from database."""
+        if raw_json is None:
+            return {}
+        if isinstance(raw_json, str):
+            try:
+                return json.loads(raw_json)
+            except json.JSONDecodeError:
+                return {}
+        if isinstance(raw_json, dict):
+            return raw_json
+        return {}
+    
+    @staticmethod
+    def _get_nested_value(data: Dict[str, Any], key: str) -> Optional[float]:
+        """Get value from nested dict structure."""
+        if not data:
+            return None
+        # Try direct key first
+        if key in data:
+            val = data[key]
+            if val is not None and val != "None":
+                try:
+                    return float(val)
+                except (ValueError, TypeError):
+                    return None
+        return None
+    
+    @staticmethod
+    def get_cash_flow_data(
+        ticker: str,
+        start_date: date,
+        end_date: date
+    ) -> CashFlowData:
+        """Get cash flow data for date range using raw_json."""
+        # Fetch company info
+        company = CompanyRepository.get_company_by_ticker(ticker)
+        if not company:
+            raise ValueError(f"Company not found: {ticker}")
+        
+        # Fetch raw_json data
+        query = """
+            SELECT fiscal_date_ending, raw_json, reported_currency
+            FROM coreiq_av_financials_cash_flow
+            WHERE ticker = :ticker
+              AND fiscal_date_ending BETWEEN :start_date AND :end_date
+              AND report_type = 'annual'
+            ORDER BY fiscal_date_ending ASC
+        """
+        results = db_manager.execute_query(query, {
+            "ticker": ticker,
+            "start_date": start_date,
+            "end_date": end_date
+        })
+        
+        if not results:
+            # Return empty structure
+            return CashFlowData(
+                company=company,
+                periods=[],
+                line_items=[]
+            )
+        
+        # Create periods from results
+        periods = [
+            FiscalPeriod.from_date(row['fiscal_date_ending'])
+            for row in results
+        ]
+        
+        # Parse all raw_json data
+        json_data_list = [
+            CashFlowRepository._parse_raw_json(row['raw_json'])
+            for row in results
+        ]
+        
+        # Build line items from raw_json
+        line_items = []
+        for label, json_key, is_calc, section in CashFlowRepository.LINE_ITEMS:
+            values = []
+            for json_data in json_data_list:
+                val = CashFlowRepository._get_nested_value(json_data, json_key)
+                if val is not None:
+                    # Convert to millions
+                    values.append(val / 1_000_000)
+                else:
+                    values.append(None)
+            
+            # Only add line item if at least one period has data
+            if any(v is not None for v in values):
+                line_items.append(CashFlowLineItem(
+                    label=label,
+                    key=json_key,
+                    values=values,
+                    is_calculated=is_calc,
+                    section=section
+                ))
+        
+        return CashFlowData(
+            company=company,
+            periods=periods,
+            line_items=line_items
+        )
+    
+    @staticmethod
+    def get_reported_currency(ticker: str, fiscal_date: date) -> str:
+        """Get the reported currency for a specific fiscal period."""
+        query = """
+            SELECT reported_currency
+            FROM coreiq_av_financials_cash_flow
+            WHERE ticker = :ticker
+              AND fiscal_date_ending = :fiscal_date
+              AND report_type = 'annual'
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {
+            "ticker": ticker,
+            "fiscal_date": fiscal_date
+        })
+        if results and results[0].get('reported_currency'):
+            return results[0]['reported_currency']
+        return "USD"  # Default fallback
+
+
+class ForexRepository:
+    """Repository for currency conversion rates from coreiq_av_forex_daily table."""
+    
+    @staticmethod
+    def get_conversion_rate(from_currency: str, to_currency: str, as_of_date: Optional[date] = None) -> float:
+        """
+        Get conversion rate between two currencies from the forex table.
+        
+        Args:
+            from_currency: Source currency code (e.g., 'USD')
+            to_currency: Target currency code (e.g., 'EUR')
+            as_of_date: Date for the rate (defaults to most recent)
+            
+        Returns:
+            Conversion rate as float (1.0 if same currency or not found)
+        """
+        if from_currency == to_currency:
+            return 1.0
+        
+        # Query the forex table for the most recent rate
+        if as_of_date:
+            query = """
+                SELECT close
+                FROM coreiq_av_forex_daily
+                WHERE from_currency = :from_currency
+                  AND to_currency = :to_currency
+                  AND day_date <= :as_of_date
+                ORDER BY day_date DESC
+                LIMIT 1
+            """
+            params = {
+                "from_currency": from_currency,
+                "to_currency": to_currency,
+                "as_of_date": as_of_date
+            }
+        else:
+            query = """
+                SELECT close
+                FROM coreiq_av_forex_daily
+                WHERE from_currency = :from_currency
+                  AND to_currency = :to_currency
+                ORDER BY day_date DESC
+                LIMIT 1
+            """
+            params = {
+                "from_currency": from_currency,
+                "to_currency": to_currency
+            }
+        
+        results = db_manager.execute_query(query, params)
+        
+        if results and results[0].get('close'):
+            return float(results[0]['close'])
+        
+        # Fallback: try reverse rate (1/rate)
+        reverse_query = """
+            SELECT close
+            FROM coreiq_av_forex_daily
+            WHERE from_currency = :to_currency
+              AND to_currency = :from_currency
+            ORDER BY day_date DESC
+            LIMIT 1
+        """
+        reverse_results = db_manager.execute_query(reverse_query, {
+            "from_currency": from_currency,
+            "to_currency": to_currency
+        })
+        
+        if reverse_results and reverse_results[0].get('close'):
+            return 1.0 / float(reverse_results[0]['close'])
+        
+        # If no rate found, return 1.0 (no conversion)
+        return 1.0
+    
+    @staticmethod
+    def get_available_currencies() -> List[str]:
+        """Get list of available currencies from the forex table."""
+        query = """
+            SELECT DISTINCT from_currency as currency
+            FROM coreiq_av_forex_daily
+            UNION
+            SELECT DISTINCT to_currency as currency
+            FROM coreiq_av_forex_daily
+            ORDER BY currency
+        """
+        results = db_manager.execute_query(query)
+        return [row['currency'] for row in results if row['currency']]
