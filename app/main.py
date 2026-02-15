@@ -1,19 +1,10 @@
 """
-Unified Entry Point - Coresight Research Portal v3.0
-====================================================
-Single entry point for all pages with URL-based routing.
-Uses existing page implementations without modification.
-
-URL Patterns:
-- /?page=home                      -> Homepage (default)
-- /?page=company_profile&ticker=M  -> Company Profile
-- /?page=market_data&tab=income_statement&ticker=M -> Market Data
-- /?page=newsroom&ticker=M         -> Newsroom
-- /?page=earnings_calls&ticker=M   -> Earnings Calls
+Unified Entry Point - Coresight Research Portal
+Single port for all pages with URL routing
 """
 import streamlit as st
 
-# Configure page settings - MUST be first Streamlit command
+# MUST be first Streamlit command
 st.set_page_config(
     page_title="Coresight Research Portal",
     page_icon="📊",
@@ -25,53 +16,107 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Import page modules
-from pages.home import main as render_home
-from pages.company_profile import render_company_profile
-from pages.market_data import render_page as render_market_data
-from pages.newsroom import render_page as render_newsroom
-from pages.earnings_calls import render_earnings_calls
+# Initialize
+from core.database import init_database
+init_database()
 
+from components.styles import hide_sidebar, set_page_layout
+hide_sidebar()
 
-def main():
-    """Main entry point with URL routing."""
-    # Initialize database
-    from core.database import init_database
-    init_database()
+from components.styles import render_styles
+from components.navigation import render_header, render_coresight_footer
+
+# Get page from query params
+query_params = st.query_params
+page = query_params.get("page", "home")
+
+# Route to appropriate page
+if page == "home":
+    # Import and render homepage content
+    from pages.home import main as render_home
+    render_styles()
+    render_home()
     
-    # Get query parameters
-    query_params = st.query_params
-    page = query_params.get("page", "home")
+elif page == "market_data":
+    # Import and render market data
+    from pages.market_data import render_page
+    render_styles()
     
-    # Route to appropriate page
-    if page == "home":
-        # Homepage - uses existing homepage.py implementation
-        render_home()
-        
-    elif page == "company_profile":
-        # Company Profile page
-        ticker = query_params.get("ticker", "M")
-        render_company_profile(ticker)
-        
-    elif page == "market_data":
-        # Market Data page
-        ticker = query_params.get("ticker", None)
-        render_market_data(ticker)
-        
-    elif page == "newsroom":
-        # Newsroom page
-        ticker = query_params.get("ticker", None)
-        render_newsroom(ticker)
-        
-    elif page == "earnings_calls":
-        # Earnings Calls page
-        ticker = query_params.get("ticker", None)
-        render_earnings_calls(ticker)
-        
-    else:
-        # Default to home
-        render_home()
-
-
-if __name__ == "__main__":
-    main()
+    # Set layout
+    set_page_layout(
+        header_full_width=True,
+        footer_full_width=True,
+        body_padding="0 20px",
+        max_content_width="1350px",
+        remove_top_padding=True,
+        footer_at_bottom=True
+    )
+    
+    render_header(full_width=True)
+    
+    # Handle tab parameter
+    tab = query_params.get("tab", "income_statement")
+    if tab in ["income_statement", "balance_sheet", "cash_flow", "key_stats", "company_profile"]:
+        # Set the tab in session state before rendering
+        st.session_state.market_data_tab = tab
+    
+    render_page()
+    render_coresight_footer(full_width=True, stick_to_bottom=True)
+    
+elif page == "newsroom":
+    from pages.newsroom import render_page as render_newsroom
+    render_styles()
+    
+    set_page_layout(
+        header_full_width=True,
+        footer_full_width=True,
+        body_padding="0 20px",
+        max_content_width="1350px",
+        remove_top_padding=True,
+        footer_at_bottom=True
+    )
+    
+    render_header(full_width=True)
+    render_newsroom()
+    render_coresight_footer(full_width=True, stick_to_bottom=True)
+    
+elif page == "earnings_calls":
+    from pages.earnings_calls import render_earnings_calls
+    render_styles()
+    
+    set_page_layout(
+        header_full_width=True,
+        footer_full_width=True,
+        body_padding="0",
+        max_content_width="1440px",
+        remove_top_padding=True,
+        footer_at_bottom=True
+    )
+    
+    render_header(full_width=True)
+    render_earnings_calls()
+    render_coresight_footer(full_width=True, stick_to_bottom=True)
+    
+elif page == "company_profile":
+    from pages.company_profile import render_company_profile
+    render_styles()
+    
+    set_page_layout(
+        header_full_width=True,
+        footer_full_width=True,
+        body_padding="0 20px",
+        max_content_width="1350px",
+        remove_top_padding=True,
+        footer_at_bottom=True
+    )
+    
+    render_header(full_width=True)
+    ticker = query_params.get("ticker", "M")
+    render_company_profile(ticker)
+    render_coresight_footer(full_width=True, stick_to_bottom=True)
+    
+else:
+    # Default to home
+    from pages.home import main as render_home
+    render_styles()
+    render_home()

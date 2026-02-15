@@ -15,14 +15,13 @@ def inject_toolbar(active_page: str = "Company Profile") -> None:
     """
     
     # Define pages and their corresponding URLs
-    # Market Data tabs use query parameters for tab switching
-    # Note: App runs at root /, not /marketdata
+    # Unified navigation - all on single port
     pages = [
-        ("Company Profile", "http://localhost:8504/company_profile"),
-        ("Key Stats", "http://localhost:8502/?tab=key_stats"),
-        ("Income Statement", "http://localhost:8502/?tab=income_statement"),
-        ("Balance Sheet", "http://localhost:8502/?tab=balance_sheet"),
-        ("Cash Flow", "http://localhost:8502/?tab=cash_flow"),
+        ("Company Profile", "/?page=company_profile"),
+        ("Key Stats", "/?page=market_data&tab=key_stats"),
+        ("Income Statement", "/?page=market_data&tab=income_statement"),
+        ("Balance Sheet", "/?page=market_data&tab=balance_sheet"),
+        ("Cash Flow", "/?page=market_data&tab=cash_flow"),
     ]
     
     # Generate toolbar HTML
@@ -100,7 +99,7 @@ def inject_toolbar(active_page: str = "Company Profile") -> None:
     <div class="toolbar-container">
         <div class="toolbar-links">
             {''.join([
-                f'<a href="{url}" class="toolbar-link {"active" if name == active_page else ""}">{name}</a>'
+                f'<a href="{url}" target="_self" class="toolbar-link {"active" if name == active_page else ""}">{name}</a>'
                 for name, url in pages
             ])}
         </div>

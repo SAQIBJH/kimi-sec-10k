@@ -460,27 +460,8 @@ def render_empty_state() -> str:
 # MAIN PAGE
 # =============================================================================
 
-def main():
-    """Earnings calls page entry point using native Streamlit components."""
-    # Initialize
-    init_database()
-    
-    # Render global styles
-    render_styles()
-    
-    # Set layout
-    set_page_layout(
-        header_full_width=True,
-        footer_full_width=True,
-        body_padding="0",
-        max_content_width="1440px",
-        remove_top_padding=True,
-        footer_at_bottom=True
-    )
-    
-    # Render Header
-    render_header(full_width=True)
-    
+def render_earnings_calls():
+    """Render earnings calls content (for unified entry point)."""
     # Inject custom CSS
     st.markdown(get_earnings_css(), unsafe_allow_html=True)
     
@@ -591,6 +572,31 @@ def main():
     # Close containers
     st.markdown('</div>', unsafe_allow_html=True)  # content-wrapper
     st.markdown('</div>', unsafe_allow_html=True)  # page-container
+
+
+def main():
+    """Earnings calls page entry point (standalone)."""
+    # Initialize
+    init_database()
+    
+    # Render global styles
+    render_styles()
+    
+    # Set layout
+    set_page_layout(
+        header_full_width=True,
+        footer_full_width=True,
+        body_padding="0",
+        max_content_width="1440px",
+        remove_top_padding=True,
+        footer_at_bottom=True
+    )
+    
+    # Render Header
+    render_header(full_width=True)
+    
+    # Render content
+    render_earnings_calls()
     
     # Render Footer
     render_coresight_footer(full_width=True, stick_to_bottom=True)

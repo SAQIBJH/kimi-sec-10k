@@ -119,8 +119,8 @@ def main():
             key="company_select", label_visibility="collapsed")
         st.session_state.home_company = company
         
-        st.markdown('''
-            <a href="/marketdata" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
+        st.markdown(f'''
+            <a href="/?page=company_profile&ticker={company}" target="_self" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
                 View
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
                     <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>

@@ -286,31 +286,8 @@ def render_business_description(description: Optional[str]) -> str:
     return html
 
 
-def main():
-    """Company profile page entry point."""
-    # Initialize
-    init_database()
-    
-    # Render global styles
-    render_styles()
-    
-    # Set layout
-    set_page_layout(
-        header_full_width=True,
-        footer_full_width=True,
-        body_padding="0 20px",
-        max_content_width="1350px",
-        remove_top_padding=True,
-        footer_at_bottom=True
-    )
-    
-    # Render Header
-    render_header(full_width=True)
-    
-    # Get ticker from URL query params or default to M (Macy's)
-    query_params = st.query_params
-    ticker = query_params.get("ticker", "M")
-    
+def render_company_profile(ticker: str = "M"):
+    """Render company profile content (for unified entry point)."""
     # Fetch company data
     company = CompanyOverviewRepository.get_company_overview(ticker)
     
@@ -342,6 +319,35 @@ def main():
     
     # Close container
     st.markdown('</div>', unsafe_allow_html=True)
+
+
+def main():
+    """Company profile page entry point (standalone)."""
+    # Initialize
+    init_database()
+    
+    # Render global styles
+    render_styles()
+    
+    # Set layout
+    set_page_layout(
+        header_full_width=True,
+        footer_full_width=True,
+        body_padding="0 20px",
+        max_content_width="1350px",
+        remove_top_padding=True,
+        footer_at_bottom=True
+    )
+    
+    # Render Header
+    render_header(full_width=True)
+    
+    # Get ticker from URL query params or default to M (Macy's)
+    query_params = st.query_params
+    ticker = query_params.get("ticker", "M")
+    
+    # Render content
+    render_company_profile(ticker)
     
     # Render Footer
     render_coresight_footer(full_width=True, stick_to_bottom=True)

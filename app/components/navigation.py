@@ -160,9 +160,9 @@ html, body {
     
     <!-- Navigation: at x=568, 48px gaps between items, Roboto 18px weight 500 -->
     <nav class="coresight-header-nav">
-      <a href="http://localhost:8502/marketdata" class="''' + ('active' if not is_newsroom and not is_company_profile and not is_earnings_calls else '') + '''">Market Data Dashboard</a>
-      <a href="http://localhost:8504/earningscalls" class="''' + ('active' if is_earnings_calls else '') + '''">Earnings Calls</a>
-      <a href="http://localhost:8503/newsroom" class="''' + ('active' if is_newsroom else '') + '''">News</a>
+      <a href="/?page=market_data" target="_self" class="''' + ('active' if not is_newsroom and not is_company_profile and not is_earnings_calls else '') + '''">Market Data Dashboard</a>
+      <a href="/?page=earnings_calls" target="_self" class="''' + ('active' if is_earnings_calls else '') + '''">Earnings Calls</a>
+      <a href="/?page=newsroom" target="_self" class="''' + ('active' if is_newsroom else '') + '''">News</a>
     </nav>
   </div>
 </div>'''
