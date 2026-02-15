@@ -114,6 +114,23 @@ elif page == "company_profile":
     ticker = query_params.get("ticker", "M")
     render_company_profile(ticker)
     render_coresight_footer(full_width=True, stick_to_bottom=True)
+
+elif page == "company_filings":
+    from pages.company_filings import render_page as render_company_filings
+    render_styles()
+    
+    set_page_layout(
+        header_full_width=True,
+        footer_full_width=True,
+        body_padding="0",
+        max_content_width="1440px",
+        remove_top_padding=True,
+        footer_at_bottom=True
+    )
+    
+    render_header(full_width=True)
+    render_company_filings()
+    render_coresight_footer(full_width=True, stick_to_bottom=True)
     
 else:
     # Default to home

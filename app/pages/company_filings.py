@@ -655,5 +655,124 @@ def main():
     render_coresight_footer(full_width=True, stick_to_bottom=True)
 
 
+def render_page():
+    """Render company filings page (callable from main.py)."""
+    # Initialize session state
+    if 'cf_search' not in st.session_state:
+        st.session_state.cf_search = ""
+    if 'cf_company' not in st.session_state:
+        st.session_state.cf_company = "M"
+    if 'cf_doc_type' not in st.session_state:
+        st.session_state.cf_doc_type = "10-K"
+    if 'cf_year' not in st.session_state:
+        st.session_state.cf_year = "2025"
+    if 'cf_quarter' not in st.session_state:
+        st.session_state.cf_quarter = "Q1"
+    
+    # Inject custom CSS
+    st.markdown(get_filings_css(), unsafe_allow_html=True)
+    
+    # Page container
+    st.markdown('<div class="filings-page-container">', unsafe_allow_html=True)
+    st.markdown('<div class="filings-content-wrapper">', unsafe_allow_html=True)
+    
+    # =======================================================================
+    # HEADER WITH TITLE AND FILTERS
+    # =======================================================================
+    
+    header_col1, header_col2 = st.columns([1, 2])
+    
+    with header_col1:
+        st.markdown('<h1 class="filings-title">Company Filing Documents</h1>', unsafe_allow_html=True)
+    
+    with header_col2:
+        # Filter row
+        f1, f2, f3, f4 = st.columns([2.5, 1.2, 1.2, 1.2])
+        
+        with f1:
+            company = st.selectbox(
+                "Company",
+                options=[c[0] for c in COMPANIES],
+                format_func=lambda x: next((c[1] for c in COMPANIES if c[0] == x), x),
+                index=[c[0] for c in COMPANIES].index(st.session_state.cf_company),
+                key="cf_company_select"
+            )
+        
+        with f2:
+            doc_type = st.selectbox(
+                "Document Type",
+                options=DOCUMENT_TYPES,
+                index=DOCUMENT_TYPES.index(st.session_state.cf_doc_type),
+                key="cf_doc_type_select"
+            )
+        
+        with f3:
+            year = st.selectbox(
+                "Year",
+                options=["2025", "2024", "2023", "2022", "2021"],
+                index=0,
+                key="cf_year_select"
+            )
+        
+        with f4:
+            quarter = st.selectbox(
+                "Quarter",
+                options=["Q1", "Q2", "Q3", "Q4"],
+                index=0,
+                key="cf_quarter_select"
+            )
+    
+    # Update session state
+    st.session_state.cf_company = company
+    st.session_state.cf_doc_type = doc_type
+    st.session_state.cf_year = year
+    st.session_state.cf_quarter = quarter
+    
+    # =======================================================================
+    # MAIN CONTENT - TWO COLUMN LAYOUT
+    # =======================================================================
+    
+    left_col, right_col = st.columns([0.3, 0.7])
+    
+    with left_col:
+        # Search input at the top
+        search_term = st.text_input(
+            "Search",
+            placeholder="eg., Revenue",
+            value=st.session_state.cf_search,
+            key="cf_search_input",
+            label_visibility="collapsed"
+        )
+        st.session_state.cf_search = search_term
+        
+        # Show count text
+        filtered_count = len([m for m in FILING_METRICS if search_term.lower() in m.name.lower() or not search_term])
+        st.markdown(f'<div style="font-family: Roboto, sans-serif; font-size: 12px; color: #888888; margin: 4px 0 12px 4px;">Showing {filtered_count} metrics</div>', unsafe_allow_html=True)
+        
+        # Render search sidebar with metrics - includes Search Metrics header
+        sidebar_html = render_search_sidebar(FILING_METRICS, search_term)
+        st.markdown(sidebar_html, unsafe_allow_html=True)
+    
+    with right_col:
+        # Create document object
+        company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
+        document = FilingDocument(
+            company_name=company_name,
+            ticker=company,
+            document_type=doc_type,
+            year=year,
+            quarter=quarter,
+            content=""
+        )
+        
+        # Render document viewer
+        viewer_html = render_document_viewer(document)
+        st.markdown(viewer_html, unsafe_allow_html=True)
+    
+    # Close containers
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
 if __name__ == "__main__":
     main()

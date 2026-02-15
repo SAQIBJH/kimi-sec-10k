@@ -32,36 +32,29 @@ The Research Portal is a production-level **Streamlit application** for market r
 
 ```
 app/
-├── core/                    # Configuration and database layer
-│   ├── config.py           # Environment-based configuration (dataclass-based)
-│   └── database.py         # MySQL connector with SQLAlchemy connection pooling
-├── components/             # Reusable UI components
-│   ├── styles.py          # Design tokens, CSS, and layout utilities
-│   ├── layout.py          # Layout primitives (cards, badges, etc.)
-│   ├── charts.py          # Plotly chart components
-│   ├── tables.py          # Data table components with formatting
-│   └── navigation.py      # Header, footer, and navigation components
-├── data/                   # Data layer
-│   ├── models.py          # Pydantic-style dataclasses for Market Data
-│   ├── dummy_data.py      # News repository with dummy data and repositories
-│   └── repository.py      # SQLAlchemy repositories for companies and income statements
-├── pages/                  # Page implementations
-│   ├── market_data.py     # Income Statement view implementation
-│   └── newsroom.py        # Newsroom page (standalone entry point)
-├── utils/                  # Utilities
-│   └── local_storage.py   # Local storage state management with session state sync
-├── marketdata.py          # Market Data entry point (standalone page)
-└── __init__.py
-
-.vscode/                   # VS Code configuration
-└── launch.json           # Debug configurations for Streamlit
-
-SQL Files (MySQL dump files):
-├── coreiq_av_financials_balance_sheet_*.sql
-├── coreiq_av_financials_cash_flow_*.sql
-├── coreiq_av_financials_income_statement_*.sql
-├── coreiq_av_market_news_sentiment_*.sql
-└── coreiq_companies_*.sql
+├── main.py                 # Unified entry point - single port for all pages
+├── core/                   # Configuration and database layer
+│   ├── config.py          # Environment-based configuration
+│   └── database.py        # MySQL connector with SQLAlchemy connection pooling
+├── components/            # Reusable UI components
+│   ├── styles.py         # Design tokens, CSS, and layout utilities
+│   ├── layout.py         # Layout primitives
+│   ├── charts.py         # Plotly chart components
+│   ├── tables.py         # Data table components
+│   ├── navigation.py     # Header, footer, and navigation
+│   └── toolbar.py        # Tab toolbar for Market Data
+├── data/                 # Data layer
+│   ├── models.py         # Data models
+│   ├── dummy_data.py     # Sample data
+│   └── repository.py     # SQLAlchemy repositories
+├── pages/                # Page implementations
+│   ├── home.py          # Homepage
+│   ├── market_data.py   # Market Data with tabs
+│   ├── company_profile.py
+│   ├── newsroom.py
+│   └── earnings_calls.py
+└── utils/               # Utilities
+    └── local_storage.py # Local storage state management
 ```
 
 ---
@@ -116,17 +109,33 @@ cp .env.example .env
 # Edit .env with your settings
 ```
 
-### Running Pages
+### Running the Application
+
+All pages now run from a single entry point on port 8502:
 
 ```bash
-# Market Data page (standalone)
-cd app
-streamlit run marketdata.py
-
-# Newsroom page (standalone)
-cd app
-streamlit run pages/newsroom.py
+cd app && streamlit run main.py
 ```
+
+### URL Routing
+
+The application uses query parameter-based routing:
+
+| Page | URL |
+|------|-----|
+| Homepage | `http://localhost:8502/` |
+| Market Data | `http://localhost:8502/?page=market_data&tab=income_statement` |
+| Company Profile | `http://localhost:8502/?page=company_profile&ticker=M` |
+| Company Documents | `http://localhost:8502/?page=company_filings` |
+| Newsroom | `http://localhost:8502/?page=newsroom` |
+| Earnings Calls | `http://localhost:8502/?page=earnings_calls` |
+
+Market Data tabs:
+- `tab=income_statement`
+- `tab=balance_sheet`
+- `tab=cash_flow`
+- `tab=key_stats`
+- `tab=company_profile`
 
 ### VS Code Debugging
 
@@ -321,51 +330,39 @@ The UI uses Coresight Research brand colors:
 3. Create an entry point file (similar to `app/marketdata.py`)
 4. Add to `Page` enum in `components/navigation.py` if using internal navigation
 
-### Page Entry Point Template
+### Adding a New Page to main.py
+
+To add a new page to the unified navigation:
 
 ```python
+# In app/main.py, add a new elif clause:
+
+elif page == "your_page":
+    from pages.your_page import render_page as render_your_page
+    render_styles()
+    set_page_layout(
+        header_full_width=True,
+        footer_full_width=True,
+        body_padding="0 20px",
+        max_content_width="1350px",
+    )
+    render_header(full_width=True)
+    render_your_page()
+    render_coresight_footer(full_width=True, stick_to_bottom=True)
+```
+
+### Page Implementation Template
+
+Create a new file in `app/pages/your_page.py`:
+
+```python
+"""Your page module."""
 import streamlit as st
 
-# MUST be first Streamlit command
-st.set_page_config(
-    page_title="Page Title",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-# Immediately hide sidebar
-from components.styles import hide_sidebar, set_page_layout
-hide_sidebar()
-
-# Initialize
-from utils.local_storage import init_local_storage
-from core.database import init_database
-init_local_storage()
-init_database()
-
-# Render styles
-from components.styles import render_styles
-render_styles()
-
-# Set layout
-set_page_layout(
-    header_full_width=True,
-    footer_full_width=True,
-    body_padding="0 20px",
-    max_content_width="1350px",
-)
-
-# Render shared header
-from components.navigation import render_header, render_coresight_footer
-render_header(full_width=True)
-
-# Render page content
-from pages.your_page import render_page
-render_page()
-
-# Render footer
-render_coresight_footer(full_width=True, stick_to_bottom=True)
+def render_page():
+    """Render the page content."""
+    # Your page implementation here
+    st.title("Your Page")
 ```
 
 ---
@@ -518,60 +515,78 @@ tests/
 
 | Feature | Status | Location | Notes |
 |---------|--------|----------|-------|
-| Balance Sheet | ✅ Complete | `app/data/repository.py`, `app/pages/market_data.py` | Full implementation with raw JSON parsing |
-| Sort Filter | ✅ Complete | `app/pages/market_data.py` | Earliest/Latest dropdown for table columns |
-| Date Filters | ✅ Complete | `app/pages/market_data.py` | Start Date, End Date dropdowns |
+| Unified Navigation | ✅ Complete | `app/main.py` | Single port 8502 for all pages |
+| Homepage | ✅ Complete | `app/pages/home.py` | Company/sector selection cards |
+| Market Data | ✅ Complete | `app/pages/market_data.py` | All tabs working with URL routing |
+| Balance Sheet | ✅ Complete | `app/data/repository.py` | Raw JSON parsing with visual hierarchy |
 | Income Statement | ✅ Complete | `app/pages/market_data.py` | Full implementation |
-| Tab Navigation | ✅ Complete | `app/pages/market_data.py` | Fixed URLs to use `/?tab=` format |
-| Newsroom | ✅ Complete | `app/pages/newsroom.py` | Standalone news page |
+| Company Profile | ✅ Complete | `app/pages/company_profile.py` | Company overview page |
+| Company Documents | ✅ Complete | `app/pages/company_filings.py` | SEC filing documents with metric search |
+| Newsroom | ✅ Complete | `app/pages/newsroom.py` | Financial news with filtering |
+| Earnings Calls | ✅ Complete | `app/pages/earnings_calls.py` | Earnings calls page |
+| Tab Navigation | ✅ Complete | `app/components/toolbar.py` | Red underline active tab indicator |
+| Sort Filter | ✅ Complete | `app/pages/market_data.py` | Earliest/Latest dropdown |
+| Date Filters | ✅ Complete | `app/pages/market_data.py` | Start Date, End Date dropdowns |
+
+### Pending Features
+
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Company Documents | 🔴 Pending | Medium | Document search page not built yet |
+| Sector Selection | 🔴 Pending | Low | "Coming Soon" popup needed |
+| Company Persistence | 🔴 Pending | Medium | localStorage for selected company |
+
+### Unified Navigation Details
+
+**Entry Point**: `app/main.py`
+
+All pages now run from a single entry point with URL-based routing:
+
+```python
+# URL Routing in main.py
+page = st.query_params.get("page", "home")
+
+if page == "home":
+    from pages.home import main as render_home
+    render_home()
+elif page == "market_data":
+    from pages.market_data import render_page
+    tab = st.query_params.get("tab", "income_statement")
+    # ...
+elif page == "company_profile":
+    ticker = st.query_params.get("ticker", "M")
+    render_company_profile(ticker)
+```
+
+**Header Navigation** (`app/components/navigation.py`):
+- Market Data Dashboard → `/?page=market_data`
+- Earnings Calls → `/?page=earnings_calls`
+- News → `/?page=newsroom`
+
+**Market Data Toolbar** (`app/components/toolbar.py`):
+- Company Profile → `/?page=company_profile`
+- Key Stats → `/?page=market_data&tab=key_stats`
+- Income Statement → `/?page=market_data&tab=income_statement`
+- Balance Sheet → `/?page=market_data&tab=balance_sheet`
+- Cash Flow → `/?page=market_data&tab=cash_flow`
+
+All links use `target="_self"` to ensure same-tab navigation.
 
 ### Balance Sheet Implementation Details
 
 **Files**:
-- `app/data/repository.py` - `BalanceSheetRepository` class (lines ~200-350)
-- `app/pages/market_data.py` - `render_balance_sheet()` function (lines ~370-600)
+- `app/data/repository.py` - `BalanceSheetRepository` class
+- `app/pages/market_data.py` - `render_balance_sheet()` function
 
 **Key Features**:
 1. **Data Source**: Uses `raw_json` column from MySQL table `coreiq_av_financials_balance_sheet`
 2. **JSON Parsing**: Maps camelCase JSON keys to UI labels
 3. **Visual Hierarchy**:
    - Line items: 0px indent
-   - Subtotals (e.g., "Total Current Assets"): 20px indent
-   - Totals (e.g., "Total Assets"): 40px indent
-4. **Underlines**: Black 90% width underline appears on row BEFORE each total/subtotal
-5. **Separators**: 4px grey border after major totals (Total Assets, Total Liabilities, Equity)
-
-**LINE_ITEMS Mapping** (in `BalanceSheetRepository`):
-```python
-LINE_ITEMS = [
-    # ASSETS
-    ("Cash & Cash Equivalents", "cashAndCashEquivalentsAtCarryingValue", "assets"),
-    ("Total Current Assets", "totalCurrentAssets", "assets"),
-    ("Total Assets", "totalAssets", "assets"),
-    
-    # LIABILITIES  
-    ("Current Accounts Payable", "currentAccountsPayable", "liabilities"),
-    ("Total Liabilities", "totalLiabilities", "liabilities"),
-    
-    # EQUITY
-    ("Common Stock", "commonStock", "equity"),
-    ("Total Shareholder Equity", "totalShareholderEquity", "equity"),
-]
-```
-
-### Sort Filter Implementation
-
-**Location**: `app/pages/market_data.py` (lines ~785-850)
-
-**Session State**:
-```python
-st.session_state.sort_order = "Earliest"  # or "Latest"
-```
-
-**Behavior**:
-- "Earliest" = Chronological order (2006 → 2025)
-- "Latest" = Reverse chronological (2025 → 2006)
-- Applied to both Income Statement and Balance Sheet
+   - Subtotals: 20px indent
+   - Totals: 40px indent
+4. **Underlines**: Black 90% width underline on row BEFORE each total/subtotal
+5. **Separators**: 4px grey border after major totals
 
 ---
 
@@ -590,25 +605,31 @@ st.session_state.sort_order = "Earliest"  # or "Latest"
 mysql -u root -p -e "SHOW DATABASES;"
 
 # Check tables exist
-mysql -u root -p secfiling -e "SHOW TABLES;"
+mysql -u root -p chainxydata_stg -e "SHOW TABLES;"
 ```
 
 **STEP 3: Run the Application**
 ```bash
 cd /Users/mohdsaeedafri/Documents/Documents/Code-Base/kimi-sec-10k-1/app
-streamlit run marketdata.py --server.port=8502
+streamlit run main.py
 ```
 
+Access pages via:
+- Homepage: `http://localhost:8502/`
+- Market Data: `http://localhost:8502/?page=market_data&tab=income_statement`
+- Company Profile: `http://localhost:8502/?page=company_profile&ticker=M`
+- Newsroom: `http://localhost:8502/?page=newsroom`
+- Earnings Calls: `http://localhost:8502/?page=earnings_calls`
+
 **STEP 4: Test Current Features**
-1. Navigate to Balance Sheet tab
-2. Verify data loads correctly
-3. Test Sort filter (Earliest/Latest)
-4. Check Start Date/End Date filters
-5. Verify formatting (indents, underlines, grey separators)
+1. Navigate through all pages via header
+2. Test Market Data tab navigation (red underlines)
+3. Verify Company Profile loads from homepage
+4. Check database connectivity on all pages
 
 **STEP 5: Continue Development**
-- Next priority: Cash Flow Statement (similar to Balance Sheet)
-- Reference: `STATUS.md` for detailed implementation notes
+- Next priorities in `STATUS.md`
+- Common patterns documented in this file
 
 ### Token Expiration Plan
 
@@ -629,7 +650,9 @@ If your tokens expire mid-task:
    ```
 
 3. **Key Files to Check**:
-   - `app/pages/market_data.py` - Main page implementation
+   - `app/main.py` - Unified entry point
+   - `app/pages/*.py` - Page implementations
+   - `app/components/*.py` - Shared components
    - `app/data/repository.py` - Data access layer
    - `STATUS.md` - Current implementation status
 
