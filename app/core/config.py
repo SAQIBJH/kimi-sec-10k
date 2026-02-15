@@ -52,6 +52,9 @@ class AppConfig:
     # Pagination defaults
     default_page_size: int = 20
     max_page_size: int = 100
+    
+    # Navigation mode: 'new' = open in new tab, 'same' = load in same tab
+    navigation_mode: str = "same"
 
 
 def load_config() -> AppConfig:
@@ -82,6 +85,7 @@ def load_config() -> AppConfig:
         cache_ttl=int(os.getenv("CACHE_TTL", "300")),
         default_page_size=int(os.getenv("DEFAULT_PAGE_SIZE", "20")),
         max_page_size=int(os.getenv("MAX_PAGE_SIZE", "100")),
+        navigation_mode=os.getenv("NAVIGATION_MODE", "same").lower(),
     )
 
 

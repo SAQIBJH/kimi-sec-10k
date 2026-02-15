@@ -1,0 +1,60 @@
+[   37095ms] [WARNING] WebSocket onclose @ http://localhost:8503/static/js/index.Drusyo5m.js:150
+[   37388ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   37388ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   37490ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   37490ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   37661ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   37661ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   37992ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   37992ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   38799ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   38799ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   40564ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   40564ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   40565ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   40565ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   40579ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/static/media/SourceCodeVF-Upright.ttf.BjWn63N-.woff2:0
+[   42568ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   42568ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   42569ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   42569ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   44572ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   44572ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   44572ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   44572ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   46576ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   46576ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   46576ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   46576ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   48580ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   48580ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   48581ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   48581ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   50586ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   50586ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   50586ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   50586ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   52591ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   52591ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   52591ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   52592ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   54595ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   54596ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   54596ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   54596ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   56599ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   56600ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   56600ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   56600ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   58603ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   58603ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   58603ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   58603ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   60608ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   60608ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   60608ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   60609ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0
+[   62612ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/health:0
+[   62612ms] [ERROR] Client Error in reaching server endpoint - No response received when attempting to reach /_stcore/health @ http://localhost:8503/static/js/index.Drusyo5m.js:148
+[   62613ms] [ERROR] Is Streamlit still running? If you accidentally stopped Streamlit, just restart it in your terminal: @ http://localhost:8503/static/js/index.Drusyo5m.js:154
+[   62613ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8503/_stcore/host-config:0

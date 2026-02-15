@@ -7,16 +7,16 @@
 | **Version** | 3.0 (With Document Search) |
 | **Status** | Active Development |
 | **Last Updated** | 2026-02-14 |
-| **Current Phase** | Phase 1 - Cash Flow Statement |
+| **Current Phase** | Phase 4 - Unified Navigation |
 
 ## Progress
 ```
-[████████████░░░░░░░░] 45% Complete - Preparing for RAG Integration
+[██████████████░░░░░░] 60% Complete - Phase 4 In Progress
 
 Phase 1: Foundation      [██████████] 100% ✅ COMPLETE
 Phase 2: Balance Sheet   [██████████] 100% ✅ COMPLETE
-Phase 3: Cash Flow       [░░░░░░░░░░] 0%   🔄 NEXT
-Phase 4: Navigation      [░░░░░░░░░░] 0%   📋
+Phase 3: Cash Flow       [██████████] 100% ✅ COMPLETE
+Phase 4: Navigation      [████████░░] 80%  🔄 IN PROGRESS
 Phase 5: Document Search [░░░░░░░░░░] 0%   📋 (Integrate sec-rag-demo)
 Phase 6: EdgarTools      [░░░░░░░░░░] 0%   📋
 Phase 7: Visualization   [░░░░░░░░░░] 0%   📊
@@ -25,32 +25,34 @@ Phase 8: Testing         [░░░░░░░░░░] 0%   ✅
 
 ## Current Work
 
-### Active Phase: Phase 2 - Balance Sheet
-**Started**: 2026-02-14
+### Active Phase: Phase 4 - Unified Navigation
+**Started**: 2026-02-15
 **Status**: Implementation In Progress
 
 **Completed**:
-- ✅ BalanceSheetLineItem and BalanceSheetData models
-- ✅ BalanceSheetRepository with all line items
-- ✅ Balance Sheet table rendering function
-- ✅ Toolbar updated with Balance Sheet tab
-- ✅ Currency conversion for Balance Sheet
+- ✅ Created unified `main.py` entry point with URL routing
+- ✅ Added `NAVIGATION_MODE` env variable (new/same tab)
+- ✅ Added `COMPANY_SELECTED` key to localStorage
+- ✅ Updated homepage with company selection logic
+- ✅ Updated navigation header with dynamic URLs
+- ✅ Updated all pages to accept ticker parameter
+- ✅ Company persists across all pages (News, Earnings, Market Data)
 
 **In Progress**:
-- 🔄 Testing with real data
-- 🔄 UI refinements
+- 🔄 Testing navigation flow end-to-end
+- 🔄 Verifying company switcher functionality
 
 **Context**:
-Implementing Balance Sheet view for the Market Data page. Following the established pattern from Income Statement implementation.
+Creating a unified navigation system where users select a company on the homepage and it persists across all pages (Company Profile, Market Data, News, Earnings Calls).
 
 **Decisions Made**:
-- Use same table component structure as Income Statement
-- Display in millions like Income Statement
-- Add as tab alongside Income Statement
+- Use URL-based routing: `/?page=company_profile&ticker=M`
+- Support both new-tab and same-tab navigation via env variable
+- Store selected company in localStorage as `company_selected`
+- Company switcher available on all pages via dropdown
 
 **Open Questions**:
-- Should we show quarterly view toggle in this phase?
-- How to handle currency conversion for international companies?
+- None at this time
 
 ## Completed Work
 
@@ -94,19 +96,21 @@ Implementing Balance Sheet view for the Market Data page. Following the establis
 ## Next Actions
 
 ### Immediate (Today)
-1. [ ] Run `/gsd:discuss-phase 2` to gather implementation preferences
-2. [ ] Run `/gsd:plan-phase 2` to create detailed plan
-3. [ ] Review Balance Sheet SQL schema
+1. [x] Create unified main.py entry point
+2. [x] Add NAVIGATION_MODE env variable
+3. [x] Update localStorage with company_selected key
+4. [x] Update all pages for unified navigation
+5. [ ] Test navigation flow end-to-end
 
 ### This Week
-1. [ ] Execute Phase 2 (Balance Sheet)
-2. [ ] Verify Phase 2 work
-3. [ ] Plan Phase 3 (Cash Flow)
+1. [ ] Complete Phase 4 testing and verification
+2. [ ] Verify company switcher works on all pages
+3. [ ] Plan Phase 5 (Document Search with RAG)
 
 ### This Month
-1. [ ] Complete Phases 2-3 (Financial Statements)
-2. [ ] Complete Phase 4 (Visualization)
-3. [ ] Start Phase 5 (Enhanced News)
+1. [ ] Complete Phase 5 (Document Search with RAG integration)
+2. [ ] Complete Phase 6 (EdgarTools standardization)
+3. [ ] Complete Phase 7 (Key Stats & Visualization)
 
 ## Metrics
 

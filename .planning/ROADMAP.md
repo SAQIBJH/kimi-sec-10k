@@ -60,18 +60,28 @@ Implement Cash Flow Statement showing operating, investing, and financing activi
 
 ---
 
-## Phase 4: Unified Navigation (v3.0) 📋
+## Phase 4: Unified Navigation (v3.0) 🔄 IN PROGRESS
 **Goal**: Seamless navigation between all pages
 
 **Description**:
-Currently each page runs on different ports. Create unified entry point with URL-based routing.
+Create unified entry point with URL-based routing. Users select a company on homepage and it persists across all pages.
 
 **Key Tasks**:
-1. Create `app/main.py` as unified entry point
-2. Implement URL-based routing: `/?page=market_data&tab=balance_sheet`
-3. Update header navigation links
-4. Ensure state persistence across pages
-5. Single port (8502) for all pages
+1. ✅ Create `app/main.py` as unified entry point
+2. ✅ Implement URL-based routing: `/?page=market_data&tab=balance_sheet&ticker=M`
+3. ✅ Update header navigation links with dynamic URLs
+4. ✅ Ensure state persistence across pages (localStorage)
+5. ✅ Single entry point for all pages
+6. ✅ Add NAVIGATION_MODE env variable (new/same tab)
+7. ✅ Company switcher dropdown on all pages
+8. 🔄 Testing and verification
+
+**Manager Requirements Addressed**:
+- Homepage is the entry point for company selection
+- Selected company auto-populates in News and Earnings Calls
+- "View" button opens Company Profile in new tab (configurable)
+- Company switcher available without going back to home
+- Navigation supports both new-tab and same-tab modes
 
 **Depends On**: Phase 3
 
