@@ -1,0 +1,40 @@
+- generic [ref=e2]:
+  - list [ref=e7]:
+    - listitem [ref=e8]:
+      - link "marketdata" [ref=e10] [cursor=pointer]:
+        - /url: http://localhost:8502/
+        - generic [ref=e11]: marketdata
+    - listitem [ref=e12]:
+      - link "company filings" [ref=e14] [cursor=pointer]:
+        - /url: http://localhost:8502/company_filings
+        - generic [ref=e15]: company filings
+    - listitem [ref=e16]:
+      - link "company profile" [ref=e18] [cursor=pointer]:
+        - /url: http://localhost:8502/company_profile
+        - generic [ref=e19]: company profile
+    - listitem [ref=e20]:
+      - link "earnings calls" [ref=e22] [cursor=pointer]:
+        - /url: http://localhost:8502/earnings_calls
+        - generic [ref=e23]: earnings calls
+    - listitem [ref=e24]:
+      - link "home" [ref=e26] [cursor=pointer]:
+        - /url: http://localhost:8502/home
+        - generic [ref=e27]: home
+    - listitem [ref=e28]:
+      - link "market data" [ref=e30] [cursor=pointer]:
+        - /url: http://localhost:8502/market_data
+        - generic [ref=e31]: market data
+    - listitem [ref=e32]:
+      - link "newsroom" [ref=e34] [cursor=pointer]:
+        - /url: http://localhost:8502/newsroom
+        - generic [ref=e35]: newsroom
+    - listitem [ref=e36]:
+      - link "sec filing" [ref=e38] [cursor=pointer]:
+        - /url: http://localhost:8502/sec_filing
+        - generic [ref=e39]: sec filing
+  - banner [ref=e44]:
+    - generic [ref=e47]:
+      - button "Deploy" [ref=e49] [cursor=pointer]:
+        - generic [ref=e51]: Deploy
+      - button [ref=e53] [cursor=pointer]:
+        - img [ref=e54]

@@ -105,8 +105,8 @@ def render_news_card(article: NewsArticle, company_map: dict):
             company_name = format_company_display(ts.ticker, company_map)
             # Create tooltip content
             tooltip_text = f"Relevance: {float(ts.relevance_score)*100:.1f}% | Sentiment: {ts.ticker_sentiment_label} ({float(ts.ticker_sentiment_score):.2f})"
-            # Company link with custom tooltip
-            company_html = f'<a href="/company/{ts.ticker}" class="company-link" title="{tooltip_text}">{company_name}</a>'
+            # Company link with custom tooltip - links to company profile page
+            company_html = f'<a href="http://localhost:8504/company_profile?ticker={ts.ticker}" class="company-link" title="{tooltip_text}">{company_name}</a>'
             companies_parts.append(company_html)
         
         tagged_companies_html = "<span class='tagged-label'>Tagged Companies: </span>" + " | ".join(companies_parts)
@@ -266,27 +266,8 @@ def get_news_css() -> str:
     """
 
 
-def main():
-    """Newsroom page entry point."""
-    # Initialize
-    initialize_app()
-    
-    # Render global styles
-    render_styles()
-    
-    # Set layout
-    set_page_layout(
-        header_full_width=True,
-        footer_full_width=True,
-        body_padding="0 20px",
-        max_content_width="1350px",
-        remove_top_padding=True,
-        footer_at_bottom=True
-    )
-    
-    # Render Header
-    render_header(full_width=True)
-    
+def render_page():
+    """Render newsroom content (for unified entry point)."""
     # Page Title
     st.markdown("""
     <div style="margin: 24px 0;">
@@ -410,6 +391,31 @@ def main():
         
     else:
         st.info("No news articles found for the selected filters.")
+
+
+def main():
+    """Newsroom page entry point (standalone)."""
+    # Initialize
+    initialize_app()
+    
+    # Render global styles
+    render_styles()
+    
+    # Set layout
+    set_page_layout(
+        header_full_width=True,
+        footer_full_width=True,
+        body_padding="0 20px",
+        max_content_width="1350px",
+        remove_top_padding=True,
+        footer_at_bottom=True
+    )
+    
+    # Render Header
+    render_header(full_width=True)
+    
+    # Render content
+    render_page()
     
     # Render Footer
     render_coresight_footer(full_width=True, stick_to_bottom=True)

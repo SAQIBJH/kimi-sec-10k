@@ -1,0 +1,24 @@
+{
+  "model_profile": "balanced",
+  "project_name": "Coresight Research Portal",
+  "version": "1.0",
+  "planning": {
+    "commit_docs": true,
+    "search_gitignored": false
+  },
+  "git": {
+    "branching_strategy": "none",
+    "phase_branch_template": "gsd/phase-{phase}-{slug}",
+    "milestone_branch_template": "gsd/{milestone}-{slug}"
+  },
+  "workflow": {
+    "research": true,
+    "plan_checker": true,
+    "verifier": true
+  },
+  "parallelization": {
+    "enabled": true,
+    "max_concurrent": 4
+  },
+  "brave_search": false
+}

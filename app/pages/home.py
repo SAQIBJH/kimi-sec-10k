@@ -1,0 +1,157 @@
+"""
+Homepage - Coresight Research
+"""
+import streamlit as st
+
+st.set_page_config(
+    page_title="Coresight Market Data - Research Portal",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="collapsed",
+)
+
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from components.styles import hide_sidebar, render_styles
+from components.navigation import render_header, render_coresight_footer
+
+hide_sidebar()
+
+COMPANIES = [("M", "Macy's"), ("ANF", "Abercrombie & Fitch"), ("JWN", "Nordstrom"), ("KSS", "Kohl's")]
+SECTORS = ["Apparel & Footwear", "Department Stores", "Discount Stores", "Luxury Goods"]
+
+def main():
+    if 'home_company' not in st.session_state:
+        st.session_state.home_company = COMPANIES[0][0]
+    if 'home_sector' not in st.session_state:
+        st.session_state.home_sector = SECTORS[0]
+    
+    st.markdown("""
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap');
+    
+    .block-container { padding: 0 !important; max-width: 100% !important; }
+    .appview-container .main .block-container { padding-top: 0 !important; }
+    [data-testid="stSidebar"] { display: none !important; }
+    
+    .main-title { 
+        font-family: 'Montserrat', sans-serif !important; 
+        font-weight: 700 !important; 
+        font-size: 39px !important; 
+        color: #D62E2F !important; 
+        text-align: center !important; 
+        letter-spacing: -0.5px !important; 
+        margin: 96px 0 32px 0 !important; 
+    }
+    
+    /* Card wrapper - gray background for columns */
+    [data-testid="stColumn"]:nth-of-type(2) > div,
+    [data-testid="stColumn"]:nth-of-type(3) > div {
+        background-color: #EBEBEB !important;
+        border-radius: 8px !important;
+        padding: 8px 16px 28px 16px !important;
+        width: 357px !important;
+        margin: 0 auto !important;
+    }
+    
+    /* Streamlit Selectbox Styling - White background */
+    div[data-testid="stSelectbox"] {
+        margin-bottom: 8px !important;
+    }
+    
+    div[data-testid="stSelectbox"] > label { display: none !important; }
+    
+    /* Force white background on selectbox */
+    div[data-testid="stSelectbox"] > div,
+    div[data-testid="stSelectbox"] > div > div,
+    div[data-testid="stSelectbox"] div[data-baseweb="select"],
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+        background-color: #FFFFFF !important;
+    }
+    
+    /* The actual input/control */
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] {
+        border: 1px solid #e0e0e0 !important;
+        border-radius: 8px !important;
+        min-height: 40px !important;
+        height: 40px !important;
+        padding-bottom: 40px !important;
+    }
+    
+    /* Hover and focus states */
+    div[data-testid="stSelectbox"] div[data-baseweb="select"]:hover,
+    div[data-testid="stSelectbox"] div[data-baseweb="select"]:focus-within {
+        border-color: #D62E2F !important;
+        box-shadow: 0 0 0 1px #D62E2F !important;
+    }
+    
+    /* Text styling */
+    div[data-testid="stSelectbox"] span {
+        font-family: 'Roboto', sans-serif !important;
+        font-weight: 400 !important;
+        font-size: 14px !important;
+        color: #000000 !important;
+    }
+    
+    /* Dropdown icon */
+    div[data-testid="stSelectbox"] svg { color: #666666 !important; }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    render_styles()
+    render_header(full_width=True)
+    
+    # Main title
+    st.markdown('<h1 class="main-title">CORESIGHT MARKET DATA</h1>', unsafe_allow_html=True)
+    
+    # Two cards side by side
+    col_spacer1, col1, col2, col_spacer2 = st.columns([1, 2, 2, 1])
+    
+    # Card 1: View by Company
+    with col1:
+        st.markdown('<p style="font-family: Roboto, sans-serif; font-weight: 600; font-size: 18px; color: #2D2A29; text-align: center; margin: 0 0 8px 0;">View by Company</p>', unsafe_allow_html=True)
+        
+        company = st.selectbox("Company", options=[c[0] for c in COMPANIES],
+            format_func=lambda x: next((c[1] for c in COMPANIES if c[0] == x), x),
+            index=[c[0] for c in COMPANIES].index(st.session_state.home_company),
+            key="company_select", label_visibility="collapsed")
+        st.session_state.home_company = company
+        
+        st.markdown(f'''
+            <a href="/?page=company_profile&ticker={company}" target="_self" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
+                View
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
+                    <path d="M14 4h6v6"/>
+                    <path d="M21 3 12 12"/>
+                </svg>
+            </a>
+        ''', unsafe_allow_html=True)
+    
+    # Card 2: View by Sector
+    with col2:
+        st.markdown('<p style="font-family: Roboto, sans-serif; font-weight: 600; font-size: 18px; color: #2D2A29; text-align: center; margin: 0 0 8px 0;">View by Sector</p>', unsafe_allow_html=True)
+        
+        sector = st.selectbox("Sector", options=SECTORS,
+            index=SECTORS.index(st.session_state.home_sector) if st.session_state.home_sector in SECTORS else 0,
+            key="sector_select", label_visibility="collapsed")
+        st.session_state.home_sector = sector
+        
+        st.markdown('''
+            <a href="/marketdata" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
+                View
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                    <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
+                    <path d="M14 4h6v6"/>
+                    <path d="M21 3 12 12"/>
+                </svg>
+            </a>
+        ''', unsafe_allow_html=True)
+    
+    st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
+    render_coresight_footer(full_width=True, stick_to_bottom=True)
+
+if __name__ == "__main__":
+    main()

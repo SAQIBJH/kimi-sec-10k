@@ -1,0 +1,11 @@
+[   85711ms] [WARNING] WebSocket onclose @ http://localhost:8502/static/js/index.Drusyo5m.js:150
+[   85719ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8502/_stcore/health:0
+[   85719ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8502/_stcore/host-config:0
+[   85820ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8502/_stcore/health:0
+[   85820ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8502/_stcore/host-config:0
+[   85990ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8502/_stcore/health:0
+[   85990ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8502/_stcore/host-config:0
+[   86375ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8502/_stcore/health:0
+[   86375ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8502/_stcore/host-config:0
+[   87063ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8502/_stcore/health:0
+[   87063ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:8502/_stcore/host-config:0

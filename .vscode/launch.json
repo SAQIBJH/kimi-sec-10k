@@ -50,6 +50,25 @@
             }
         },
         {
+            "name": "Streamlit: Earnings Calls",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "streamlit",
+            "args": [
+                "run",
+                "${workspaceFolder}/app/earningscalls.py",
+                "--server.runOnSave",
+                "true",
+                "--server.headless",
+                "true"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/app"
+            }
+        },
+        {
             "name": "Python Debugger: Current File",
             "type": "debugpy",
             "request": "launch",
