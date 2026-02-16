@@ -1,3 +1,18 @@
 .env
 sql
+.claude
+.planning
+.playwright-cli
+*.log
+*.tmp
+*__pycache__/
+*.DS_Store
+*.pyc
+*.pyo
+docs
+node_modules
+dist
+wireframes
+screenshots
+
 # Ignore the .env file which contains sensitive information such as database credentials and API keys.
