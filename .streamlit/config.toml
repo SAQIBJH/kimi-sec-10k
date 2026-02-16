@@ -1,0 +1,13 @@
+[server]
+runOnSave = true
+headless = true
+fileWatcherType = "poll"
+folderWatchList = ["app"]
+[browser]
+gatherUsageStats = false
+[logger]
+level = "info"
+[client]
+showSidebarNavigation = false
+[ui]
+hideTopBar = true

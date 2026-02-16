@@ -8,19 +8,6 @@ import streamlit as st
 from typing import Optional, List, Dict
 from datetime import datetime
 
-# MUST be first Streamlit command
-st.set_page_config(
-    page_title="Company Filing Documents - Coresight Research",
-    page_icon="📄",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Hide sidebar immediately
 from components.styles import hide_sidebar, set_page_layout
 hide_sidebar()
 
@@ -549,8 +536,8 @@ def main():
     )
     
     # Render Header
-    render_header(full_width=True)
-    
+    render_header(full_width=True, current_page="sec_filing")
+
     # Inject custom CSS
     st.markdown(get_sec_filing_css(), unsafe_allow_html=True)
     
@@ -591,5 +578,7 @@ def main():
     render_coresight_footer(full_width=True, stick_to_bottom=True)
 
 
+main()
+
 if __name__ == "__main__":
-    main()
+    pass

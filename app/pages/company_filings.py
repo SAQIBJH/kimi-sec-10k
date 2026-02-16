@@ -8,19 +8,6 @@ import streamlit as st
 from typing import List, Dict, Optional
 from dataclasses import dataclass
 
-# MUST be first Streamlit command
-st.set_page_config(
-    page_title="Company Filing Documents - Coresight Research",
-    page_icon="📄",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Hide sidebar immediately
 from components.styles import hide_sidebar, set_page_layout
 hide_sidebar()
 
@@ -522,6 +509,8 @@ def render_document_viewer(document: Optional[FilingDocument]) -> str:
 
 def main():
     """Company Filing Documents page entry point."""
+    render_styles()
+
     # Initialize session state
     if 'cf_search' not in st.session_state:
         st.session_state.cf_search = ""
@@ -545,8 +534,8 @@ def main():
     )
     
     # Render Header
-    render_header(full_width=True)
-    
+    render_header(full_width=True, current_page="company_filings")
+
     # Inject custom CSS
     st.markdown(get_filings_css(), unsafe_allow_html=True)
     
@@ -774,5 +763,7 @@ def render_page():
     st.markdown('</div>', unsafe_allow_html=True)
 
 
+main()
+
 if __name__ == "__main__":
-    main()
+    pass

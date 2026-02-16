@@ -7,19 +7,6 @@ import streamlit as st
 from datetime import date, datetime, timedelta
 from typing import List, Optional
 
-# MUST be first Streamlit command
-st.set_page_config(
-    page_title="Coresight Newsroom",
-    page_icon="📰",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-# Hide sidebar immediately
 from components.styles import hide_sidebar, set_page_layout
 hide_sidebar()
 
@@ -412,8 +399,8 @@ def main():
     )
     
     # Render Header
-    render_header(full_width=True)
-    
+    render_header(full_width=True, current_page="newsroom")
+
     # Render content
     render_page()
     
@@ -421,5 +408,7 @@ def main():
     render_coresight_footer(full_width=True, stick_to_bottom=True)
 
 
+main()
+
 if __name__ == "__main__":
-    main()
+    pass
