@@ -301,7 +301,7 @@ def set_marketdata_company(ticker: str) -> bool:
 
 def get_marketdata_tab() -> Optional[str]:
     """Get selected tab for market data."""
-    return local_storage.get(StorageKey.MARKETDATA_SELECTED_TAB, "income_statement")
+    return local_storage.get(StorageKey.MARKETDATA_SELECTED_TAB, "company_profile")
 
 
 def set_marketdata_tab(tab: str) -> bool:

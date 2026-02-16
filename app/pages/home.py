@@ -2,18 +2,6 @@
 Homepage - Coresight Research
 """
 import streamlit as st
-
-st.set_page_config(
-    page_title="Coresight Market Data - Research Portal",
-    page_icon="📊",
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from components.styles import hide_sidebar, render_styles
 from components.navigation import render_header, render_coresight_footer
 
@@ -101,7 +89,7 @@ def main():
     """, unsafe_allow_html=True)
     
     render_styles()
-    render_header(full_width=True)
+    render_header(full_width=True, current_page="home")
     
     # Main title
     st.markdown('<h1 class="main-title">CORESIGHT MARKET DATA</h1>', unsafe_allow_html=True)
@@ -120,7 +108,7 @@ def main():
         st.session_state.home_company = company
         
         st.markdown(f'''
-            <a href="/?page=company_profile&ticker={company}" target="_self" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
+            <a href="/market_data?ticker={company}" target="_self" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
                 View
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
                     <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
@@ -140,7 +128,7 @@ def main():
         st.session_state.home_sector = sector
         
         st.markdown('''
-            <a href="/marketdata" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
+            <a href="/market_data" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
                 View
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
                     <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
@@ -153,5 +141,7 @@ def main():
     st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
     render_coresight_footer(full_width=True, stick_to_bottom=True)
 
+main()
+
 if __name__ == "__main__":
-    main()
+    pass

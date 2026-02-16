@@ -1,1 +1,3 @@
 .env
+sql
+# Ignore the .env file which contains sensitive information such as database credentials and API keys.

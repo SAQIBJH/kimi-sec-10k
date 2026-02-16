@@ -13,38 +13,27 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from components.styles import COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS
 
 
-def render_header(full_width: bool = True):
+def render_header(full_width: bool = True, current_page: str = "market_data"):
     """
     Render Coresight header based on Figma design - EXACT MATCH.
-    
+
     Figma Reference: Header (Node ID: 20895:206587)
     - Container: 1440x80px, background #f2f2f2
     - Logo: 132x60px at x=390 (106px from left edge)
     - Nav: Frame at x=568 with 48px gaps between items
     - Nav items: Roboto 18px weight 500
     - Nav text color: #2d2a29
-    
+
     Parameters:
     -----------
     full_width : bool
         If True, header takes full width
+    current_page : str
+        Current page identifier for active nav highlighting
     """
-    import inspect
-    
-    # Detect which page is calling this function
-    is_newsroom = False
-    is_company_profile = False
-    is_earnings_calls = False
-    for frame in inspect.stack():
-        if 'newsroom.py' in frame.filename:
-            is_newsroom = True
-            break
-        if 'company_profile.py' in frame.filename:
-            is_company_profile = True
-            break
-        if 'earningscalls.py' in frame.filename or 'earnings_calls.py' in frame.filename:
-            is_earnings_calls = True
-            break
+    is_newsroom = current_page == "newsroom"
+    is_company_profile = current_page == "company_profile"
+    is_earnings_calls = current_page == "earnings_calls"
     
     # Build header HTML - EXACT Figma specifications
     header_html = '''<style>
@@ -160,9 +149,9 @@ html, body {
     
     <!-- Navigation: at x=568, 48px gaps between items, Roboto 18px weight 500 -->
     <nav class="coresight-header-nav">
-      <a href="/?page=market_data" target="_self" class="''' + ('active' if not is_newsroom and not is_company_profile and not is_earnings_calls else '') + '''">Market Data Dashboard</a>
-      <a href="/?page=earnings_calls" target="_self" class="''' + ('active' if is_earnings_calls else '') + '''">Earnings Calls</a>
-      <a href="/?page=newsroom" target="_self" class="''' + ('active' if is_newsroom else '') + '''">News</a>
+      <a href="/market_data" target="_self" class="''' + ('active' if not is_newsroom and not is_company_profile and not is_earnings_calls else '') + '''">Market Data Dashboard</a>
+      <a href="/earnings_calls" target="_self" class="''' + ('active' if is_earnings_calls else '') + '''">Earnings Calls</a>
+      <a href="/newsroom" target="_self" class="''' + ('active' if is_newsroom else '') + '''">News</a>
     </nav>
   </div>
 </div>'''
@@ -513,11 +502,11 @@ def render_company_header(company_name: str, ticker: str, exchange: str = "NYSE"
     
     .company-documents-btn {
         background-color: #d62e2f;
-        color: #ffffff;
+        color: #ffffff !important;
         font-family: 'Montserrat', sans-serif;
         font-weight: 700;
         font-size: 14px;
-        padding: 12px 16px;
+        padding: 10px 26px;
         border-radius: 4px;
         border: none;
         cursor: pointer;
@@ -525,8 +514,16 @@ def render_company_header(company_name: str, ticker: str, exchange: str = "NYSE"
         align-items: center;
         gap: 8px;
         transition: background-color 0.2s ease;
-        height: 44px;
-        text-decoration: none;
+        text-decoration: none !important;
+    }
+    .company-documents-btn .text {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.1;    /* tighter two-line look */
+    }
+
+    .company-documents-btn .text span {
+      margin: 0;
     }
     
     .company-documents-btn:hover {
@@ -578,11 +575,13 @@ def render_company_header(company_name: str, ticker: str, exchange: str = "NYSE"
                 </span>
             </div>
         </div>
-        <a href="/?page=company_filings" target="_self" class="company-documents-btn">
-            <span>Company Documents</span>
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M7 17L17 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                <path d="M7 7H17V17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <a href="/company_filings" target="_self" class="company-documents-btn">
+            <span class="text">
+              <span>Company</span>
+              <span>Documents</span>
+            </span>
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M7 1H3C2.46957 1 1.96086 1.21071 1.58579 1.58579C1.21071 1.96086 1 2.46957 1 3V15C1 15.5304 1.21071 16.0391 1.58579 16.4142C1.96086 16.7893 2.46957 17 3 17H15C15.5304 17 16.0391 16.7893 16.4142 16.4142C16.7893 16.0391 17 15.5304 17 15V11M9 9L17 1M17 1V6M17 1H12" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
         </a>
     </div>
@@ -593,7 +592,7 @@ def render_company_header(company_name: str, ticker: str, exchange: str = "NYSE"
     
     # Get all companies for the dropdown
     companies = CompanyRepository.get_companies()
-    company_options = {f"{c['name']} ({c['ticker']})": c['ticker'] for c in companies}
+    company_options = {f"{c['name']} ({c['ticker']})": c['ticker'].strip() for c in companies}
     current_display = f"{company_name} ({ticker})"
     
     # Find current index

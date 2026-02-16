@@ -6,8 +6,8 @@ Company overview page with profile information.
 import streamlit as st
 from typing import Optional
 
-from components.styles import hide_sidebar, set_page_layout
-hide_sidebar()
+# from components.styles import hide_sidebar, set_page_layout
+# hide_sidebar()
 
 from components.styles import render_styles, COLORS, TYPOGRAPHY, SPACING
 from components.navigation import render_header, render_coresight_footer, render_company_header
@@ -27,29 +27,29 @@ def get_company_css() -> str:
     .company-profile-container {
         max-width: 1238px;
         margin: 0 auto;
-        padding: 24px 0;
+        padding: 0 0;
         font-family: 'Roboto', sans-serif;
     }
     
-    /* Streamlit Selectbox Styling - Make it look like the Figma dropdown */
-    div[data-testid="stSelectbox"] {
+    /* Streamlit Selectbox Styling - scoped to company selector only */
+    div.stSelectbox:has(input[aria-label*="Select Company"]) {
         margin-top: -85px !important;
         margin-bottom: 20px !important;
         width: 600px !important;
     }
-    
-    div[data-testid="stSelectbox"] > div {
+
+    div.stSelectbox:has(input[aria-label*="Select Company"]) > div {
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
     }
-    
-    div[data-testid="stSelectbox"] label {
+
+    div.stSelectbox:has(input[aria-label*="Select Company"]) label {
         display: none !important;
     }
-    
+
     /* Hide the actual selectbox but keep it clickable */
-    div[data-testid="stSelectbox"] > div > div {
+    div.stSelectbox:has(input[aria-label*="Select Company"]) > div > div {
         opacity: 0;
         height: 30px;
         cursor: pointer;
@@ -273,77 +273,88 @@ def render_business_description(description: Optional[str]) -> str:
     return html
 
 
-def render_company_profile(ticker: str = "M"):
-    """Render company profile content (for unified entry point)."""
-    # Fetch company data
+def render_company_profile_content(ticker: str = "M"):
+    """Render company profile content only (info table + description) - no header."""
     company = CompanyOverviewRepository.get_company_overview(ticker)
-    
+
     if not company:
         st.error(f"Company data not found for ticker: {ticker}")
         st.stop()
-    
-    # Inject custom CSS
-    st.markdown(get_company_css(), unsafe_allow_html=True)
-    
+
     # Page content container
     st.markdown('<div class="company-profile-container">', unsafe_allow_html=True)
-    
-    # Render the centralized company header component (reusable across pages)
+
+    # Info table
+    st.markdown(render_info_table(company), unsafe_allow_html=True)
+
+    # Business description
+    st.markdown(render_business_description(company.company_description), unsafe_allow_html=True)
+
+    # Close container
+    st.markdown('</div>', unsafe_allow_html=True)
+
+
+def render_company_profile(ticker: str = "M"):
+    """Render full company profile (header + content) - for standalone page use."""
+    company = CompanyOverviewRepository.get_company_overview(ticker)
+
+    if not company:
+        st.error(f"Company data not found for ticker: {ticker}")
+        st.stop()
+
+    st.markdown(get_company_css(), unsafe_allow_html=True)
+
+    st.markdown('<div class="company-profile-container">', unsafe_allow_html=True)
+
     render_company_header(
         company_name=company.name,
         ticker=company.ticker,
         exchange=company.exchange or "NYSE"
     )
-    
-    # Toolbar navigation
-    # inject_toolbar(active_page="Company Profile")
-    selected_tab = "Company Profile"
-    # selected_tab = render_tabs(selected_tab)
 
-    
     # Info table
     st.markdown(render_info_table(company), unsafe_allow_html=True)
-    
+
     # Business description
     st.markdown(render_business_description(company.company_description), unsafe_allow_html=True)
-    
+
     # Close container
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-def main():
-    """Company profile page entry point (standalone)."""
-    # Initialize
-    init_database()
+# def main():
+#     """Company profile page entry point (standalone)."""
+#     # Initialize
+#     init_database()
     
-    # Render global styles
-    render_styles()
+#     # Render global styles
+#     render_styles()
     
-    # Set layout
-    set_page_layout(
-        header_full_width=True,
-        footer_full_width=True,
-        body_padding="0 20px",
-        max_content_width="1350px",
-        remove_top_padding=True,
-        footer_at_bottom=True
-    )
+#     # Set layout
+#     set_page_layout(
+#         header_full_width=True,
+#         footer_full_width=True,
+#         body_padding="0 20px",
+#         max_content_width="1350px",
+#         remove_top_padding=True,
+#         footer_at_bottom=True
+#     )
     
-    # Render Header
-    render_header(full_width=True, current_page="company_profile")
+#     # Render Header
+#     # render_header(full_width=True, current_page="company_profile")
 
-    # Get ticker from URL query params or default to M (Macy's)
-    query_params = st.query_params
-    ticker = query_params.get("ticker", "M")
+#     # Get ticker from URL query params or default to M (Macy's)
+#     query_params = st.query_params
+#     ticker = query_params.get("ticker", "M")
     
-    # Render content
-    render_company_profile(ticker)
+#     # Render content
+#     render_company_profile(ticker)
     
-    # Render Footer
-    render_coresight_footer(full_width=True, stick_to_bottom=True)
+#     # Render Footer
+#     # render_coresight_footer(full_width=True, stick_to_bottom=True)
 
 
-main()
+# main()
 
-if __name__ == "__main__":
-    pass
+# if __name__ == "__main__":
+#     pass
