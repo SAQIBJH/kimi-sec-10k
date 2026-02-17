@@ -294,7 +294,7 @@ def render_page():
     
     with st.container():
         # Date range filter
-        col1, col2, col3 = st.columns([2, 2, 1])
+        col1, col2, col3,col4,col5 = st.columns([0.5, 0.5, 1,1,0.5])
         
         with col1:
             st.markdown("**From**")
@@ -324,7 +324,7 @@ def render_page():
             )
         
         # Company filter row
-        col4, col5 = st.columns([3, 1])
+        # col4, col5 = st.columns([3, 1])
         
         with col4:
             st.markdown("**Company**")

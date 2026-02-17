@@ -132,12 +132,14 @@ def get_earnings_css() -> str:
        TRANSCRIPT CARD
        ======================================================================= */
     .transcript-card {
-        width: 100%;
+        width: 90%;
         background: #FFFFFF;
         border: 1px solid #E5E5E5;
         border-radius: 8px;
         overflow: hidden;
         margin-top: 32px;
+        margin-left: auto;
+        margin-right: auto;
     }
     
     /* Card Header */
@@ -484,14 +486,14 @@ def render_earnings_calls():
     # =======================================================================
     
     # Create header row with title on left and filters on right
-    header_col1, header_col2 = st.columns([1, 2])
+    spacer1,header_col1, header_col2,spacer2 = st.columns([0.1,1, 1,0.1])
     
     with header_col1:
         st.markdown('<h1 class="earnings-title">Earnings Calls</h1>', unsafe_allow_html=True)
     
     with header_col2:
         # Filter row with proper labels
-        filter_col1, filter_col2, filter_col3 = st.columns([3, 1, 1])
+        filter_col1, filter_col2, filter_col3 = st.columns([1.5, 0.5, 0.5])
         
         with filter_col1:
             company = st.selectbox(
