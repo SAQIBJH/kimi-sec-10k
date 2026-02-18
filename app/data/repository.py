@@ -63,13 +63,22 @@ class CompanyRepository:
     
     @staticmethod
     def get_companies() -> List[Dict[str, str]]:
-        """Get companies with ticker and name for dropdown."""
+        """Get companies common across all data tables for dropdown.
+
+        Only returns companies that have data in income statement,
+        balance sheet, cash flow, company overview, and earnings calls.
+        """
         query = """
-            SELECT 
-                ticker,
-                COALESCE(name_coresight, name) as display_name
-            FROM coreiq_companies
-            WHERE ticker IS NOT NULL
+            SELECT
+                c.ticker,
+                COALESCE(c.name_coresight, c.name) as display_name
+            FROM coreiq_companies c
+            WHERE c.ticker IS NOT NULL
+              AND c.ticker IN (SELECT DISTINCT ticker FROM coreiq_av_financials_income_statement)
+              AND c.ticker IN (SELECT DISTINCT ticker FROM coreiq_av_financials_balance_sheet)
+              AND c.ticker IN (SELECT DISTINCT ticker FROM coreiq_av_financials_cash_flow)
+              AND c.ticker IN (SELECT DISTINCT ticker FROM coreiq_av_company_overview)
+              AND c.ticker IN (SELECT DISTINCT ticker FROM coreiq_av_earnings_call_transcripts)
             ORDER BY display_name
         """
         results = db_manager.execute_query(query)

@@ -4,15 +4,22 @@ Homepage - Coresight Research
 import streamlit as st
 from components.styles import hide_sidebar, render_styles
 from components.navigation import render_header, render_coresight_footer
+from data.repository import CompanyRepository
 
 hide_sidebar()
 
-COMPANIES = [("M", "Macy's"), ("ANF", "Abercrombie & Fitch"), ("JWN", "Nordstrom"), ("KSS", "Kohl's")]
+@st.cache_data(ttl=300)
+def _load_companies():
+    """Fetch companies from database, returns list of (ticker, name) tuples."""
+    rows = CompanyRepository.get_companies()
+    return [(r['ticker'], r['name']) for r in rows]
+
+COMPANIES = _load_companies()
 SECTORS = ["Apparel & Footwear", "Department Stores", "Discount Stores", "Luxury Goods"]
 
 def main():
     if 'home_company' not in st.session_state:
-        st.session_state.home_company = COMPANIES[0][0]
+        st.session_state.home_company = COMPANIES[0][0] if COMPANIES else ""
     if 'home_sector' not in st.session_state:
         st.session_state.home_sector = SECTORS[0]
     

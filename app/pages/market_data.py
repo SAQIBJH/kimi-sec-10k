@@ -417,31 +417,7 @@ def render_page():
             min_date, max_date = IncomeStatementRepository.get_date_range(selected_ticker)
             available_dates = IncomeStatementRepository.get_available_dates(selected_ticker)
 
-        # if not min_date or not max_date:
-        #     st.info("No financial data available for this company on the selected tab.")
-        # else:
-        #     stored_start, stored_end = get_marketdata_date_range()
-        #     start_date = date.fromisoformat(stored_start) if stored_start else min_date
-        #     end_date = date.fromisoformat(stored_end) if stored_end else max_date
-
-        #     # Get currency from database based on tab
-        #     if selected_tab == "balance_sheet":
-        #         reported_currency = BalanceSheetRepository.get_reported_currency(
-        #             selected_ticker, end_date
-        #         ) or "USD"
-        #     elif selected_tab == "cash_flow":
-        #         from data.repository import CashFlowRepository
-        #         reported_currency = CashFlowRepository.get_reported_currency(
-        #             selected_ticker, end_date
-        #         ) or "USD"
-        #     else:
-        #         reported_currency = IncomeStatementRepository.get_reported_currency(
-        #             selected_ticker, end_date
-        #         ) or "USD"
-
-        #     # Get conversion rate
-        #     conversion_rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
-    
+       
     # ==================== GLOBAL CSS - PIXEL PERFECT FIGMA SPECS ====================
     st.html("""
     <style>
@@ -888,102 +864,7 @@ def render_page():
     st.markdown(get_company_css(), unsafe_allow_html=True)
 
     # ==================== TITLE SECTION ====================
-    # st.html(f'<div class="page-title">CORESIGHT MARKET DATA</div>')
-    
-    # # Company selector - custom HTML with Streamlit selectbox overlay
-    # company_options = {c.display_name: c.ticker for c in companies}
-    # current_display = selected_company.display_name
-    
-    # # Custom HTML display
-    # st.html(f"""
-    #     <style>
-    #     .company-selector-container {{
-    #         position: relative;
-    #         height: 40px;
-    #         margin-bottom: 24px;
-    #     }}
-    #     .company-selector-display {{
-    #         display: flex;
-    #         align-items: center;
-    #         gap: 8px;
-    #         font-family: 'Roboto', sans-serif;
-    #         font-weight: 600;
-    #         font-size: 22px;
-    #         color: #000;
-    #         position: absolute;
-    #         top: 0;
-    #         left: 0;
-    #         z-index: 1;
-    #         pointer-events: none;
-    #     }}
-    #     .dropdown-chevron {{
-    #         font-size: 12px;
-    #         color: #4F4F4F;
-    #     }}
-    #     /* Hide the Streamlit selectbox but keep it clickable */
-    #     .company-select-overlay div[data-testid="stSelectbox"] {{
-    #         opacity: 0;
-    #         position: absolute;
-    #         top: 0;
-    #         left: 0;
-    #         width: 100%;
-    #         max-width: 500px;
-    #         height: 40px;
-    #         z-index: 2;
-    #         cursor: pointer;
-    #     }}
-    #     .company-select-overlay div[data-testid="stSelectbox"] > div {{
-    #         background: transparent !important;
-    #         border: none !important;
-    #         box-shadow: none !important;
-    #         height: 40px !important;
-    #         min-height: 40px !important;
-    #     }}
-    #     .company-select-overlay div[data-testid="stSelectbox"] label {{
-    #         display: none !important;
-    #     }}
-    #     </style>
-    #     <div class="company-selector-container">
-    #         <div class="company-selector-display">
-    #             <span>{selected_company.display_name}</span>
-    #             <span class="dropdown-chevron">▼</span>
-    #         </div>
-    #         <div class="company-select-wrapper"></div>
-    #     </div>
-    # """)
-    
-    # # Streamlit selectbox positioned over the custom display (invisible but functional)
-    # new_display = st.selectbox(
-    #     "Company",
-    #     options=list(company_options.keys()),
-    #     index=list(company_options.keys()).index(current_display),
-    #     label_visibility="collapsed",
-    #     key="company_sel_marketdata"
-    # )
-    
-    # new_ticker = company_options[new_display]
-    
-    # if new_ticker != selected_ticker:
-    #     set_marketdata_company(new_ticker)
-    #     new_min, new_max = IncomeStatementRepository.get_date_range(new_ticker)
-    #     if new_min and new_max:
-    #         set_marketdata_date_range(new_min.isoformat(), new_max.isoformat())
-    #     st.rerun()
-    
-    # ==================== TOOLBAR ====================
-    # Map tab keys to page names for the toolbar
-    # tab_to_page = {
-    #     "company_profile": "Company Profile",
-    #     "key_stats": "Key Stats",
-    #     "income_statement": "Income Statement",
-    #     "balance_sheet": "Balance Sheet",
-    #     "cash_flow": "Cash Flow"
-    # }
-    # active_page = tab_to_page.get(selected_tab, "Income Statement")
-    # inject_toolbar(active_page=active_page)
-    # query_ticker = st.query_params.get("ticker",'M')
-    # render_company_profile(query_ticker)
-    # render
+
     render_company_header(
         company_name=company.name,
         ticker=company.ticker,
@@ -1019,17 +900,6 @@ def render_page():
 
             # Get conversion rate
         conversion_rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
-    # Hidden tab buttons (COMMENTED OUT - using HTML tabs instead)
-    # tab_cols = st.columns([1, 1, 1, 6])
-    # for i, (tab_key, label) in enumerate([
-    #     ("income_statement", "Income Statement"),
-    #     ("key_stats", "Key Stats"),
-    #     ("company_profile", "Company Profile")
-    # ]):
-    #     with tab_cols[i]:
-    #         if st.button(label, key=f"tabbtn_{tab_key}", type="tertiary", use_container_width=True):
-    #             set_marketdata_tab(tab_key)
-    #             st.rerun()
     
     # ==================== FILTER ROW - DATES & SORT ====================
     # Initialize sort state
@@ -1102,7 +972,7 @@ def render_page():
     sort_ascending = st.session_state.sort_order == "Earliest"
 
     if selected_tab == "company_profile":
-        render_company_profile_content(selected_ticker)
+        render_company_profile_content(company)
     elif not start_date or not end_date:
         pass  # No data available message already shown above
     elif selected_tab == "balance_sheet":

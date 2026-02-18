@@ -3,6 +3,7 @@ Company Profile Page - Coresight Research
 =========================================
 Company overview page with profile information.
 """
+from attr import asdict
 import streamlit as st
 from typing import Optional
 
@@ -201,25 +202,133 @@ def get_company_css() -> str:
     </style>
     """
 
+from dataclasses import asdict, is_dataclass
+
+def object_to_dict(obj):
+    """
+    Safely convert any object (dataclass, attrs, pydantic, or normal class)
+    into a dictionary.
+    """
+
+    # dataclass
+    if is_dataclass(obj):
+        return asdict(obj)
+
+    # attrs class
+    if hasattr(obj, "__attrs_attrs__"):
+        return {attr.name: getattr(obj, attr.name) for attr in obj.__attrs_attrs__}
+
+    # pydantic
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump()
+
+    # normal class
+    if hasattr(obj, "__dict__"):
+        return vars(obj)
+
+    raise TypeError("Unsupported object type")
+
+def company_to_label_value(company):
+    data = object_to_dict(company)
+
+    return {
+        key.replace("_", " ").title(): value
+        for key, value in data.items()
+    }
+
+def format_market_cap(value):
+    """Format market cap dynamically in Billions or Millions."""
+    if value in (None, "", "N/A"):
+        return "N/A"
+
+    try:
+        clean = str(value).replace(",", "").replace("$", "").strip().lower()
+
+        # Handle already formatted values
+        if clean.endswith("b"):
+            num = float(clean[:-1])
+            return f"{num:.2f} (in Billions)"
+
+        if clean.endswith("m"):
+            num = float(clean[:-1])
+            return f"{num:.2f} (in Millions)"
+
+        # Raw numeric value
+        num = float(clean)
+
+        if num >= 1_000_000_000:
+            return f"{num / 1_000_000_000:.2f} (in Billions)"
+        else:
+            return f"{num / 1_000_000:.2f} (in Millions)"
+
+    except Exception:
+        return str(value)
 
 def render_info_table(company: CompanyOverview) -> str:
     """Render the company info table matching Figma wireframe exactly."""
     
     # Website value with link
-    website_html = f'<a href="{company.official_site}" target="_blank" class="website-link">{company.website_display}</a>' if company.official_site else '<span class="no-data">N/A</span>'
+    # website_html = f'<a href="{company.official_site}" target="_blank" class="website-link">{company.website_display}</a>' if company.official_site else '<span class="no-data">N/A</span>'
     
     # Ticker with exchange
-    ticker_display = f"{company.exchange}:{company.ticker}" if company.exchange else company.ticker
+    # ticker_display = f"{company.exchange}:{company.ticker}" if company.exchange else company.ticker
     
     # Build table rows - matching wireframe exactly with placeholder values
     # NOTE: These are wireframe mock values. Database doesn't have employees/year_founded/professionals
-    rows = [
-        ("Website:", website_html, "Coverage Summary:", "No"),
-        ("Number of Employees", "1,556,999", "Coverage List:", "No"),
-        ("Ticker", ticker_display, "Relationships:", "No"),
-        ("Current Professionals Profiled:", "36", "Projects:", "No"),
-        ("Year Founded", "1858", "Activity Logs/Tasks:", "No"),
+    # rows = [
+    #     ("Website:", website_html, "Coverage Summary:", "No"),
+    #     ("Number of Employees", "1,556,999", "Coverage List:", "No"),
+    #     ("Ticker", ticker_display, "Relationships:", "No"),
+    #     ("Current Professionals Profiled:", "36", "Projects:", "No"),
+    #     ("Year Founded", "1858", "Activity Logs/Tasks:", "No"),
+    # ]
+    # data_items = company_to_label_value(company)
+    data_items = list(company_to_label_value(company).items())
+    data_items = [
+    (k, v) for k, v in data_items
+    if v not in (None, "", "N/A") and k != "Company Description" and k != "Fetched At Utc"  # Always include business description even if empty
     ]
+    def format_website(value):
+        if not value or value == "N/A":
+            return '<span class="no-data">N/A</span>'
+        # Clean URL for display
+        display = str(value).replace("https://", "").replace("http://", "").replace("www.", "").rstrip("/")
+        return f'<a href="{value}" target="_blank" class="website-link">{display}</a>'
+    # 👉 move Official Site to first position if exists
+    # Move Official Site to first position and format as anchor tag
+
+    formatted_items = []
+    for k, v in data_items:
+        if k == "Market Capitalization" or k == "Revenue Ttm" or k == "Ebitda" or k == "Shares Outstanding":
+            v = format_market_cap(v)
+        formatted_items.append((k, v))
+
+    data_items = formatted_items
+
+    for idx in range(len(data_items)):
+        item = data_items[idx]
+        if item[0] == "Official Site":
+            # Format value as anchor tag
+            formatted_value = format_website(item[1])
+            data_items.pop(idx)
+            data_items.insert(0, ("Official Site", formatted_value))
+            break
+    rows = []
+    for i in range(0, len(data_items), 2):
+        left_item = data_items[i]
+        left_label = left_item[0]
+        left_value = left_item[1] if len(left_item) > 1 else ""
+        
+        # Check if there's a right column
+        if i + 1 < len(data_items):
+            right_item = data_items[i + 1]
+            right_label = right_item[0]
+            right_value = right_item[1] if len(right_item) > 1 else ""
+        else:
+            right_label, right_value = "", ""
+        
+        rows.append((left_label, left_value, right_label, right_value))
+
     
     table_html = '<div class="info-table-container"><div class="info-table">'
     
@@ -273,13 +382,13 @@ def render_business_description(description: Optional[str]) -> str:
     return html
 
 
-def render_company_profile_content(ticker: str = "M"):
+def render_company_profile_content(company):
     """Render company profile content only (info table + description) - no header."""
-    company = CompanyOverviewRepository.get_company_overview(ticker)
+    # company = CompanyOverviewRepository.get_company_overview(ticker)
 
-    if not company:
-        st.error(f"Company data not found for ticker: {ticker}")
-        st.stop()
+    # if not company:
+    #     st.error(f"Company data not found for ticker: {ticker}")
+    #     st.stop()
 
     # Page content container
     st.markdown('<div class="company-profile-container">', unsafe_allow_html=True)
