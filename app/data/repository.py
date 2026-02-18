@@ -1146,6 +1146,350 @@ class CashFlowRepository:
         return "USD"  # Default fallback
 
 
+class KeyStatsRepository:
+    """Repository for Key Stats data combining multiple tables.
+    
+    Combines data from:
+    - coreiq_av_financials_income_statement (revenue, ebitda, ebit, net income)
+    - coreiq_av_financials_balance_sheet (cash, debt, equity for TEV calculations)
+    - coreiq_av_company_overview (market cap, share price, eps)
+    """
+    
+    @staticmethod
+    def get_date_range(ticker: str) -> Tuple[Optional[date], Optional[date]]:
+        """Get min and max fiscal dates for a ticker."""
+        query = """
+            SELECT 
+                MIN(fiscal_date_ending) as min_date,
+                MAX(fiscal_date_ending) as max_date
+            FROM coreiq_av_financials_income_statement
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        if not results:
+            return None, None
+        row = results[0]
+        return row['min_date'], row['max_date']
+    
+    @staticmethod
+    def get_available_dates(ticker: str) -> List[date]:
+        """Get all available fiscal dates for dropdown."""
+        query = """
+            SELECT DISTINCT fiscal_date_ending
+            FROM coreiq_av_financials_income_statement
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+            ORDER BY fiscal_date_ending ASC
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        return [row['fiscal_date_ending'] for row in results]
+    
+    @staticmethod
+    def get_key_stats_data(
+        ticker: str,
+        start_date: date,
+        end_date: date
+    ) -> Dict[str, Any]:
+        """Get key stats data for date range.
+        
+        Returns a dictionary with:
+        - periods: List of FiscalPeriod
+        - line_items: List of dict with label and values
+        - reported_currency: str
+        """
+        from data.models import FiscalPeriod
+        
+        # Fetch income statement data with all needed fields
+        query = """
+            SELECT DISTINCT 
+                i.fiscal_date_ending,
+                i.total_revenue,
+                i.gross_profit,
+                i.ebitda,
+                i.ebit,
+                i.net_income_from_continuing_operations,
+                i.net_income,
+                i.reported_currency,
+                i.raw_json
+            FROM coreiq_av_financials_income_statement i
+            WHERE i.ticker = :ticker
+              AND i.fiscal_date_ending BETWEEN :start_date AND :end_date
+              AND i.report_type = 'annual'
+            ORDER BY i.fiscal_date_ending ASC
+        """
+        results = db_manager.execute_query(query, {
+            "ticker": ticker,
+            "start_date": start_date,
+            "end_date": end_date
+        })
+        
+        if not results:
+            return {"periods": [], "line_items": [], "reported_currency": "USD"}
+        
+        # Get company overview for latest EPS and Market Cap
+        overview_query = """
+            SELECT 
+                market_capitalization,
+                eps,
+                pe_ratio,
+                raw_json as overview_raw_json
+            FROM coreiq_av_company_overview
+            WHERE ticker = :ticker
+            ORDER BY fetched_at_utc DESC
+            LIMIT 1
+        """
+        overview_results = db_manager.execute_query(overview_query, {"ticker": ticker})
+        overview = overview_results[0] if overview_results else {}
+        
+        # Parse overview raw_json
+        overview_raw = {}
+        if overview and overview.get('overview_raw_json'):
+            try:
+                overview_raw = json.loads(overview['overview_raw_json'])
+            except (json.JSONDecodeError, TypeError):
+                overview_raw = {}
+        
+        # Get shares outstanding from overview
+        shares_outstanding = None
+        if overview_raw.get('SharesOutstanding'):
+            try:
+                shares_outstanding = float(overview_raw['SharesOutstanding'])
+            except (ValueError, TypeError):
+                shares_outstanding = None
+        
+        # Get latest balance sheet for TEV calculation
+        bs_query = """
+            SELECT 
+                raw_json as bs_raw_json,
+                fiscal_date_ending
+            FROM coreiq_av_financials_balance_sheet
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+            ORDER BY fiscal_date_ending DESC
+            LIMIT 1
+        """
+        bs_results = db_manager.execute_query(bs_query, {"ticker": ticker})
+        latest_bs = bs_results[0] if bs_results else {}
+        
+        # Parse balance sheet raw_json
+        bs_raw = {}
+        if latest_bs and latest_bs.get('bs_raw_json'):
+            try:
+                bs_raw = json.loads(latest_bs['bs_raw_json'])
+            except (json.JSONDecodeError, TypeError):
+                bs_raw = {}
+        
+        # Extract cash and debt from balance sheet
+        cash_and_st_investments = None
+        if bs_raw.get('cashAndShortTermInvestments'):
+            try:
+                cash_and_st_investments = float(bs_raw['cashAndShortTermInvestments'])
+            except (ValueError, TypeError):
+                cash_and_st_investments = None
+        
+        total_debt = None
+        if bs_raw.get('shortLongTermDebtTotal'):
+            try:
+                total_debt = float(bs_raw['shortLongTermDebtTotal'])
+            except (ValueError, TypeError):
+                total_debt = None
+        
+        total_shareholder_equity = None
+        if bs_raw.get('totalShareholderEquity'):
+            try:
+                total_shareholder_equity = float(bs_raw['totalShareholderEquity'])
+            except (ValueError, TypeError):
+                total_shareholder_equity = None
+        
+        # Get market cap from overview (in millions for consistency)
+        market_cap = None
+        if overview and overview.get('market_capitalization'):
+            try:
+                market_cap = float(overview['market_capitalization'])
+            except (ValueError, TypeError):
+                market_cap = None
+        
+        # Create periods
+        periods = [FiscalPeriod.from_date(row['fiscal_date_ending']) for row in results]
+        
+        # Build line items
+        line_items = []
+        
+        # Helper to safely get float value
+        def safe_float_val(val):
+            if val is None or val == 'None':
+                return None
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+        
+        # Helper to convert to millions
+        def to_millions(val):
+            if val is None:
+                return None
+            return val / 1_000_000
+        
+        # Get reported currency from first row
+        reported_currency = results[0]['reported_currency'] if results else 'USD'
+        
+        # 1. Total Revenue
+        total_revenue_vals = [to_millions(safe_float_val(row['total_revenue'])) for row in results]
+        line_items.append({"label": "Total Revenue", "values": total_revenue_vals, "is_bold": True, "indent": 0})
+        
+        # 2. Growth Over Prior Year (calculated)
+        growth_vals = []
+        for i, row in enumerate(results):
+            curr = safe_float_val(row['total_revenue'])
+            if i > 0:
+                prev = safe_float_val(results[i-1]['total_revenue'])
+                if curr is not None and prev is not None and prev != 0:
+                    growth = ((curr - prev) / abs(prev)) * 100
+                    growth_vals.append(growth)
+                else:
+                    growth_vals.append(None)
+            else:
+                growth_vals.append(None)  # No growth for first period
+        line_items.append({"label": "Growth Over Prior Year", "values": growth_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 3. Gross Profit
+        gross_profit_vals = [to_millions(safe_float_val(row['gross_profit'])) for row in results]
+        line_items.append({"label": "Gross Profit", "values": gross_profit_vals, "is_bold": True, "indent": 0})
+        
+        # 5. Margin % (calculated from raw_json for accuracy)
+        gp_margin_vals = []
+        for row in results:
+            raw = json.loads(row['raw_json']) if row['raw_json'] else {}
+            gp = safe_float_val(row['gross_profit'])
+            tr = safe_float_val(row['total_revenue'])
+            if gp is not None and tr is not None and tr != 0:
+                gp_margin_vals.append((gp / tr) * 100)
+            else:
+                gp_margin_vals.append(None)
+        line_items.append({"label": "Margin %", "values": gp_margin_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 4. EBITDA
+        ebitda_vals = [to_millions(safe_float_val(row['ebitda'])) for row in results]
+        line_items.append({"label": "EBITDA", "values": ebitda_vals, "is_bold": True, "indent": 0})
+        
+        # 8. EBITDA Margin %
+        ebitda_margin_vals = []
+        for row in results:
+            ebitda = safe_float_val(row['ebitda'])
+            tr = safe_float_val(row['total_revenue'])
+            if ebitda is not None and tr is not None and tr != 0:
+                ebitda_margin_vals.append((ebitda / tr) * 100)
+            else:
+                ebitda_margin_vals.append(None)
+        line_items.append({"label": "Margin %", "values": ebitda_margin_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 5. EBIT
+        ebit_vals = [to_millions(safe_float_val(row['ebit'])) for row in results]
+        line_items.append({"label": "EBIT", "values": ebit_vals, "is_bold": True, "indent": 0})
+        
+        # 11. EBIT Margin %
+        ebit_margin_vals = []
+        for row in results:
+            ebit = safe_float_val(row['ebit'])
+            tr = safe_float_val(row['total_revenue'])
+            if ebit is not None and tr is not None and tr != 0:
+                ebit_margin_vals.append((ebit / tr) * 100)
+            else:
+                ebit_margin_vals.append(None)
+        line_items.append({"label": "Margin %", "values": ebit_margin_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 6. Earnings from Cont. Ops
+        cont_ops_vals = [to_millions(safe_float_val(row['net_income_from_continuing_operations'])) for row in results]
+        line_items.append({"label": "Earnings from Cont. Ops.", "values": cont_ops_vals, "is_bold": True, "indent": 0})
+        
+        # 14. Cont Ops Margin %
+        cont_ops_margin_vals = []
+        for row in results:
+            cont_ops = safe_float_val(row['net_income_from_continuing_operations'])
+            tr = safe_float_val(row['total_revenue'])
+            if cont_ops is not None and tr is not None and tr != 0:
+                cont_ops_margin_vals.append((cont_ops / tr) * 100)
+            else:
+                cont_ops_margin_vals.append(None)
+        line_items.append({"label": "Margin %", "values": cont_ops_margin_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 7. Net Income
+        net_income_vals = [to_millions(safe_float_val(row['net_income'])) for row in results]
+        line_items.append({"label": "Net Income", "values": net_income_vals, "is_bold": True, "indent": 0})
+        
+        # 17. Net Income Margin %
+        ni_margin_vals = []
+        for row in results:
+            ni = safe_float_val(row['net_income'])
+            tr = safe_float_val(row['total_revenue'])
+            if ni is not None and tr is not None and tr != 0:
+                ni_margin_vals.append((ni / tr) * 100)
+            else:
+                ni_margin_vals.append(None)
+        line_items.append({"label": "Margin %", "values": ni_margin_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 8. Diluted EPS - from raw_json
+        eps_vals = []
+        for row in results:
+            raw = json.loads(row['raw_json']) if row['raw_json'] else {}
+            # Try to get diluted EPS from raw_json if available
+            eps = safe_float_val(raw.get('dilutedEPS') or raw.get('dilutedEps'))
+            if eps is None and row['net_income'] and shares_outstanding:
+                # Calculate if not available
+                ni = safe_float_val(row['net_income'])
+                if ni is not None and shares_outstanding > 0:
+                    eps = ni / shares_outstanding
+            eps_vals.append(eps)
+        line_items.append({"label": "Diluted EPS Excl. Extra Items", "values": eps_vals, "is_bold": True, "indent": 0})
+        
+        # 9. EPS Growth Over Prior Year
+        eps_growth_vals = []
+        for i, eps in enumerate(eps_vals):
+            if i > 0 and eps is not None and eps_vals[i-1] is not None and eps_vals[i-1] != 0:
+                growth = ((eps - eps_vals[i-1]) / abs(eps_vals[i-1])) * 100
+                eps_growth_vals.append(growth)
+            else:
+                eps_growth_vals.append(None)
+        line_items.append({"label": "Growth Over Prior Year", "values": eps_growth_vals, "is_bold": False, "indent": 1, "is_percent": True, "has_grey_sep": True})
+        
+        # 10. Same Store Sales Growth % (not available in most data, will show NA or -)
+        same_store_vals = [None] * len(results)
+        line_items.append({"label": "Same Store Sales Growth %", "values": same_store_vals, "is_bold": True, "indent": 0, "has_grey_sep": True})
+        
+        return {
+            "periods": periods,
+            "line_items": line_items,
+            "reported_currency": reported_currency,
+            # Additional data for capitalization section
+            "market_cap": to_millions(market_cap),
+            "cash": to_millions(cash_and_st_investments),
+            "total_debt": to_millions(total_debt),
+            "total_equity": to_millions(total_shareholder_equity),
+            "latest_eps": overview.get('eps'),
+            "latest_pe": overview.get('pe_ratio')
+        }
+    
+    @staticmethod
+    def get_reported_currency(ticker: str, fiscal_date: date) -> str:
+        """Get the reported currency for a specific fiscal period."""
+        query = """
+            SELECT reported_currency
+            FROM coreiq_av_financials_income_statement
+            WHERE ticker = :ticker
+              AND fiscal_date_ending = :fiscal_date
+              AND report_type = 'annual'
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {
+            "ticker": ticker,
+            "fiscal_date": fiscal_date
+        })
+        if results and results[0].get('reported_currency'):
+            return results[0]['reported_currency']
+        return "USD"
+
+
 class ForexRepository:
     """Repository for currency conversion rates from coreiq_av_forex_daily table."""
     

@@ -14,7 +14,7 @@ from components.companyProfile import render_company_profile_content, get_compan
 from components.navigation import render_company_header
 
 hide_sidebar()
-from data.repository import CompanyOverviewRepository, CompanyRepository, IncomeStatementRepository, BalanceSheetRepository
+from data.repository import CompanyOverviewRepository, CompanyRepository, IncomeStatementRepository, BalanceSheetRepository, KeyStatsRepository
 from data.models import IncomeStatementData, Company, BalanceSheetData
 from utils.local_storage import (
     get_marketdata_company, set_marketdata_company,
@@ -196,7 +196,7 @@ def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversi
                 st.html('<div class="currency-arrow">→</div>')
             
             with c3:
-                currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"]
+                currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "HKD", "KRW", "SEK"]
                 default_index = currencies.index(st.session_state.target_currency)
                 
                 target = st.selectbox(
@@ -341,7 +341,7 @@ def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_r
                 st.html('<div class="currency-arrow">→</div>')
             
             with c3:
-                currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"]
+                currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "HKD", "KRW", "SEK"]
                 default_index = currencies.index(st.session_state.target_currency)
                 
                 target = st.selectbox(
@@ -410,6 +410,9 @@ def render_page():
             from data.repository import CashFlowRepository
             min_date, max_date = CashFlowRepository.get_date_range(selected_ticker)
             available_dates = CashFlowRepository.get_available_dates(selected_ticker)
+        elif selected_tab == "key_stats":
+            min_date, max_date = KeyStatsRepository.get_date_range(selected_ticker)
+            available_dates = KeyStatsRepository.get_available_dates(selected_ticker)
         else:
             min_date, max_date = IncomeStatementRepository.get_date_range(selected_ticker)
             available_dates = IncomeStatementRepository.get_available_dates(selected_ticker)
@@ -1005,6 +1008,10 @@ def render_page():
                 reported_currency = CashFlowRepository.get_reported_currency(
                     selected_ticker, end_date
                 ) or "USD"
+        elif selected_tab == "key_stats":
+                reported_currency = KeyStatsRepository.get_reported_currency(
+                    selected_ticker, end_date
+                ) or "USD"
         else:
                 reported_currency = IncomeStatementRepository.get_reported_currency(
                     selected_ticker, end_date
@@ -1102,7 +1109,153 @@ def render_page():
         render_balance_sheet(selected_ticker, start_date, end_date, conversion_rate, reported_currency, sort_ascending)
     elif selected_tab == "cash_flow":
         render_cash_flow(selected_ticker, start_date, end_date, conversion_rate, reported_currency, sort_ascending)
-    elif selected_tab in ["income_statement", "key_stats"]:
+    elif selected_tab == "key_stats":
+        try:
+            data = KeyStatsRepository.get_key_stats_data(selected_ticker, start_date, end_date)
+            
+            # Apply sorting based on user selection
+            if not sort_ascending:
+                data["periods"] = list(reversed(data["periods"]))
+                for item in data["line_items"]:
+                    item["values"] = list(reversed(item["values"]))
+            
+            if data["periods"] and data["line_items"]:
+                # Build table HTML - SAME STRUCTURE AS INCOME STATEMENT
+                html = '<div class="table-container"><div class="table-scroll"><table class="data-table"><thead>'
+                
+                # Header row - with grey separator
+                html += '<tr class="row-grey-separator"><th>For Fiscal Period Ending<span class="header-subtext">Millions of USD, except per share items.</span></th>'
+                for period in data["periods"]:
+                    lines = period.label.split('\n')
+                    if len(lines) >= 2:
+                        period_text = lines[0]
+                        date_text = lines[1]
+                    else:
+                        period_text = ""
+                        date_text = period.label
+                    
+                    html += f'<th class="data-col"><span class="period-label">{period_text}</span><span class="period-date">{date_text}</span></th>'
+                html += '</tr></thead><tbody>'
+                
+                # Data rows with currency conversion applied
+                for i, item in enumerate(data["line_items"]):
+                    label = item["label"]
+                    values = item["values"]
+                    is_bold = item.get("is_bold", False)
+                    indent = item.get("indent", 0)
+                    is_percent = item.get("is_percent", False)
+                    is_text = item.get("is_text", False)
+                    has_grey_sep = item.get("has_grey_sep", False)
+                    
+                    # Skip empty label rows but add separator
+                    if not label:
+                        html += f'<tr><td colspan="{len(data["periods"]) + 1}">&nbsp;</td></tr>'
+                        continue
+                    
+                    # Build row classes - same as income statement
+                    row_classes = []
+                    if is_bold:
+                        row_classes.append("row-bold")
+                    
+                    # Add grey separator for specific rows
+                    if has_grey_sep:
+                        row_classes.append("row-grey-separator")
+                    
+                    row_class_str = ' '.join(row_classes) if row_classes else ''
+                    
+                    html += f'<tr class="{row_class_str}">'
+                    
+                    # First column - label with proper indentation
+                    html += f'<td class="indent-{min(indent, 2)}">{label}</td>'
+                    
+                    # Data columns with converted values
+                    for val in values:
+                        if is_text:
+                            formatted = str(val) if val is not None else "-"
+                        elif is_percent:
+                            if val is not None:
+                                formatted = f"{val:.2f}%"
+                            else:
+                                formatted = "-"
+                        elif label == "Diluted EPS Excl. Extra Items":
+                            if val is not None:
+                                formatted = f"{val:.2f}"
+                            else:
+                                formatted = "-"
+                        else:
+                            formatted = format_value(val, conversion_rate)
+                        html += f'<td class="data-cell">{formatted}</td>'
+                    
+                    html += '</tr>'
+                
+                html += '</tbody></table></div></div>'
+                st.html(html)
+                
+                # Capitalization Section
+                if data.get("market_cap"):
+                    st.html('<div style="margin-top: 30px;"></div>')
+                    
+                    cap_html = '<div class="table-container"><div class="table-scroll"><table class="data-table">'
+                    cap_html += '<thead><tr class="row-grey-separator"><th>Latest Capitalization (Millions of USD)</th><th></th></tr></thead><tbody>'
+                    
+                    market_cap = data.get("market_cap", 0) or 0
+                    cash = data.get("cash", 0) or 0
+                    total_debt = data.get("total_debt", 0) or 0
+                    total_equity = data.get("total_equity", 0) or 0
+                    
+                    tev = market_cap - cash + total_debt
+                    total_capital = total_equity + total_debt
+                    
+                    cap_html += f'<tr class="row-bold"><td class="indent-0">Market Capitalization</td><td class="data-cell">{format_value(market_cap, conversion_rate)}</td></tr>'
+                    cap_html += f'<tr><td class="indent-0">- Cash & Short Term Investments</td><td class="data-cell">{format_value(cash, conversion_rate)}</td></tr>'
+                    cap_html += f'<tr><td class="indent-0">+ Total Debt</td><td class="data-cell">{format_value(total_debt, conversion_rate)}</td></tr>'
+                    cap_html += f'<tr class="row-bold"><td class="indent-0">= Total Enterprise Value (TEV)</td><td class="data-cell">{format_value(tev, conversion_rate)}</td></tr>'
+                    cap_html += f'<tr><td class="indent-0">Book Value of Common Equity</td><td class="data-cell">{format_value(total_equity, conversion_rate)}</td></tr>'
+                    cap_html += f'<tr><td class="indent-0">+ Total Debt</td><td class="data-cell">{format_value(total_debt, conversion_rate)}</td></tr>'
+                    cap_html += f'<tr class="row-bold"><td class="indent-0">= Total Capital</td><td class="data-cell">{format_value(total_capital, conversion_rate)}</td></tr>'
+                    
+                    cap_html += '</tbody></table></div></div>'
+                    st.html(cap_html)
+                
+                # Currency Conversion Section - SAME AS OTHER TABS
+                st.html('<div class="currency-section"><div class="currency-label">Currency Conversion</div>')
+                
+                c1, c2, c3, c4 = st.columns([1.5, 0.3, 1.5, 6])
+                
+                with c1:
+                    st.html(f'<div class="currency-box">{reported_currency}</div>')
+                
+                with c2:
+                    st.html('<div class="currency-arrow">→</div>')
+                
+                with c3:
+                    currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "HKD", "KRW", "SEK"]
+                    default_index = currencies.index("USD")
+                    
+                    target = st.selectbox(
+                        "To",
+                        options=currencies,
+                        index=default_index,
+                        label_visibility="collapsed",
+                        key="currency_to_keystats"
+                    )
+                    
+                    if target != st.session_state.target_currency:
+                        st.session_state.target_currency = target
+                        st.rerun()
+                
+                st.html('</div>')
+                
+                if st.session_state.target_currency != reported_currency:
+                    rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
+                    st.caption(f"Converted at 1 {reported_currency} = {rate:.4f} {st.session_state.target_currency}")
+            else:
+                st.info("No key stats data available for the selected date range")
+                
+        except Exception as e:
+            st.error(f"Error loading key stats: {e}")
+            
+    elif selected_tab == "income_statement":
         try:
             data = IncomeStatementRepository.get_income_statement_data(
                 selected_ticker, start_date, end_date
@@ -1182,7 +1335,7 @@ def render_page():
                     st.html('<div class="currency-arrow">→</div>')
                 
                 with c3:
-                    currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"]
+                    currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "HKD", "KRW", "SEK"]
                     default_index = currencies.index("USD")
                     
                     target = st.selectbox(

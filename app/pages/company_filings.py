@@ -4,6 +4,7 @@ Company Filing Documents Page - Coresight Research
 SEC filing documents viewer with metric search and document display.
 Matches Figma design with Streamlit native components + custom styling.
 """
+import os
 import streamlit as st
 from typing import List, Dict, Optional
 from dataclasses import dataclass
@@ -503,6 +504,123 @@ def render_document_viewer(document: Optional[FilingDocument]) -> str:
     return f'<div class="document-viewer"><div class="document-header"><div class="document-title-section"><span class="document-title">{document.company_name} ({document.ticker}) {document.document_type}</span><span class="document-badge">{document.year}</span><span class="document-meta"><span class="document-meta-dot"></span><span>{document.quarter}</span></span></div><a href="#" class="download-btn" onclick="alert(\'Download functionality coming soon!\'); return false;">{download_icon}<span>Download</span></a></div><div class="document-content"><div class="document-placeholder"><div class="document-placeholder-text">FILING DOCUMENT</div><div class="document-placeholder-subtext">{document.company_name} {document.document_type} for {document.year} {document.quarter}</div></div></div></div>'
 
 
+def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = None) -> None:
+    """
+    Render SEC HTML document with auto-scroll and highlight functionality.
+    SHADOW DOM PROTOCOL - Isolates SEC CSS while maintaining visibility
+    """
+    import streamlit.components.v1 as components
+    
+    # Read HTML content
+    try:
+        with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
+            clean_html = f.read()
+    except Exception as e:
+        st.error(f"Error loading document: {e}")
+        return
+    
+    # 1. Escape backticks and template literals in the HTML to prevent JS errors
+    sanitized_html = clean_html.replace('`', '\\`').replace('${', '\\${')
+    
+    # 2. The Shadow DOM Wrapper Logic
+    # This creates a custom element that "traps" the SEC CSS and allows full height
+    shadow_viewer = f"""
+    <div id="sec-container" style="height: 85vh; width: 100%; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background: white;"></div>
+
+    <script>
+    (function() {{
+        const container = document.getElementById('sec-container');
+        if (!container.shadowRoot) {{
+            const shadow = container.attachShadow({{mode: 'open'}});
+            const content = `
+                <style>
+                    :host {{ display: block; height: 100%; overflow: auto; background: white; }}
+                    #inner-content {{ padding: 20px; background: white; }}
+                    /* Force all tables to be visible */
+                    table {{ border-collapse: collapse; width: 100%; }}
+                    td, th {{ padding: 8px; border: 1px solid #ddd; }}
+                    /* Ensure iXBRL elements are visible */
+                    ix\\:nonfraction, ix\\:nonNumeric {{ display: inline; }}
+                </style>
+                <div id="inner-content">{sanitized_html}</div>
+            `;
+            shadow.innerHTML = content;
+        }}
+
+        // Robust Polling for Highlight & Scroll INSIDE Shadow DOM
+        const shadow = container.shadowRoot;
+        let attempts = 0;
+        
+        function tryScroll() {{
+            const el = shadow.getElementById('{highlight_fact_id}');
+            if (el) {{
+                // Apply highlight
+                el.style.backgroundColor = '#FFFF00';
+                el.style.boxShadow = '0 0 15px rgba(255, 215, 0, 1)';
+                el.style.border = '2px solid #FFA500';
+                el.style.padding = '4px';
+                el.style.borderRadius = '4px';
+                el.style.display = 'inline-block';
+                
+                // Scroll to element
+                setTimeout(() => {{
+                    el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                    console.log('Shadow DOM Scroll Success for ID: {highlight_fact_id}');
+                }}, 500);
+            }} else if (attempts < 20) {{
+                attempts++;
+                console.log('Shadow DOM polling for element: {highlight_fact_id}, attempt ' + attempts);
+                setTimeout(tryScroll, 200);
+            }} else {{
+                console.error('Failed to find element in Shadow DOM: {highlight_fact_id}');
+            }}
+        }}
+        
+        // Start polling
+        tryScroll();
+    }})();
+    </script>
+    """
+    
+    # Use st.components.v1.html with large height
+    components.html(shadow_viewer, height=900)
+
+
+def get_test_metric_data(selected_year: str = None):
+    """Return test metric data for PoC - AMZN Revenue by year.
+    
+    Uses edgartools to get the latest data and matches with cached HTML.
+    """
+    # PoC: Data for 2025 (latest 10-K filed Feb 2026, FY2025 data)
+    if selected_year == "2025":
+        return {
+            "name": "Total Revenue",
+            "value": "$716,924M",  # FY2025 Total net sales
+            "fact_id": "f-152",  # AMZN 2025 Revenue element ID
+            "xbrl_concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+            "category": "Income Statement",
+            "document_type": "10-K",
+            "year": "2025",
+            "html_path": "data/filings/AMZN/2025/amzn-10k-2025.htm",
+            "data_year": "2025"  # The actual data in the filing is for FY2025
+        }
+    # PoC: Data for 2024 (FY2024 data)
+    elif selected_year == "2024":
+        return {
+            "name": "Total Revenue",
+            "value": "$637,959M",  # FY2024 Total net sales
+            "fact_id": "f-144",  # AMZN 2024 Revenue element ID
+            "xbrl_concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+            "category": "Income Statement",
+            "document_type": "10-K",
+            "year": "2024",
+            "html_path": "data/filings/AMZN/2024/amzn-10k-2024.htm",
+            "data_year": "2024"  # The actual data in the filing is for FY2024
+        }
+    
+    return None
+
+
 # =============================================================================
 # MAIN PAGE
 # =============================================================================
@@ -522,6 +640,11 @@ def main():
         st.session_state.cf_year = "2025"
     if 'cf_quarter' not in st.session_state:
         st.session_state.cf_quarter = "Q1"
+    # PoC: Add highlight tracking
+    if 'cf_highlight_fact_id' not in st.session_state:
+        st.session_state.cf_highlight_fact_id = None
+    if 'cf_view_metric' not in st.session_state:
+        st.session_state.cf_view_metric = None
     
     # Set layout
     set_page_layout(
@@ -550,7 +673,7 @@ def main():
     header_col1, header_col2 = st.columns([1, 2])
     
     with header_col1:
-        st.markdown('<h1 class="filings-title">Company Filing Documents</h1>', unsafe_allow_html=True)
+        st.markdown('<h3 class="filings-title">Company Filing Documents</h3>', unsafe_allow_html=True)
     
     with header_col2:
         # Filter row
@@ -616,25 +739,83 @@ def main():
         filtered_count = len([m for m in FILING_METRICS if search_term.lower() in m.name.lower() or not search_term])
         st.markdown(f'<div style="font-family: Roboto, sans-serif; font-size: 12px; color: #888888; margin: 4px 0 12px 4px;">Showing {filtered_count} metrics</div>', unsafe_allow_html=True)
         
+        # PoC: Add test metric card with View button - Dynamic based on selected year
+        poc_data = get_test_metric_data(year)
+        if poc_data:
+            display_value = poc_data["value"]
+            display_year = poc_data["year"]
+            st.markdown(f"""
+            <div style="background: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: 500; font-size: 14px; color: #2D2A29; margin-bottom: 4px;">Total Revenue (PoC)</div>
+                        <div style="font-weight: 600; font-size: 16px; color: #2D2A29; margin-bottom: 4px;">{display_value}</div>
+                        <div style="font-size: 11px; color: #888888;">Income Statement • 10-K • {display_year}</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # PoC: View button using native Streamlit - Works for 2024 and 2025
+        if st.button("👁️ View Revenue in Document", type="primary", use_container_width=True):
+            poc_data = get_test_metric_data(year)
+            if poc_data:
+                st.session_state.cf_highlight_fact_id = poc_data["fact_id"]
+                st.session_state.cf_view_metric = "revenue"
+                st.rerun()
+            else:
+                st.warning(f"⚠️ SEC document highlighting is only available for Years 2024-2025 in this PoC.")
+        
+        st.markdown("<div style='margin: 16px 0; border-top: 1px solid #E5E5E5;'></div>", unsafe_allow_html=True)
+        
         # Render search sidebar with metrics - includes Search Metrics header
         sidebar_html = render_search_sidebar(FILING_METRICS, search_term)
         st.markdown(sidebar_html, unsafe_allow_html=True)
     
     with right_col:
-        # Create document object
-        company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
-        document = FilingDocument(
-            company_name=company_name,
-            ticker=company,
-            document_type=doc_type,
-            year=year,
-            quarter=quarter,
-            content=""
-        )
+        # PoC: Dynamic SEC viewer based on selected year
+        poc_data = get_test_metric_data(year)
         
-        # Render document viewer
-        viewer_html = render_document_viewer(document)
-        st.markdown(viewer_html, unsafe_allow_html=True)
+        if poc_data and st.session_state.cf_highlight_fact_id:
+            html_path = os.path.join(os.path.dirname(__file__), "..", "..", poc_data["html_path"])
+            html_path = os.path.abspath(html_path)
+            
+            if os.path.exists(html_path):
+                # Show document header
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; justify-content: space-between; 
+                            padding: 16px 20px; border-bottom: 1px solid #E5E5E5; background: #fff;
+                            border-radius: 8px 8px 0 0;">
+                    <div>
+                        <span style="font-weight: 600; font-size: 16px; color: #2D2A29;">
+                            Amazon.com Inc. (AMZN) 10-K
+                        </span>
+                        <span style="background: #F2F2F2; padding: 4px 10px; border-radius: 4px; 
+                                     font-size: 13px; color: #4F4F4F; margin-left: 12px;">{poc_data['year']}</span>
+                    </div>
+                    <div style="color: #0066CC; font-size: 14px;">
+                        🔍 Auto-scrolled to {poc_data['name']} ({poc_data['fact_id']}) - FY{poc_data['data_year']} data
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Render SEC HTML with highlighting
+                render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
+            else:
+                st.error(f"HTML file not found: {html_path}")
+        else:
+            # Show placeholder
+            company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
+            document = FilingDocument(
+                company_name=company_name,
+                ticker=company,
+                document_type=doc_type,
+                year=year,
+                quarter=quarter,
+                content=""
+            )
+            viewer_html = render_document_viewer(document)
+            st.markdown(viewer_html, unsafe_allow_html=True)
     
     # Close containers
     st.markdown('</div>', unsafe_allow_html=True)
@@ -657,6 +838,11 @@ def render_page():
         st.session_state.cf_year = "2025"
     if 'cf_quarter' not in st.session_state:
         st.session_state.cf_quarter = "Q1"
+    # PoC: Add highlight tracking
+    if 'cf_highlight_fact_id' not in st.session_state:
+        st.session_state.cf_highlight_fact_id = None
+    if 'cf_view_metric' not in st.session_state:
+        st.session_state.cf_view_metric = None
     
     # Inject custom CSS
     st.markdown(get_filings_css(), unsafe_allow_html=True)
@@ -738,25 +924,83 @@ def render_page():
         filtered_count = len([m for m in FILING_METRICS if search_term.lower() in m.name.lower() or not search_term])
         st.markdown(f'<div style="font-family: Roboto, sans-serif; font-size: 12px; color: #888888; margin: 4px 0 12px 4px;">Showing {filtered_count} metrics</div>', unsafe_allow_html=True)
         
+        # PoC: Add test metric card with View button - Dynamic based on selected year
+        poc_data = get_test_metric_data(year)
+        if poc_data:
+            display_value = poc_data["value"]
+            display_year = poc_data["year"]
+            st.markdown(f"""
+            <div style="background: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: 500; font-size: 14px; color: #2D2A29; margin-bottom: 4px;">Total Revenue (PoC)</div>
+                        <div style="font-weight: 600; font-size: 16px; color: #2D2A29; margin-bottom: 4px;">{display_value}</div>
+                        <div style="font-size: 11px; color: #888888;">Income Statement • 10-K • {display_year}</div>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        # PoC: View button using native Streamlit - Works for 2024 and 2025
+        if st.button("👁️ View Revenue in Document", type="primary", use_container_width=True):
+            poc_data = get_test_metric_data(year)
+            if poc_data:
+                st.session_state.cf_highlight_fact_id = poc_data["fact_id"]
+                st.session_state.cf_view_metric = "revenue"
+                st.rerun()
+            else:
+                st.warning(f"⚠️ SEC document highlighting is only available for Years 2024-2025 in this PoC.")
+        
+        st.markdown("<div style='margin: 16px 0; border-top: 1px solid #E5E5E5;'></div>", unsafe_allow_html=True)
+        
         # Render search sidebar with metrics - includes Search Metrics header
         sidebar_html = render_search_sidebar(FILING_METRICS, search_term)
         st.markdown(sidebar_html, unsafe_allow_html=True)
     
     with right_col:
-        # Create document object
-        company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
-        document = FilingDocument(
-            company_name=company_name,
-            ticker=company,
-            document_type=doc_type,
-            year=year,
-            quarter=quarter,
-            content=""
-        )
+        # PoC: Dynamic SEC viewer based on selected year
+        poc_data = get_test_metric_data(year)
         
-        # Render document viewer
-        viewer_html = render_document_viewer(document)
-        st.markdown(viewer_html, unsafe_allow_html=True)
+        if poc_data and st.session_state.cf_highlight_fact_id:
+            html_path = os.path.join(os.path.dirname(__file__), "..", "..", poc_data["html_path"])
+            html_path = os.path.abspath(html_path)
+            
+            if os.path.exists(html_path):
+                # Show document header
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; justify-content: space-between; 
+                            padding: 16px 20px; border-bottom: 1px solid #E5E5E5; background: #fff;
+                            border-radius: 8px 8px 0 0;">
+                    <div>
+                        <span style="font-weight: 600; font-size: 16px; color: #2D2A29;">
+                            Amazon.com Inc. (AMZN) 10-K
+                        </span>
+                        <span style="background: #F2F2F2; padding: 4px 10px; border-radius: 4px; 
+                                     font-size: 13px; color: #4F4F4F; margin-left: 12px;">{poc_data['year']}</span>
+                    </div>
+                    <div style="color: #0066CC; font-size: 14px;">
+                        🔍 Auto-scrolled to {poc_data['name']} ({poc_data['fact_id']}) - FY{poc_data['data_year']} data
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Render SEC HTML with highlighting
+                render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
+            else:
+                st.error(f"HTML file not found: {html_path}")
+        else:
+            # Show placeholder
+            company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
+            document = FilingDocument(
+                company_name=company_name,
+                ticker=company,
+                document_type=doc_type,
+                year=year,
+                quarter=quarter,
+                content=""
+            )
+            viewer_html = render_document_viewer(document)
+            st.markdown(viewer_html, unsafe_allow_html=True)
     
     # Close containers
     st.markdown('</div>', unsafe_allow_html=True)

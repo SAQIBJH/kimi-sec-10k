@@ -29,7 +29,6 @@ pg = st.navigation(
         st.Page("pages/earnings_calls.py",  title="Earnings Calls",   url_path="earnings_calls"),
         st.Page("pages/company_profile.py", title="Company Profile",  url_path="company_profile"),
         st.Page("pages/company_filings.py", title="Company Filings",  url_path="company_filings"),
-        st.Page("pages/sec_filing.py",      title="SEC Filing",       url_path="sec_filing"),
     ],
     position="hidden",
 )
