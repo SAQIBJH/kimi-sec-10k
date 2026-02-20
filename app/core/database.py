@@ -80,6 +80,8 @@ class DatabaseManager:
         Context manager for database sessions.
         Ensures proper transaction handling and connection cleanup.
         """
+        if self._engine is None:
+            self.connect()
         session = self._session_factory()
         try:
             yield session

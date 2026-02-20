@@ -10,7 +10,8 @@ from data.models import (
     Company, IncomeStatementLineItem, FiscalPeriod, IncomeStatementData,
     NewsArticle, TickerSentiment, CompanyOverview, EarningsCall,
     BalanceSheetLineItem, BalanceSheetData,
-    CashFlowLineItem, CashFlowData
+    CashFlowLineItem, CashFlowData,
+    FilingMetricResult
 )
 
 
@@ -1586,3 +1587,58 @@ class ForexRepository:
         """
         results = db_manager.execute_query(query)
         return [row['currency'] for row in results if row['currency']]
+
+
+class FilingMetricRepository:
+    """Repository for filing_metrics table — SEC filing metric search."""
+
+    @staticmethod
+    def search(
+        ticker: str,
+        fiscal_year: int,
+        doc_type: str,
+        query: str,
+        is_numeric: bool = True,
+        limit: int = 20,
+    ) -> List[FilingMetricResult]:
+        """
+        Search filing metrics by original_label.
+        Case-insensitive substring match using LIKE.
+        Composite index on (ticker, fiscal_year, doc_type, is_numeric)
+        narrows to ~500 rows, making LIKE fast enough.
+        """
+        sql = """
+            SELECT original_label, numeric_value, unit_ref, fiscal_year,
+                   is_dimensioned, dimension_label, statement_type, ixbrl_id
+            FROM filing_metrics
+            WHERE ticker = :ticker
+              AND fiscal_year = :fiscal_year
+              AND doc_type = :doc_type
+              AND is_numeric = :is_numeric
+              AND LOWER(original_label) LIKE :query
+            ORDER BY is_dimensioned ASC, original_label ASC
+            LIMIT :limit
+        """
+        params = {
+            "ticker": ticker,
+            "fiscal_year": fiscal_year,
+            "doc_type": doc_type,
+            "is_numeric": is_numeric,
+            "query": f"%{query.strip().lower()}%",
+            "limit": limit,
+        }
+
+        results = db_manager.execute_query(sql, params)
+        return [
+            FilingMetricResult(
+                original_label=row["original_label"] or "",
+                numeric_value=row["numeric_value"],
+                unit_ref=row["unit_ref"],
+                fiscal_year=row["fiscal_year"],
+                is_dimensioned=bool(row["is_dimensioned"]),
+                dimension_label=row["dimension_label"],
+                statement_type=row["statement_type"],
+                ixbrl_id=row["ixbrl_id"],
+            )
+            for row in results
+        ]
