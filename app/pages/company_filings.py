@@ -25,14 +25,90 @@ hide_sidebar()
 from components.styles import render_styles
 from components.navigation import render_header, render_coresight_footer
 
-# Verify HTML file exists
-HTML_FILE_PATH = "/Users/mohdsaeedafri/Documents/Documents/Code-Base/CoresightIQ/CapIQ/data/filings/AAPL/2025/aapl-10-k-2025-clean.html"
-print(f"🔥🔥🔥 COMPANY_FILINGS.PY LOADED 🔥🔥🔥")
-print(f"🔥 HTML file path: {HTML_FILE_PATH}")
-print(f"🔥 HTML file exists: {os.path.exists(HTML_FILE_PATH)}")
-logger.info(f"[INIT] HTML file path: {HTML_FILE_PATH}")
-logger.info(f"[INIT] HTML file exists: {os.path.exists(HTML_FILE_PATH)}")
-logger.info(f"[INIT] HTML file size: {os.path.getsize(HTML_FILE_PATH) if os.path.exists(HTML_FILE_PATH) else 0} bytes")
+# =============================================================================
+# FILINGS DIRECTORY SCANNER
+# =============================================================================
+FILINGS_BASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "filings")
+
+# Map of ticker -> company name (extend as companies are added)
+COMPANY_NAMES = {
+    "AAPL": "Apple Inc.",
+    "AMZN": "Amazon.com Inc.",
+    "GOOGL": "Alphabet Inc.",
+    "MSFT": "Microsoft Corp.",
+    "META": "Meta Platforms Inc.",
+    "TSLA": "Tesla Inc.",
+    "NVDA": "NVIDIA Corp.",
+}
+
+# Map directory names to display names for document types
+DOC_TYPE_MAP = {
+    "10K": "10-K",
+    "10Q": "10-Q",
+    "8K": "8-K",
+    "DEF14A": "DEF 14A",
+    "S1": "S-1",
+}
+DOC_TYPE_REVERSE = {v: k for k, v in DOC_TYPE_MAP.items()}
+
+# Annual document types (no quarter filter needed)
+ANNUAL_DOC_TYPES = {"10-K", "DEF 14A", "S-1"}
+
+
+def scan_filings_directory():
+    """Scan the filings directory to discover available companies, years, and doc types.
+
+    Expected structure: data/filings/{TICKER}/{YEAR}/{DOC_TYPE}/*.html or *.htm
+    Prefers *-clean.html > *.html > *.htm when multiple files exist.
+    """
+    filings_data = {}  # {ticker: {year: {doc_type: html_path}}}
+
+    if not os.path.isdir(FILINGS_BASE_DIR):
+        logger.warning(f"[SCAN] Filings directory not found: {FILINGS_BASE_DIR}")
+        return filings_data
+
+    for ticker in sorted(os.listdir(FILINGS_BASE_DIR)):
+        ticker_dir = os.path.join(FILINGS_BASE_DIR, ticker)
+        if not os.path.isdir(ticker_dir) or ticker.startswith(('.', '_')):
+            continue
+
+        for year_name in sorted(os.listdir(ticker_dir), reverse=True):
+            year_dir = os.path.join(ticker_dir, year_name)
+            if not os.path.isdir(year_dir) or not year_name.isdigit():
+                continue
+
+            for doc_type_dir_name in sorted(os.listdir(year_dir)):
+                doc_dir = os.path.join(year_dir, doc_type_dir_name)
+                if not os.path.isdir(doc_dir):
+                    continue
+
+                # Find best HTML file: prefer -clean.html, then .html, then .htm
+                clean_files = []
+                html_files = []
+                htm_files = []
+                for f in os.listdir(doc_dir):
+                    full = os.path.join(doc_dir, f)
+                    if f.endswith('-clean.html'):
+                        clean_files.append(full)
+                    elif f.endswith('.html'):
+                        html_files.append(full)
+                    elif f.endswith('.htm'):
+                        htm_files.append(full)
+
+                html_file = (clean_files or html_files or htm_files or [None])[0]
+
+                if html_file:
+                    display_type = DOC_TYPE_MAP.get(doc_type_dir_name, doc_type_dir_name)
+                    filings_data.setdefault(ticker, {}).setdefault(year_name, {})[display_type] = html_file
+                    logger.debug(f"[SCAN] {ticker}/{year_name}/{display_type} -> {os.path.basename(html_file)}")
+
+    logger.info(f"[SCAN] Found filings: {[(t, list(y.keys())) for t, y in filings_data.items()]}")
+    return filings_data
+
+
+# Scan on module load (cached by Streamlit reruns within same session)
+FILINGS_DATA = scan_filings_directory()
+logger.info(f"[INIT] Filings data: {[(t, {y: list(d.keys()) for y, d in years.items()}) for t, years in FILINGS_DATA.items()]}")
 
 
 # =============================================================================
@@ -65,20 +141,22 @@ class FilingDocument:
 # MOCK DATA (Replace with database calls)
 # =============================================================================
 
-COMPANIES = [
-    ("AAPL", "Apple Inc."),  # Only AAPL has real data
-]
+# Dynamic companies list from scanned filings
+COMPANIES = [(t, COMPANY_NAMES.get(t, t)) for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc.")]
 
 # JSON Search import (minimal)
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path('/Users/mohdsaeedafri/Documents/Documents/Code-Base/CoresightIQ/CapIQ/data/filings/AAPL')))
+sys.path.insert(0, str(Path(FILINGS_BASE_DIR) / 'AAPL'))
 
-def search_json_metrics(ticker: str, query: str, year: int = 2025, limit: int = 20):
+def search_json_metrics(ticker: str, query: str, year: int = 2024, doc_type_dir: str = "10K", limit: int = 20):
     """Search metrics from JSON - returns ONLY numeric values"""
     try:
         from search_engine import SECFilingSearchEngine
-        json_path = f"/Users/mohdsaeedafri/Documents/Documents/Code-Base/CoresightIQ/CapIQ/data/filings/{ticker}/FINAL_COMPLETE_WITH_LOCATIONS.json"
+        # Try year/doc-specific JSON first, then fall back to ticker-level
+        json_path = os.path.join(FILINGS_BASE_DIR, ticker, str(year), doc_type_dir, "FINAL_COMPLETE_WITH_LOCATIONS.json")
+        if not os.path.exists(json_path):
+            json_path = os.path.join(FILINGS_BASE_DIR, ticker, "FINAL_COMPLETE_WITH_LOCATIONS.json")
         if not os.path.exists(json_path):
             return []
         
@@ -106,7 +184,12 @@ def search_json_metrics(ticker: str, query: str, year: int = 2025, limit: int = 
         print(f"Search error: {e}")
         return []
 
-DOCUMENT_TYPES = ["10-K", "10-Q", "8-K", "DEF 14A", "S-1"]
+# Dynamic document types from scanned filings (collect all unique types)
+_all_doc_types = set()
+for _years in FILINGS_DATA.values():
+    for _docs in _years.values():
+        _all_doc_types.update(_docs.keys())
+DOCUMENT_TYPES = sorted(_all_doc_types) if _all_doc_types else ["10-K"]
 
 FILING_METRICS = [
     FilingMetric("Revenue", "$416.16B", "Income Statement", "10-K", "2025"),
@@ -370,6 +453,26 @@ def get_filings_css() -> str:
         background: #FDF5F5;
     }
     
+    /* =======================================================================
+       COMPACT VIEW BUTTONS IN SEARCH SIDEBAR
+       ======================================================================= */
+    [data-testid="stColumn"]:first-child button {
+        height: 30px !important;
+        min-height: 30px !important;
+        padding: 2px 12px !important;
+        font-size: 12px !important;
+        background: #F0F7FF !important;
+        color: #0066CC !important;
+        border: 1px solid #E0EFFF !important;
+        border-radius: 4px !important;
+        font-family: 'Roboto', sans-serif !important;
+    }
+
+    [data-testid="stColumn"]:first-child button:hover {
+        background: #E0EFFF !important;
+        border-color: #0066CC !important;
+    }
+
     /* =======================================================================
        DOCUMENT VIEWER
        ======================================================================= */
@@ -659,21 +762,22 @@ def main():
     """Company Filing Documents page entry point."""
     render_styles()
 
-    # Initialize session state
+    # Initialize session state with defaults from available data
+    available_tickers = [c[0] for c in COMPANIES]
     if 'cf_search' not in st.session_state:
         st.session_state.cf_search = ""
     if 'cf_company' not in st.session_state:
-        st.session_state.cf_company = "AAPL"
-    # Reset company if not in available list
-    if st.session_state.cf_company not in [c[0] for c in COMPANIES]:
-        st.session_state.cf_company = COMPANIES[0][0]
+        st.session_state.cf_company = available_tickers[0] if available_tickers else "AAPL"
+    if st.session_state.cf_company not in available_tickers:
+        st.session_state.cf_company = available_tickers[0] if available_tickers else "AAPL"
     if 'cf_doc_type' not in st.session_state:
-        st.session_state.cf_doc_type = "10-K"
+        st.session_state.cf_doc_type = DOCUMENT_TYPES[0] if DOCUMENT_TYPES else "10-K"
     if 'cf_year' not in st.session_state:
-        st.session_state.cf_year = "2025"
+        # Default to the latest available year for this company
+        company_years = sorted(FILINGS_DATA.get(st.session_state.cf_company, {}).keys(), reverse=True)
+        st.session_state.cf_year = company_years[0] if company_years else "2024"
     if 'cf_quarter' not in st.session_state:
         st.session_state.cf_quarter = "Q1"
-    # PoC: Add highlight tracking
     if 'cf_highlight_fact_id' not in st.session_state:
         st.session_state.cf_highlight_fact_id = None
     if 'cf_view_metric' not in st.session_state:
@@ -703,54 +807,70 @@ def main():
 
     with header_col1:
         st.markdown('<h3 class="filings-title">Company Filing Documents</h3>', unsafe_allow_html=True)
-    
+
     with header_col2:
-        # Filter row
-        f1, f2, f3, f4 = st.columns([2.5, 1.2, 1.2, 1.2])
-        
+        # Dynamic filter values based on selected company
+        company_data = FILINGS_DATA.get(st.session_state.cf_company, {})
+        available_years = sorted(company_data.keys(), reverse=True) if company_data else ["2024"]
+        available_doc_types = sorted(set(
+            dt for year_docs in company_data.values() for dt in year_docs.keys()
+        )) if company_data else DOCUMENT_TYPES
+
+        # Hide quarter filter for annual filings (10-K, DEF 14A, S-1)
+        show_quarter = st.session_state.cf_doc_type not in ANNUAL_DOC_TYPES
+
+        if show_quarter:
+            f1, f2, f3, f4 = st.columns([2.5, 1.2, 1.2, 1.2])
+        else:
+            f1, f2, f3 = st.columns([2.5, 1.2, 1.2])
+
         with f1:
             company = st.selectbox(
                 "Company",
                 options=[c[0] for c in COMPANIES],
                 format_func=lambda x: next((c[1] for c in COMPANIES if c[0] == x), x),
-                index=[c[0] for c in COMPANIES].index(st.session_state.cf_company),
+                index=min([c[0] for c in COMPANIES].index(st.session_state.cf_company), len(COMPANIES) - 1),
                 key="cf_company_select"
             )
-        
+
         with f2:
+            safe_doc_idx = available_doc_types.index(st.session_state.cf_doc_type) if st.session_state.cf_doc_type in available_doc_types else 0
             doc_type = st.selectbox(
                 "Document Type",
-                options=DOCUMENT_TYPES,
-                index=DOCUMENT_TYPES.index(st.session_state.cf_doc_type),
+                options=available_doc_types,
+                index=safe_doc_idx,
                 key="cf_doc_type_select"
             )
-        
+
         with f3:
+            safe_year_idx = available_years.index(st.session_state.cf_year) if st.session_state.cf_year in available_years else 0
             year = st.selectbox(
                 "Year",
-                options=["2025", "2024", "2023", "2022", "2021"],
-                index=0,
+                options=available_years,
+                index=safe_year_idx,
                 key="cf_year_select"
             )
-        
-        with f4:
-            quarter = st.selectbox(
-                "Quarter",
-                options=["Q1", "Q2", "Q3", "Q4"],
-                index=0,
-                key="cf_quarter_select"
-            )
-    
+
+        quarter = "Annual"
+        if show_quarter:
+            with f4:
+                quarter = st.selectbox(
+                    "Quarter",
+                    options=["Q1", "Q2", "Q3", "Q4"],
+                    index=0,
+                    key="cf_quarter_select"
+                )
+
     # Update session state
     st.session_state.cf_company = company
     st.session_state.cf_doc_type = doc_type
     st.session_state.cf_year = year
     st.session_state.cf_quarter = quarter
-    
+
     # =======================================================================
     # MAIN CONTENT - TWO COLUMN LAYOUT
     # =======================================================================
-    
+
     left_col, right_col = st.columns([0.3, 0.7])
     
     with left_col:
@@ -768,86 +888,49 @@ def main():
         json_metrics = []
         if company == "AAPL" and search_term.strip():
             try:
-                json_metrics = search_json_metrics(company, search_term, int(year))
+                json_metrics = search_json_metrics(company, search_term, int(year), DOC_TYPE_REVERSE.get(doc_type, doc_type))
             except:
                 pass
         
-        # Show count text
-        display_count = len(json_metrics) if json_metrics else len([m for m in FILING_METRICS if search_term.lower() in m.name.lower() or not search_term])
-        st.markdown(f'<div style="font-family: Roboto, sans-serif; font-size: 12px; color: #888888; margin: 4px 0 12px 4px;">Showing {display_count} metrics</div>', unsafe_allow_html=True)
-        
-        # Display JSON search results (ONLY numeric values)
-        if json_metrics:
-            for i, metric in enumerate(json_metrics[:10]):  # Show max 10
-                fact_badge = f"📍 {metric['fact_id']}" if metric['fact_id'] else ""
-                dim_text = f" [{metric['dimension']}]" if metric.get('dimension') else ""
-                st.markdown(f"""
-                <div style="background: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
-                    <div style="font-weight: 500; font-size: 14px; color: #2D2A29; margin-bottom: 4px;">
-                        {metric['name']}{dim_text}
-                    </div>
-                    <div style="font-weight: 600; font-size: 16px; color: #2D2A29; margin-bottom: 4px;">
-                        {metric['value']}
-                    </div>
-                    <div style="font-size: 11px; color: #888888;">
-                        {metric['category']} • {doc_type} • {year} {fact_badge}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # View button - unique key using index
-                btn_key = f"view_{i}_{metric['name'].replace(' ', '_')}_{metric.get('fact_id', 'na')}"
-                if st.button(f"👁️ View", key=btn_key, use_container_width=True):
+        # Search Metrics box — bordered container with styled cards
+        search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
+        eye_icon_svg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+
+        with st.container(border=True):
+            st.markdown(f'<div class="search-header">{search_icon}<span class="search-title">Search Metrics</span></div>', unsafe_allow_html=True)
+
+            if json_metrics:
+                st.markdown(f'<div class="metrics-count">Showing {len(json_metrics)} metrics</div>', unsafe_allow_html=True)
+                for i, metric in enumerate(json_metrics[:10]):
+                    dim_text = f" [{metric['dimension']}]" if metric.get('dimension') else ""
+                    is_viewing = (st.session_state.cf_highlight_fact_id == metric.get('fact_id') and metric.get('fact_id'))
+                    card_class = "metric-card active" if is_viewing else "metric-card"
+                    btn_class = "viewing" if is_viewing else "view"
+                    btn_text = "Viewing" if is_viewing else "View"
+                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{metric["name"]}{dim_text}</div><div class="metric-value">{metric["value"]}</div><div class="metric-meta"><span>{metric["category"]}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{year}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
                     if metric.get('fact_id'):
-                        st.session_state.cf_highlight_fact_id = metric['fact_id']
-                        st.session_state.cf_view_metric = metric['name']
-                        st.rerun()
-        
-        # PoC: Add test metric card with View button - Dynamic based on selected year
-        poc_data = get_test_metric_data(year)
-        if poc_data:
-            display_value = poc_data["value"]
-            display_year = poc_data["year"]
-            st.markdown(f"""
-            <div style="background: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-weight: 500; font-size: 14px; color: #2D2A29; margin-bottom: 4px;">Total Revenue (PoC)</div>
-                        <div style="font-weight: 600; font-size: 16px; color: #2D2A29; margin-bottom: 4px;">{display_value}</div>
-                        <div style="font-size: 11px; color: #888888;">Income Statement • 10-K • {display_year}</div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # PoC: View button using native Streamlit - Works for 2024 and 2025
-        if st.button("👁️ View Revenue in Document", type="primary", use_container_width=True):
-            poc_data = get_test_metric_data(year)
-            if poc_data:
-                st.session_state.cf_highlight_fact_id = poc_data["fact_id"]
-                st.session_state.cf_view_metric = "revenue"
-                st.rerun()
+                        btn_key = f"view_{i}_{metric['name'].replace(' ', '_')}_{metric.get('fact_id', 'na')}"
+                        if st.button(f"View in Document", key=btn_key, use_container_width=True):
+                            st.session_state.cf_highlight_fact_id = metric['fact_id']
+                            st.session_state.cf_view_metric = metric['name']
+                            st.rerun()
+            elif search_term.strip():
+                st.markdown(f'<div style="text-align:center;color:#888;padding:40px 0;font-size:14px;">No results for &quot;{search_term}&quot;</div>', unsafe_allow_html=True)
             else:
-                st.warning(f"⚠️ SEC document highlighting is only available for Years 2024-2025 in this PoC.")
-        
-        st.markdown("<div style='margin: 16px 0; border-top: 1px solid #E5E5E5;'></div>", unsafe_allow_html=True)
-        
-        # Render search sidebar with metrics - includes Search Metrics header
-        sidebar_html = render_search_sidebar(FILING_METRICS, search_term)
-        st.markdown(sidebar_html, unsafe_allow_html=True)
+                st.markdown(f'<div style="text-align:center;color:#888;padding:40px 0;font-size:14px;">Search for a metric to see results</div>', unsafe_allow_html=True)
     
     with right_col:
-        # HTML VIEWER for AAPL - ALWAYS SHOW
+        # HTML VIEWER - Dynamic path based on selected filters
         company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
-        
-        # Get HTML path for AAPL
-        html_path = "/Users/mohdsaeedafri/Documents/Documents/Code-Base/CoresightIQ/CapIQ/data/filings/AAPL/2025/aapl-10-k-2025-clean.html"
 
-        logger.info(f"[HTML VIEWER] Company: {company}, HTML path: {html_path}")
-        logger.info(f"[HTML VIEWER] File exists: {os.path.exists(html_path)}")
-        
-        # FORCE SHOW HTML - even if company check fails
-        if os.path.exists(html_path):
+        # Look up HTML path from scanned filings data
+        html_path = FILINGS_DATA.get(company, {}).get(year, {}).get(doc_type, "")
+
+        logger.info(f"[HTML VIEWER] Company: {company}, Year: {year}, DocType: {doc_type}")
+        logger.info(f"[HTML VIEWER] HTML path: {html_path}")
+        logger.info(f"[HTML VIEWER] File exists: {os.path.exists(html_path) if html_path else False}")
+
+        if html_path and os.path.exists(html_path):
             logger.info("[HTML VIEWER] ✅ File found, rendering HTML")
             
             # Show document header
@@ -888,21 +971,22 @@ def render_page():
         st.session_state.cf_search = ""
     if 'cf_company' not in st.session_state:
         st.session_state.cf_company = "AAPL"
-    # Reset company if not in available list (e.g., switched from mock to real data)
-    if st.session_state.cf_company not in [c[0] for c in COMPANIES]:
-        st.session_state.cf_company = COMPANIES[0][0]
+    # Reset company if not in available list
+    rp_tickers = [c[0] for c in COMPANIES]
+    if st.session_state.cf_company not in rp_tickers:
+        st.session_state.cf_company = rp_tickers[0] if rp_tickers else "AAPL"
     if 'cf_doc_type' not in st.session_state:
-        st.session_state.cf_doc_type = "10-K"
+        st.session_state.cf_doc_type = DOCUMENT_TYPES[0] if DOCUMENT_TYPES else "10-K"
     if 'cf_year' not in st.session_state:
-        st.session_state.cf_year = "2025"
+        rp_years = sorted(FILINGS_DATA.get(st.session_state.cf_company, {}).keys(), reverse=True)
+        st.session_state.cf_year = rp_years[0] if rp_years else "2024"
     if 'cf_quarter' not in st.session_state:
         st.session_state.cf_quarter = "Q1"
-    # PoC: Add highlight tracking
     if 'cf_highlight_fact_id' not in st.session_state:
         st.session_state.cf_highlight_fact_id = None
     if 'cf_view_metric' not in st.session_state:
         st.session_state.cf_view_metric = None
-    
+
     # Inject custom CSS
     st.markdown(get_filings_css(), unsafe_allow_html=True)
 
@@ -914,44 +998,58 @@ def render_page():
 
     with header_col1:
         st.markdown('<h1 class="filings-title">Company Filing Documents</h1>', unsafe_allow_html=True)
-    
+
     with header_col2:
-        # Filter row
-        f1, f2, f3, f4 = st.columns([2.5, 1.2, 1.2, 1.2])
-        
+        rp_company_data = FILINGS_DATA.get(st.session_state.cf_company, {})
+        rp_available_years = sorted(rp_company_data.keys(), reverse=True) if rp_company_data else ["2024"]
+        rp_available_doc_types = sorted(set(
+            dt for yd in rp_company_data.values() for dt in yd.keys()
+        )) if rp_company_data else DOCUMENT_TYPES
+
+        rp_show_quarter = st.session_state.cf_doc_type not in ANNUAL_DOC_TYPES
+
+        if rp_show_quarter:
+            f1, f2, f3, f4 = st.columns([2.5, 1.2, 1.2, 1.2])
+        else:
+            f1, f2, f3 = st.columns([2.5, 1.2, 1.2])
+
         with f1:
             company = st.selectbox(
                 "Company",
                 options=[c[0] for c in COMPANIES],
                 format_func=lambda x: next((c[1] for c in COMPANIES if c[0] == x), x),
-                index=[c[0] for c in COMPANIES].index(st.session_state.cf_company),
+                index=min([c[0] for c in COMPANIES].index(st.session_state.cf_company), len(COMPANIES) - 1),
                 key="cf_company_select"
             )
-        
+
         with f2:
+            rp_doc_idx = rp_available_doc_types.index(st.session_state.cf_doc_type) if st.session_state.cf_doc_type in rp_available_doc_types else 0
             doc_type = st.selectbox(
                 "Document Type",
-                options=DOCUMENT_TYPES,
-                index=DOCUMENT_TYPES.index(st.session_state.cf_doc_type),
+                options=rp_available_doc_types,
+                index=rp_doc_idx,
                 key="cf_doc_type_select"
             )
-        
+
         with f3:
+            rp_year_idx = rp_available_years.index(st.session_state.cf_year) if st.session_state.cf_year in rp_available_years else 0
             year = st.selectbox(
                 "Year",
-                options=["2025", "2024", "2023", "2022", "2021"],
-                index=0,
+                options=rp_available_years,
+                index=rp_year_idx,
                 key="cf_year_select"
             )
-        
-        with f4:
-            quarter = st.selectbox(
-                "Quarter",
-                options=["Q1", "Q2", "Q3", "Q4"],
-                index=0,
-                key="cf_quarter_select"
-            )
-    
+
+        quarter = "Annual"
+        if rp_show_quarter:
+            with f4:
+                quarter = st.selectbox(
+                    "Quarter",
+                    options=["Q1", "Q2", "Q3", "Q4"],
+                    index=0,
+                    key="cf_quarter_select"
+                )
+
     # Update session state
     st.session_state.cf_company = company
     st.session_state.cf_doc_type = doc_type
@@ -979,59 +1077,49 @@ def render_page():
         json_metrics = []
         if company == "AAPL" and search_term.strip():
             try:
-                json_metrics = search_json_metrics(company, search_term, int(year))
+                json_metrics = search_json_metrics(company, search_term, int(year), DOC_TYPE_REVERSE.get(doc_type, doc_type))
             except:
                 pass
         
-        # Show count text
-        display_count = len(json_metrics) if json_metrics else len([m for m in FILING_METRICS if search_term.lower() in m.name.lower() or not search_term])
-        st.markdown(f'<div style="font-family: Roboto, sans-serif; font-size: 12px; color: #888888; margin: 4px 0 12px 4px;">Showing {display_count} metrics</div>', unsafe_allow_html=True)
-        
-        # Display JSON search results (ONLY numeric values)
-        if json_metrics:
-            for i, metric in enumerate(json_metrics[:10]):  # Show max 10
-                fact_badge = f"📍 {metric['fact_id']}" if metric['fact_id'] else ""
-                dim_text = f" [{metric['dimension']}]" if metric.get('dimension') else ""
-                st.markdown(f"""
-                <div style="background: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
-                    <div style="font-weight: 500; font-size: 14px; color: #2D2A29; margin-bottom: 4px;">
-                        {metric['name']}{dim_text}
-                    </div>
-                    <div style="font-weight: 600; font-size: 16px; color: #2D2A29; margin-bottom: 4px;">
-                        {metric['value']}
-                    </div>
-                    <div style="font-size: 11px; color: #888888;">
-                        {metric['category']} • {doc_type} • {year} {fact_badge}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # View button - unique key using index
-                btn_key = f"view_{i}_{metric['name'].replace(' ', '_')}_{metric.get('fact_id', 'na')}"
-                if st.button(f"👁️ View", key=btn_key, use_container_width=True):
+        # Search Metrics box — bordered container with styled cards
+        search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
+        eye_icon_svg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
+
+        with st.container(border=True):
+            st.markdown(f'<div class="search-header">{search_icon}<span class="search-title">Search Metrics</span></div>', unsafe_allow_html=True)
+
+            if json_metrics:
+                st.markdown(f'<div class="metrics-count">Showing {len(json_metrics)} metrics</div>', unsafe_allow_html=True)
+                for i, metric in enumerate(json_metrics[:10]):
+                    dim_text = f" [{metric['dimension']}]" if metric.get('dimension') else ""
+                    is_viewing = (st.session_state.cf_highlight_fact_id == metric.get('fact_id') and metric.get('fact_id'))
+                    card_class = "metric-card active" if is_viewing else "metric-card"
+                    btn_class = "viewing" if is_viewing else "view"
+                    btn_text = "Viewing" if is_viewing else "View"
+                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{metric["name"]}{dim_text}</div><div class="metric-value">{metric["value"]}</div><div class="metric-meta"><span>{metric["category"]}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{year}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
                     if metric.get('fact_id'):
-                        st.session_state.cf_highlight_fact_id = metric['fact_id']
-                        st.session_state.cf_view_metric = metric['name']
-                        st.rerun()
-        
-        # Fallback: Show mock metrics if no JSON results
-        if not json_metrics:
-            st.markdown("<div style='margin: 16px 0; border-top: 1px solid #E5E5E5;'></div>", unsafe_allow_html=True)
-            sidebar_html = render_search_sidebar(FILING_METRICS, search_term)
-            st.markdown(sidebar_html, unsafe_allow_html=True)
+                        btn_key = f"view_{i}_{metric['name'].replace(' ', '_')}_{metric.get('fact_id', 'na')}"
+                        if st.button(f"View in Document", key=btn_key, use_container_width=True):
+                            st.session_state.cf_highlight_fact_id = metric['fact_id']
+                            st.session_state.cf_view_metric = metric['name']
+                            st.rerun()
+            elif search_term.strip():
+                st.markdown(f'<div style="text-align:center;color:#888;padding:40px 0;font-size:14px;">No results for &quot;{search_term}&quot;</div>', unsafe_allow_html=True)
+            else:
+                st.markdown(f'<div style="text-align:center;color:#888;padding:40px 0;font-size:14px;">Search for a metric to see results</div>', unsafe_allow_html=True)
     
     with right_col:
-        # HTML VIEWER for AAPL - ALWAYS SHOW
+        # HTML VIEWER - Dynamic path based on selected filters
         company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
-        
-        # Get HTML path for AAPL
-        html_path = "/Users/mohdsaeedafri/Documents/Documents/Code-Base/CoresightIQ/CapIQ/data/filings/AAPL/2025/aapl-10-k-2025-clean.html"
 
+        # Look up HTML path from scanned filings data
+        html_path = FILINGS_DATA.get(company, {}).get(year, {}).get(doc_type, "")
+
+        logger.info(f"[RENDER_PAGE] Company: {company}, Year: {year}, DocType: {doc_type}")
         logger.info(f"[RENDER_PAGE] HTML path: {html_path}")
-        logger.info(f"[RENDER_PAGE] File exists: {os.path.exists(html_path)}")
-        
-        # FORCE SHOW HTML - even if company check fails
-        if os.path.exists(html_path):
+        logger.info(f"[RENDER_PAGE] File exists: {os.path.exists(html_path) if html_path else False}")
+
+        if html_path and os.path.exists(html_path):
             logger.info("[RENDER_PAGE] ✅ File found, rendering HTML")
             
             # Show document header
