@@ -5,6 +5,7 @@ import streamlit as st
 from components.styles import hide_sidebar, render_styles
 from components.navigation import render_header, render_coresight_footer
 from data.repository import CompanyRepository
+from utils.local_storage_manager import set_persistent_state, save_market_data_state
 
 hide_sidebar()
 
@@ -113,7 +114,8 @@ def main():
             index=[c[0] for c in COMPANIES].index(st.session_state.home_company),
             key="company_select", label_visibility="collapsed")
         st.session_state.home_company = company
-        
+        # No need to save ticker to local storage - it will be passed via query params
+        save_market_data_state()
         st.markdown(f'''
             <a href="/market_data?ticker={company}" target="_self" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
                 View
@@ -133,7 +135,8 @@ def main():
             index=SECTORS.index(st.session_state.home_sector) if st.session_state.home_sector in SECTORS else 0,
             key="sector_select", label_visibility="collapsed")
         st.session_state.home_sector = sector
-        
+        set_persistent_state('selected_sector_home', sector)
+        save_market_data_state()
         st.markdown('''
             <a href="/market_data" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
                 View

@@ -536,7 +536,7 @@ def main():
     )
     
     # Render Header
-    render_header(full_width=True, current_page="sec_filing")
+    render_header(full_width=True, current_page="sec_filing",ticker=st.query_params.get("ticker", "M"))
 
     # Inject custom CSS
     st.markdown(get_sec_filing_css(), unsafe_allow_html=True)

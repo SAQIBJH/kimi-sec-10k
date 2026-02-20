@@ -399,7 +399,7 @@ def main():
     )
     
     # Render Header
-    render_header(full_width=True, current_page="newsroom")
+    render_header(full_width=True, current_page="newsroom",ticker=st.query_params.get("ticker", "M"))
 
     # Render content
     render_page()

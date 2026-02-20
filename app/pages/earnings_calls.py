@@ -15,6 +15,7 @@ from components.styles import render_styles, COLORS, TYPOGRAPHY, SPACING
 from components.navigation import render_header, render_coresight_footer
 from data.repository import EarningsCallRepository
 from core.database import init_database
+from utils.local_storage_manager import load_earnings_calls_state, save_earnings_calls_state
 
 
 # =============================================================================
@@ -30,6 +31,10 @@ def get_earnings_css() -> str:
     /* =======================================================================
        PAGE CONTAINER
        ======================================================================= */
+    [data-testid="stHeaderActionElements"] {
+                display: none !important;
+                visibility: hidden !important;
+    }
     .earnings-page-container {
         max-width: 1440px;
         margin: 0 auto;
@@ -449,7 +454,15 @@ def render_empty_state() -> str:
 # MAIN PAGE
 # =============================================================================
 
-def render_earnings_calls():
+@st.cache_data
+def get_years(company):
+    return EarningsCallRepository.get_available_years(company)
+
+@st.cache_data
+def get_quarters(company, year):
+    return EarningsCallRepository.get_available_quarters(company, year)
+
+def render_earnings_calls(active_ticker: str = None):
     """Render earnings calls content (for unified entry point)."""
     # Inject custom CSS
     st.markdown(get_earnings_css(), unsafe_allow_html=True)
@@ -461,69 +474,171 @@ def render_earnings_calls():
     # Get data for dropdowns
     companies = EarningsCallRepository.get_companies_with_earnings()
     company_options = [(c['ticker'], f"{c['name']} ({c['ticker']})") for c in companies]
-    
+
     if not company_options:
         st.error("No earnings call data available.")
         st.stop()
-    
-    # Initialize session state for filters
-    if 'ec_company' not in st.session_state:
-        st.session_state.ec_company = company_options[0][0]
-    if 'ec_year' not in st.session_state:
-        st.session_state.ec_year = "2025"
-    if 'ec_quarter' not in st.session_state:
-        st.session_state.ec_quarter = "Q1"
-    
+
+    tickers = [opt[0] for opt in company_options]
+
+    # ---------------------------------
+    # Restore persisted state from local storage (before initializing defaults)
+    # ---------------------------------
+    load_earnings_calls_state()
+
+    # ---------------------------------
+    # Initialize company state
+    # ---------------------------------
+    if "ec_company" not in st.session_state:
+        if active_ticker and active_ticker in tickers:
+            st.session_state.ec_company = active_ticker
+        else:
+            st.session_state.ec_company = tickers[0]
+    # Validate persisted company still exists in available tickers
+    elif st.session_state.ec_company not in tickers:
+        st.session_state.ec_company = tickers[0]
+
     # Get available years and quarters based on selected company
-    available_years = EarningsCallRepository.get_available_years(st.session_state.ec_company)
+    available_years = get_years(st.session_state.ec_company)
     year_options = [str(y) for y in sorted(available_years, reverse=True)] if available_years else ["2025", "2024"]
-    
-    available_quarters = EarningsCallRepository.get_available_quarters(st.session_state.ec_company, st.session_state.ec_year)
+
+    if "ec_year" not in st.session_state or st.session_state.ec_year not in year_options:
+        st.session_state.ec_year = year_options[0]
+
+    available_quarters = get_quarters(st.session_state.ec_company, st.session_state.ec_year)
     quarter_options = sorted(available_quarters) if available_quarters else ["Q4", "Q3", "Q2", "Q1"]
+
+    if "ec_quarter" not in st.session_state or st.session_state.ec_quarter not in quarter_options:
+        st.session_state.ec_quarter = quarter_options[0]
+
+    # available_years = EarningsCallRepository.get_available_years(st.session_state.ec_company)
+    # year_options = [str(y) for y in sorted(available_years, reverse=True)] if available_years else ["2025", "2024"]
+    
+    # if 'ec_year' not in st.session_state:
+    #     st.session_state.ec_year = year_options[0] if year_options else "2025"
+    # available_quarters = EarningsCallRepository.get_available_quarters(st.session_state.ec_company, st.session_state.ec_year)
+    # quarter_options = sorted(available_quarters) if available_quarters else ["Q4", "Q3", "Q2", "Q1"]
+    # if 'ec_quarter' not in st.session_state:
+    #     st.session_state.ec_quarter = quarter_options[0] if quarter_options else "Q4"
     
     # =======================================================================
     # HEADER WITH TITLE AND FILTERS
     # =======================================================================
-    
+    def on_company_change():
+        ticker = st.session_state.ec_company_select
+        st.query_params["ticker"] = ticker
+        st.session_state.ec_company = ticker
+
+        years = get_years(ticker)
+        year_opts = [str(y) for y in sorted(years, reverse=True)] if years else ["2025", "2024"]
+
+        st.session_state.ec_year = year_opts[0]
+        st.session_state.ec_year_select = st.session_state.ec_year
+
+        quarters = get_quarters(ticker, st.session_state.ec_year)
+        q_opts = sorted(quarters) if quarters else ["Q4", "Q3", "Q2", "Q1"]
+
+        st.session_state.ec_quarter = q_opts[0]
+        st.session_state.ec_quarter_select = st.session_state.ec_quarter
+
+        save_earnings_calls_state()
+
+    def on_year_change():
+        ticker = st.session_state.ec_company_select
+        year = st.session_state.ec_year_select
+        st.session_state.ec_year = year
+
+        quarters = get_quarters(ticker, year)
+        q_opts = sorted(quarters) if quarters else ["Q4", "Q3", "Q2", "Q1"]
+
+        st.session_state.ec_quarter = q_opts[0]
+        st.session_state.ec_quarter_select = st.session_state.ec_quarter
+
+        save_earnings_calls_state()
+
+    def on_quarter_change():
+        st.session_state.ec_quarter = st.session_state.ec_quarter_select
+        save_earnings_calls_state()
     # Create header row with title on left and filters on right
-    spacer1,header_col1, header_col2,spacer2 = st.columns([0.1,1, 1,0.1])
+    # spacer1,header_col1, header_col2,spacer2 = st.columns([0.1,1, 1,0.1])
     
+    # with header_col1:
+    #     st.markdown('<h1 class="earnings-title">Earnings Calls</h1>', unsafe_allow_html=True)
+    
+    # with header_col2:
+    #     # Filter row with proper labels
+    #     filter_col1, filter_col2, filter_col3 = st.columns([1.5, 0.5, 0.5])
+    #     # def on_company_change():
+    #     #     st.query_params["ticker"] = st.session_state.ec_company_select
+
+    #     with filter_col1:
+    #         company = st.selectbox(
+    #             "Select a company and date range to view transcripts.",
+    #             options=[opt[0] for opt in company_options],
+    #             format_func=lambda x: next((opt[1].split('(')[0].strip() for opt in company_options if opt[0] == x), x),
+    #             index=[opt[0] for opt in company_options].index(st.session_state.ec_company) if st.session_state.ec_company in [opt[0] for opt in company_options] else 0,
+    #             key="ec_company_select",
+    #             on_change=on_company_change
+    #         )
+        
+    #     with filter_col2:
+    #         year = st.selectbox(
+    #             "Year",
+    #             options=year_options,
+    #             index=year_options.index(st.session_state.ec_year) if st.session_state.ec_year in year_options else 0,
+    #             key="ec_year_select"
+    #         )
+        
+    #     with filter_col3:
+    #         quarter = st.selectbox(
+    #             "Quarter",
+    #             options=quarter_options,
+    #             index=quarter_options.index(st.session_state.ec_quarter) if st.session_state.ec_quarter in quarter_options else 0,
+    #             key="ec_quarter_select"
+    #         )
+
+    spacer1, header_col1, header_col2, spacer2 = st.columns([0.1, 1, 1, 0.1])
+
     with header_col1:
         st.markdown('<h1 class="earnings-title">Earnings Calls</h1>', unsafe_allow_html=True)
-    
+
     with header_col2:
-        # Filter row with proper labels
         filter_col1, filter_col2, filter_col3 = st.columns([1.5, 0.5, 0.5])
-        
+
         with filter_col1:
             company = st.selectbox(
                 "Select a company and date range to view transcripts.",
-                options=[opt[0] for opt in company_options],
-                format_func=lambda x: next((opt[1].split('(')[0].strip() for opt in company_options if opt[0] == x), x),
-                index=[opt[0] for opt in company_options].index(st.session_state.ec_company) if st.session_state.ec_company in [opt[0] for opt in company_options] else 0,
-                key="ec_company_select"
+                options=tickers,
+                format_func=lambda x: next((opt[1].split("(")[0].strip() for opt in company_options if opt[0] == x), x),
+                index=tickers.index(st.session_state.ec_company),
+                key="ec_company_select",
+                on_change=on_company_change,
             )
-        
+
         with filter_col2:
             year = st.selectbox(
                 "Year",
                 options=year_options,
-                index=year_options.index(st.session_state.ec_year) if st.session_state.ec_year in year_options else 0,
-                key="ec_year_select"
+                index=year_options.index(st.session_state.ec_year),
+                key="ec_year_select",
+                on_change=on_year_change,
             )
-        
+
         with filter_col3:
             quarter = st.selectbox(
                 "Quarter",
                 options=quarter_options,
-                index=quarter_options.index(st.session_state.ec_quarter) if st.session_state.ec_quarter in quarter_options else 0,
-                key="ec_quarter_select"
+                index=quarter_options.index(st.session_state.ec_quarter),
+                key="ec_quarter_select",
+                on_change=on_quarter_change,
             )
+
     
     # Sync session state with widget values
     st.session_state.ec_company = company
     st.session_state.ec_year = year
     st.session_state.ec_quarter = quarter
+    save_earnings_calls_state()
     
     # =======================================================================
     # FETCH AND DISPLAY TRANSCRIPT
@@ -580,12 +695,12 @@ def main():
         remove_top_padding=True,
         footer_at_bottom=True
     )
-    
+    active_ticker = st.query_params.get("ticker", "M")
     # Render Header
-    render_header(full_width=True, current_page="earnings_calls")
+    render_header(full_width=True, current_page="earnings_calls",ticker=active_ticker)
 
     # Render content
-    render_earnings_calls()
+    render_earnings_calls(active_ticker)
     
     # Render Footer
     render_coresight_footer(full_width=True, stick_to_bottom=True)

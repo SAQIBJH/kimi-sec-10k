@@ -11,9 +11,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from components.styles import COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS
+import streamlit as st
 
-
-def render_header(full_width: bool = True, current_page: str = "market_data"):
+def render_header(full_width: bool = True, current_page: str = "market_data",ticker: str = "M"):
     """
     Render Coresight header based on Figma design - EXACT MATCH.
 
@@ -34,7 +34,8 @@ def render_header(full_width: bool = True, current_page: str = "market_data"):
     is_newsroom = current_page == "newsroom"
     is_company_profile = current_page == "company_profile"
     is_earnings_calls = current_page == "earnings_calls"
-    
+
+    actual_ticker = st.query_params.get("ticker", ticker) or ticker
     # Build header HTML - EXACT Figma specifications
     header_html = '''<style>
 /* Header full-width wrapper - background #f2f2f2 */
@@ -149,9 +150,9 @@ html, body {
     
     <!-- Navigation: at x=568, 48px gaps between items, Roboto 18px weight 500 -->
     <nav class="coresight-header-nav">
-      <a href="/market_data" target="_self" class="''' + ('active' if not is_newsroom and not is_company_profile and not is_earnings_calls else '') + '''">Market Data Dashboard</a>
-      <a href="/earnings_calls" target="_self" class="''' + ('active' if is_earnings_calls else '') + '''">Earnings Calls</a>
-      <a href="/newsroom" target="_self" class="''' + ('active' if is_newsroom else '') + '''">News</a>
+      <a href="/market_data?ticker=''' + actual_ticker + '''" target="_self" class="''' + ('active' if not is_newsroom and not is_company_profile and not is_earnings_calls else '') + '''">Market Data Dashboard</a>
+      <a href="/earnings_calls?ticker=''' + actual_ticker + '''" target="_self" class="''' + ('active' if is_earnings_calls else '') + '''">Earnings Calls</a>
+      <a href="/newsroom?ticker=''' + actual_ticker + '''" target="_self" class="''' + ('active' if is_newsroom else '') + '''">News</a>
     </nav>
   </div>
 </div>'''
