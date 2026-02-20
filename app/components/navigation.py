@@ -86,17 +86,17 @@ def render_header(full_width: bool = True, current_page: str = "market_data"):
   font-family: 'Roboto', sans-serif;
   font-size: 18px;
   font-weight: 500;
-  color: #2d2a29 !important;
+  color: #2d2a29;
   text-decoration: none;
   white-space: nowrap;
   transition: color 0.2s ease;
   line-height: 26px;
 }
 .coresight-header-nav a:hover {
-  color: #d62e2f !important;
+  color: #d62e2f;
 }
 .coresight-header-nav a.active {
-  color: #d62e2f !important;
+  color: #d62e2f;
 }
 
 /* Remove default Streamlit padding */
