@@ -287,3 +287,45 @@ class EarningsCall:
             })
         
         return sections
+
+
+@dataclass
+class FilingMetricResult:
+    """A filing metric from the filing_metrics table."""
+    original_label: str
+    numeric_value: Optional[float]
+    unit_ref: Optional[str]
+    fiscal_year: int
+    is_dimensioned: bool
+    dimension_label: Optional[str]
+    statement_type: Optional[str]
+    ixbrl_id: Optional[str]
+
+    @property
+    def formatted_value(self) -> str:
+        """Format numeric value: USD -> $X.XB / $X.XM, others as-is."""
+        if self.numeric_value is None:
+            return "N/A"
+        val = self.numeric_value
+        if self.unit_ref and self.unit_ref.lower() == "usd":
+            if abs(val) >= 1e12:
+                return f"${val / 1e12:,.2f}T"
+            elif abs(val) >= 1e9:
+                return f"${val / 1e9:,.1f}B"
+            elif abs(val) >= 1e6:
+                return f"${val / 1e6:,.0f}M"
+            elif abs(val) >= 1e3:
+                return f"${val / 1e3:,.0f}K"
+            else:
+                return f"${val:,.2f}"
+        # Non-USD: plain number
+        if val == int(val):
+            return f"{int(val):,}"
+        return f"{val:,.4f}"
+
+    @property
+    def display_label(self) -> str:
+        """Label with dimension suffix if applicable."""
+        if self.is_dimensioned and self.dimension_label:
+            return f"{self.original_label} [{self.dimension_label}]"
+        return self.original_label
