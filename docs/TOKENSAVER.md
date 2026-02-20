@@ -32,4 +32,4 @@
 
 ### **Acknowledgment Required**
 
-Do you acknowledge this **Master Protocol** for all browser, terminal, and file operations? If so, please confirm and proceed with the **Phase 1 Financial Statement JIRA cards** using the `playwright-cli` to verify data structures if necessary.
+Do you acknowledge this **Master Protocol** for all browser, terminal, and file operations? If so, please confirm and proceed
