@@ -386,8 +386,8 @@ def hide_sidebar():
         display: none !important;
     }
 
-    /* Remove spacing from iframe containers */
-    iframe {
+    /* Remove spacing from sidebar iframe containers only */
+    [data-testid="stSidebar"] iframe {
         display: block;
         margin: 0 !important;
         padding: 0 !important;

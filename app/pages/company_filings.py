@@ -5,15 +5,34 @@ SEC filing documents viewer with metric search and document display.
 Matches Figma design with Streamlit native components + custom styling.
 """
 import os
+import logging
 import streamlit as st
 from typing import List, Dict, Optional
 from dataclasses import dataclass
+
+# Setup logging - FORCE DEBUG LEVEL
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+    force=True
+)
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 from components.styles import hide_sidebar, set_page_layout
 hide_sidebar()
 
 from components.styles import render_styles
 from components.navigation import render_header, render_coresight_footer
+
+# Verify HTML file exists
+HTML_FILE_PATH = "/Users/mohdsaeedafri/Documents/Documents/Code-Base/CoresightIQ/CapIQ/data/filings/AAPL/2025/aapl-10-k-2025-clean.html"
+print(f"🔥🔥🔥 COMPANY_FILINGS.PY LOADED 🔥🔥🔥")
+print(f"🔥 HTML file path: {HTML_FILE_PATH}")
+print(f"🔥 HTML file exists: {os.path.exists(HTML_FILE_PATH)}")
+logger.info(f"[INIT] HTML file path: {HTML_FILE_PATH}")
+logger.info(f"[INIT] HTML file exists: {os.path.exists(HTML_FILE_PATH)}")
+logger.info(f"[INIT] HTML file size: {os.path.getsize(HTML_FILE_PATH) if os.path.exists(HTML_FILE_PATH) else 0} bytes")
 
 
 # =============================================================================
@@ -47,12 +66,45 @@ class FilingDocument:
 # =============================================================================
 
 COMPANIES = [
-    ("M", "Macy's Inc."),
-    ("ANF", "Abercrombie & Fitch Co."),
-    ("JWN", "Nordstrom Inc."),
-    ("KSS", "Kohl's Corporation"),
-    ("DDS", "Dillard's Inc."),
+    ("AAPL", "Apple Inc."),  # Only AAPL has real data
 ]
+
+# JSON Search import (minimal)
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path('/Users/mohdsaeedafri/Documents/Documents/Code-Base/CoresightIQ/CapIQ/data/filings/AAPL')))
+
+def search_json_metrics(ticker: str, query: str, year: int = 2025, limit: int = 20):
+    """Search metrics from JSON - returns ONLY numeric values"""
+    try:
+        from search_engine import SECFilingSearchEngine
+        json_path = f"/Users/mohdsaeedafri/Documents/Documents/Code-Base/CoresightIQ/CapIQ/data/filings/{ticker}/FINAL_COMPLETE_WITH_LOCATIONS.json"
+        if not os.path.exists(json_path):
+            return []
+        
+        engine = SECFilingSearchEngine(json_path)
+        results = engine.search(query)
+        
+        metrics = []
+        for r in results[:limit]:
+            # ONLY include numeric values (skip text blocks)
+            try:
+                val = float(r.value)
+                if abs(val) > 0:  # Valid number
+                    metrics.append({
+                        'name': r.original_label,
+                        'value': r.formatted_value,
+                        'fact_id': r.html_location.get('ixbrl_id') if r.html_location else None,
+                        'category': 'Income Statement' if any(x in r.original_label.lower() for x in ['revenue', 'sales', 'income']) else 'Financial Metric',
+                        'dimension': r.dimension_label,
+                        'is_dimensioned': r.is_dimensioned
+                    })
+            except:
+                continue  # Skip non-numeric
+        return metrics
+    except Exception as e:
+        print(f"Search error: {e}")
+        return []
 
 DOCUMENT_TYPES = ["10-K", "10-Q", "8-K", "DEF 14A", "S-1"]
 
@@ -506,84 +558,62 @@ def render_document_viewer(document: Optional[FilingDocument]) -> str:
 
 def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = None) -> None:
     """
-    Render SEC HTML document with auto-scroll and highlight functionality.
-    SHADOW DOM PROTOCOL - Isolates SEC CSS while maintaining visibility
+    Render SEC HTML document using components.html for iframe isolation.
     """
     import streamlit.components.v1 as components
-    
+
+    logger.info(f"[RENDER HTML] html_path: {html_path}")
+    logger.info(f"[RENDER HTML] highlight_fact_id: {highlight_fact_id}")
+
     # Read HTML content
     try:
         with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
             clean_html = f.read()
+        logger.info(f"[RENDER HTML] File read success, size: {len(clean_html)} bytes")
     except Exception as e:
+        logger.error(f"[RENDER HTML] Error loading document: {e}")
         st.error(f"Error loading document: {e}")
         return
-    
-    # 1. Escape backticks and template literals in the HTML to prevent JS errors
-    sanitized_html = clean_html.replace('`', '\\`').replace('${', '\\${')
-    
-    # 2. The Shadow DOM Wrapper Logic
-    # This creates a custom element that "traps" the SEC CSS and allows full height
-    shadow_viewer = f"""
-    <div id="sec-container" style="height: 85vh; width: 100%; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; background: white;"></div>
 
-    <script>
-    (function() {{
-        const container = document.getElementById('sec-container');
-        if (!container.shadowRoot) {{
-            const shadow = container.attachShadow({{mode: 'open'}});
-            const content = `
-                <style>
-                    :host {{ display: block; height: 100%; overflow: auto; background: white; }}
-                    #inner-content {{ padding: 20px; background: white; }}
-                    /* Force all tables to be visible */
-                    table {{ border-collapse: collapse; width: 100%; }}
-                    td, th {{ padding: 8px; border: 1px solid #ddd; }}
-                    /* Ensure iXBRL elements are visible */
-                    ix\\:nonfraction, ix\\:nonNumeric {{ display: inline; }}
-                </style>
-                <div id="inner-content">{sanitized_html}</div>
-            `;
-            shadow.innerHTML = content;
-        }}
-
-        // Robust Polling for Highlight & Scroll INSIDE Shadow DOM
-        const shadow = container.shadowRoot;
-        let attempts = 0;
-        
-        function tryScroll() {{
-            const el = shadow.getElementById('{highlight_fact_id}');
-            if (el) {{
-                // Apply highlight
-                el.style.backgroundColor = '#FFFF00';
-                el.style.boxShadow = '0 0 15px rgba(255, 215, 0, 1)';
-                el.style.border = '2px solid #FFA500';
-                el.style.padding = '4px';
-                el.style.borderRadius = '4px';
-                el.style.display = 'inline-block';
-                
-                // Scroll to element
-                setTimeout(() => {{
+    # Inject highlight script if fact_id provided
+    if highlight_fact_id:
+        highlight_script = f"""
+        <script>
+        (function() {{
+            let attempts = 0;
+            function tryScroll() {{
+                const el = document.getElementById('{highlight_fact_id}');
+                if (el) {{
+                    el.style.backgroundColor = '#FFFF00';
+                    el.style.boxShadow = '0 0 15px rgba(255, 215, 0, 1)';
+                    el.style.border = '2px solid #FFA500';
                     el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
-                    console.log('Shadow DOM Scroll Success for ID: {highlight_fact_id}');
-                }}, 500);
-            }} else if (attempts < 20) {{
-                attempts++;
-                console.log('Shadow DOM polling for element: {highlight_fact_id}, attempt ' + attempts);
-                setTimeout(tryScroll, 200);
-            }} else {{
-                console.error('Failed to find element in Shadow DOM: {highlight_fact_id}');
+                }} else if (attempts < 30) {{
+                    attempts++;
+                    setTimeout(tryScroll, 300);
+                }}
             }}
-        }}
-        
-        // Start polling
-        tryScroll();
-    }})();
-    </script>
-    """
-    
-    # Use st.components.v1.html with large height
-    components.html(shadow_viewer, height=900)
+            if (document.readyState === 'loading') {{
+                document.addEventListener('DOMContentLoaded', tryScroll);
+            }} else {{
+                tryScroll();
+            }}
+        }})();
+        </script>
+        """
+        if '</body>' in clean_html:
+            clean_html = clean_html.replace('</body>', highlight_script + '</body>')
+        else:
+            clean_html = clean_html + highlight_script
+
+    # Render HTML via components.html (creates sandboxed iframe)
+    logger.info("[RENDER HTML] Calling components.html...")
+    try:
+        components.html(clean_html, height=800, scrolling=True)
+        logger.info("[RENDER HTML] components.html completed")
+    except Exception as e:
+        logger.error(f"[RENDER HTML] components.html error: {e}")
+        st.error(f"Error rendering HTML: {e}")
 
 
 def get_test_metric_data(selected_year: str = None):
@@ -633,7 +663,10 @@ def main():
     if 'cf_search' not in st.session_state:
         st.session_state.cf_search = ""
     if 'cf_company' not in st.session_state:
-        st.session_state.cf_company = "M"
+        st.session_state.cf_company = "AAPL"
+    # Reset company if not in available list
+    if st.session_state.cf_company not in [c[0] for c in COMPANIES]:
+        st.session_state.cf_company = COMPANIES[0][0]
     if 'cf_doc_type' not in st.session_state:
         st.session_state.cf_doc_type = "10-K"
     if 'cf_year' not in st.session_state:
@@ -662,16 +695,12 @@ def main():
     # Inject custom CSS
     st.markdown(get_filings_css(), unsafe_allow_html=True)
     
-    # Page container
-    st.markdown('<div class="filings-page-container">', unsafe_allow_html=True)
-    st.markdown('<div class="filings-content-wrapper">', unsafe_allow_html=True)
-    
     # =======================================================================
     # HEADER WITH TITLE AND FILTERS
     # =======================================================================
-    
+
     header_col1, header_col2 = st.columns([1, 2])
-    
+
     with header_col1:
         st.markdown('<h3 class="filings-title">Company Filing Documents</h3>', unsafe_allow_html=True)
     
@@ -735,9 +764,44 @@ def main():
         )
         st.session_state.cf_search = search_term
         
+        # JSON Search - ONLY for AAPL with real data
+        json_metrics = []
+        if company == "AAPL" and search_term.strip():
+            try:
+                json_metrics = search_json_metrics(company, search_term, int(year))
+            except:
+                pass
+        
         # Show count text
-        filtered_count = len([m for m in FILING_METRICS if search_term.lower() in m.name.lower() or not search_term])
-        st.markdown(f'<div style="font-family: Roboto, sans-serif; font-size: 12px; color: #888888; margin: 4px 0 12px 4px;">Showing {filtered_count} metrics</div>', unsafe_allow_html=True)
+        display_count = len(json_metrics) if json_metrics else len([m for m in FILING_METRICS if search_term.lower() in m.name.lower() or not search_term])
+        st.markdown(f'<div style="font-family: Roboto, sans-serif; font-size: 12px; color: #888888; margin: 4px 0 12px 4px;">Showing {display_count} metrics</div>', unsafe_allow_html=True)
+        
+        # Display JSON search results (ONLY numeric values)
+        if json_metrics:
+            for i, metric in enumerate(json_metrics[:10]):  # Show max 10
+                fact_badge = f"📍 {metric['fact_id']}" if metric['fact_id'] else ""
+                dim_text = f" [{metric['dimension']}]" if metric.get('dimension') else ""
+                st.markdown(f"""
+                <div style="background: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+                    <div style="font-weight: 500; font-size: 14px; color: #2D2A29; margin-bottom: 4px;">
+                        {metric['name']}{dim_text}
+                    </div>
+                    <div style="font-weight: 600; font-size: 16px; color: #2D2A29; margin-bottom: 4px;">
+                        {metric['value']}
+                    </div>
+                    <div style="font-size: 11px; color: #888888;">
+                        {metric['category']} • {doc_type} • {year} {fact_badge}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # View button - unique key using index
+                btn_key = f"view_{i}_{metric['name'].replace(' ', '_')}_{metric.get('fact_id', 'na')}"
+                if st.button(f"👁️ View", key=btn_key, use_container_width=True):
+                    if metric.get('fact_id'):
+                        st.session_state.cf_highlight_fact_id = metric['fact_id']
+                        st.session_state.cf_view_metric = metric['name']
+                        st.rerun()
         
         # PoC: Add test metric card with View button - Dynamic based on selected year
         poc_data = get_test_metric_data(year)
@@ -773,39 +837,35 @@ def main():
         st.markdown(sidebar_html, unsafe_allow_html=True)
     
     with right_col:
-        # PoC: Dynamic SEC viewer based on selected year
-        poc_data = get_test_metric_data(year)
+        # HTML VIEWER for AAPL - ALWAYS SHOW
+        company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
         
-        if poc_data and st.session_state.cf_highlight_fact_id:
-            html_path = os.path.join(os.path.dirname(__file__), "..", "..", poc_data["html_path"])
-            html_path = os.path.abspath(html_path)
+        # Get HTML path for AAPL
+        html_path = "/Users/mohdsaeedafri/Documents/Documents/Code-Base/CoresightIQ/CapIQ/data/filings/AAPL/2025/aapl-10-k-2025-clean.html"
+
+        logger.info(f"[HTML VIEWER] Company: {company}, HTML path: {html_path}")
+        logger.info(f"[HTML VIEWER] File exists: {os.path.exists(html_path)}")
+        
+        # FORCE SHOW HTML - even if company check fails
+        if os.path.exists(html_path):
+            logger.info("[HTML VIEWER] ✅ File found, rendering HTML")
             
-            if os.path.exists(html_path):
-                # Show document header
-                st.markdown(f"""
-                <div style="display: flex; align-items: center; justify-content: space-between; 
-                            padding: 16px 20px; border-bottom: 1px solid #E5E5E5; background: #fff;
-                            border-radius: 8px 8px 0 0;">
-                    <div>
-                        <span style="font-weight: 600; font-size: 16px; color: #2D2A29;">
-                            Amazon.com Inc. (AMZN) 10-K
-                        </span>
-                        <span style="background: #F2F2F2; padding: 4px 10px; border-radius: 4px; 
-                                     font-size: 13px; color: #4F4F4F; margin-left: 12px;">{poc_data['year']}</span>
-                    </div>
-                    <div style="color: #0066CC; font-size: 14px;">
-                        🔍 Auto-scrolled to {poc_data['name']} ({poc_data['fact_id']}) - FY{poc_data['data_year']} data
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                
-                # Render SEC HTML with highlighting
-                render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
-            else:
-                st.error(f"HTML file not found: {html_path}")
+            # Show document header
+            highlight_text = ""
+            if st.session_state.cf_highlight_fact_id:
+                highlight_text = f"🔍 Auto-scrolled to {st.session_state.cf_view_metric or 'metric'} ({st.session_state.cf_highlight_fact_id})"
+                logger.info(f"[HTML VIEWER] Highlight: {highlight_text}")
+            
+            header_html = f'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #E5E5E5;background:#fff;border-radius:8px 8px 0 0;"><div><span style="font-weight:600;font-size:16px;color:#2D2A29;">{company_name} ({company}) {doc_type}</span><span style="background:#F2F2F2;padding:4px 10px;border-radius:4px;font-size:13px;color:#4F4F4F;margin-left:12px;">{year}</span></div><div style="color:#0066CC;font-size:14px;">{highlight_text}</div></div>'
+            st.markdown(header_html, unsafe_allow_html=True)
+            
+            # Render SEC HTML with highlighting
+            logger.info(f"[HTML VIEWER] Calling render_sec_html_viewer with path: {html_path}")
+            render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
+            logger.info("[HTML VIEWER] ✅ render_sec_html_viewer completed")
         else:
+            logger.error(f"[HTML VIEWER] ❌ File NOT found: {html_path}")
             # Show placeholder
-            company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
             document = FilingDocument(
                 company_name=company_name,
                 ticker=company,
@@ -817,10 +877,6 @@ def main():
             viewer_html = render_document_viewer(document)
             st.markdown(viewer_html, unsafe_allow_html=True)
     
-    # Close containers
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
-    
     # Render Footer
     render_coresight_footer(full_width=True, stick_to_bottom=True)
 
@@ -831,7 +887,10 @@ def render_page():
     if 'cf_search' not in st.session_state:
         st.session_state.cf_search = ""
     if 'cf_company' not in st.session_state:
-        st.session_state.cf_company = "M"
+        st.session_state.cf_company = "AAPL"
+    # Reset company if not in available list (e.g., switched from mock to real data)
+    if st.session_state.cf_company not in [c[0] for c in COMPANIES]:
+        st.session_state.cf_company = COMPANIES[0][0]
     if 'cf_doc_type' not in st.session_state:
         st.session_state.cf_doc_type = "10-K"
     if 'cf_year' not in st.session_state:
@@ -846,17 +905,13 @@ def render_page():
     
     # Inject custom CSS
     st.markdown(get_filings_css(), unsafe_allow_html=True)
-    
-    # Page container
-    st.markdown('<div class="filings-page-container">', unsafe_allow_html=True)
-    st.markdown('<div class="filings-content-wrapper">', unsafe_allow_html=True)
-    
+
     # =======================================================================
     # HEADER WITH TITLE AND FILTERS
     # =======================================================================
-    
+
     header_col1, header_col2 = st.columns([1, 2])
-    
+
     with header_col1:
         st.markdown('<h1 class="filings-title">Company Filing Documents</h1>', unsafe_allow_html=True)
     
@@ -920,77 +975,81 @@ def render_page():
         )
         st.session_state.cf_search = search_term
         
+        # JSON Search - ONLY for AAPL with real data
+        json_metrics = []
+        if company == "AAPL" and search_term.strip():
+            try:
+                json_metrics = search_json_metrics(company, search_term, int(year))
+            except:
+                pass
+        
         # Show count text
-        filtered_count = len([m for m in FILING_METRICS if search_term.lower() in m.name.lower() or not search_term])
-        st.markdown(f'<div style="font-family: Roboto, sans-serif; font-size: 12px; color: #888888; margin: 4px 0 12px 4px;">Showing {filtered_count} metrics</div>', unsafe_allow_html=True)
+        display_count = len(json_metrics) if json_metrics else len([m for m in FILING_METRICS if search_term.lower() in m.name.lower() or not search_term])
+        st.markdown(f'<div style="font-family: Roboto, sans-serif; font-size: 12px; color: #888888; margin: 4px 0 12px 4px;">Showing {display_count} metrics</div>', unsafe_allow_html=True)
         
-        # PoC: Add test metric card with View button - Dynamic based on selected year
-        poc_data = get_test_metric_data(year)
-        if poc_data:
-            display_value = poc_data["value"]
-            display_year = poc_data["year"]
-            st.markdown(f"""
-            <div style="background: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-weight: 500; font-size: 14px; color: #2D2A29; margin-bottom: 4px;">Total Revenue (PoC)</div>
-                        <div style="font-weight: 600; font-size: 16px; color: #2D2A29; margin-bottom: 4px;">{display_value}</div>
-                        <div style="font-size: 11px; color: #888888;">Income Statement • 10-K • {display_year}</div>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-        
-        # PoC: View button using native Streamlit - Works for 2024 and 2025
-        if st.button("👁️ View Revenue in Document", type="primary", use_container_width=True):
-            poc_data = get_test_metric_data(year)
-            if poc_data:
-                st.session_state.cf_highlight_fact_id = poc_data["fact_id"]
-                st.session_state.cf_view_metric = "revenue"
-                st.rerun()
-            else:
-                st.warning(f"⚠️ SEC document highlighting is only available for Years 2024-2025 in this PoC.")
-        
-        st.markdown("<div style='margin: 16px 0; border-top: 1px solid #E5E5E5;'></div>", unsafe_allow_html=True)
-        
-        # Render search sidebar with metrics - includes Search Metrics header
-        sidebar_html = render_search_sidebar(FILING_METRICS, search_term)
-        st.markdown(sidebar_html, unsafe_allow_html=True)
-    
-    with right_col:
-        # PoC: Dynamic SEC viewer based on selected year
-        poc_data = get_test_metric_data(year)
-        
-        if poc_data and st.session_state.cf_highlight_fact_id:
-            html_path = os.path.join(os.path.dirname(__file__), "..", "..", poc_data["html_path"])
-            html_path = os.path.abspath(html_path)
-            
-            if os.path.exists(html_path):
-                # Show document header
+        # Display JSON search results (ONLY numeric values)
+        if json_metrics:
+            for i, metric in enumerate(json_metrics[:10]):  # Show max 10
+                fact_badge = f"📍 {metric['fact_id']}" if metric['fact_id'] else ""
+                dim_text = f" [{metric['dimension']}]" if metric.get('dimension') else ""
                 st.markdown(f"""
-                <div style="display: flex; align-items: center; justify-content: space-between; 
-                            padding: 16px 20px; border-bottom: 1px solid #E5E5E5; background: #fff;
-                            border-radius: 8px 8px 0 0;">
-                    <div>
-                        <span style="font-weight: 600; font-size: 16px; color: #2D2A29;">
-                            Amazon.com Inc. (AMZN) 10-K
-                        </span>
-                        <span style="background: #F2F2F2; padding: 4px 10px; border-radius: 4px; 
-                                     font-size: 13px; color: #4F4F4F; margin-left: 12px;">{poc_data['year']}</span>
+                <div style="background: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+                    <div style="font-weight: 500; font-size: 14px; color: #2D2A29; margin-bottom: 4px;">
+                        {metric['name']}{dim_text}
                     </div>
-                    <div style="color: #0066CC; font-size: 14px;">
-                        🔍 Auto-scrolled to {poc_data['name']} ({poc_data['fact_id']}) - FY{poc_data['data_year']} data
+                    <div style="font-weight: 600; font-size: 16px; color: #2D2A29; margin-bottom: 4px;">
+                        {metric['value']}
+                    </div>
+                    <div style="font-size: 11px; color: #888888;">
+                        {metric['category']} • {doc_type} • {year} {fact_badge}
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # Render SEC HTML with highlighting
-                render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
-            else:
-                st.error(f"HTML file not found: {html_path}")
+                # View button - unique key using index
+                btn_key = f"view_{i}_{metric['name'].replace(' ', '_')}_{metric.get('fact_id', 'na')}"
+                if st.button(f"👁️ View", key=btn_key, use_container_width=True):
+                    if metric.get('fact_id'):
+                        st.session_state.cf_highlight_fact_id = metric['fact_id']
+                        st.session_state.cf_view_metric = metric['name']
+                        st.rerun()
+        
+        # Fallback: Show mock metrics if no JSON results
+        if not json_metrics:
+            st.markdown("<div style='margin: 16px 0; border-top: 1px solid #E5E5E5;'></div>", unsafe_allow_html=True)
+            sidebar_html = render_search_sidebar(FILING_METRICS, search_term)
+            st.markdown(sidebar_html, unsafe_allow_html=True)
+    
+    with right_col:
+        # HTML VIEWER for AAPL - ALWAYS SHOW
+        company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
+        
+        # Get HTML path for AAPL
+        html_path = "/Users/mohdsaeedafri/Documents/Documents/Code-Base/CoresightIQ/CapIQ/data/filings/AAPL/2025/aapl-10-k-2025-clean.html"
+
+        logger.info(f"[RENDER_PAGE] HTML path: {html_path}")
+        logger.info(f"[RENDER_PAGE] File exists: {os.path.exists(html_path)}")
+        
+        # FORCE SHOW HTML - even if company check fails
+        if os.path.exists(html_path):
+            logger.info("[RENDER_PAGE] ✅ File found, rendering HTML")
+            
+            # Show document header
+            highlight_text = ""
+            if st.session_state.cf_highlight_fact_id:
+                highlight_text = f"🔍 Auto-scrolled to {st.session_state.cf_view_metric or 'metric'} ({st.session_state.cf_highlight_fact_id})"
+                logger.info(f"[RENDER_PAGE] Highlight: {highlight_text}")
+            
+            header_html = f'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #E5E5E5;background:#fff;border-radius:8px 8px 0 0;"><div><span style="font-weight:600;font-size:16px;color:#2D2A29;">{company_name} ({company}) {doc_type}</span><span style="background:#F2F2F2;padding:4px 10px;border-radius:4px;font-size:13px;color:#4F4F4F;margin-left:12px;">{year}</span></div><div style="color:#0066CC;font-size:14px;">{highlight_text}</div></div>'
+            st.markdown(header_html, unsafe_allow_html=True)
+            
+            # Render SEC HTML with highlighting
+            logger.info(f"[RENDER_PAGE] Calling render_sec_html_viewer")
+            render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
+            logger.info("[RENDER_PAGE] ✅ render_sec_html_viewer completed")
         else:
+            logger.error(f"[RENDER_PAGE] ❌ File NOT found: {html_path}")
             # Show placeholder
-            company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
             document = FilingDocument(
                 company_name=company_name,
                 ticker=company,
@@ -1002,9 +1061,6 @@ def render_page():
             viewer_html = render_document_viewer(document)
             st.markdown(viewer_html, unsafe_allow_html=True)
     
-    # Close containers
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
 
 main()
