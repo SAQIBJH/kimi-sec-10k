@@ -172,7 +172,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Fiscal Period",
+    "standard_concept": "Document Fiscal Period Focus",
     "html_location": {
       "ixbrl_id": "f-55",
       "start_position": 1409,
@@ -292,7 +292,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "RPO Period 1",
+    "standard_concept": "Revenue Remaining Performance Obligation Expected Timing Of Satisfaction Period1",
     "html_location": {
       "ixbrl_id": "f-404",
       "start_position": 1607,
@@ -352,7 +352,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "RPO Period 1",
+    "standard_concept": "Revenue Remaining Performance Obligation Expected Timing Of Satisfaction Period1",
     "html_location": {
       "ixbrl_id": "f-405",
       "start_position": 1758,
@@ -412,7 +412,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "RPO Period 1",
+    "standard_concept": "Revenue Remaining Performance Obligation Expected Timing Of Satisfaction Period1",
     "html_location": {
       "ixbrl_id": "f-406",
       "start_position": 1909,
@@ -472,7 +472,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "RPO Period 1",
+    "standard_concept": "Revenue Remaining Performance Obligation Expected Timing Of Satisfaction Period1",
     "html_location": {
       "ixbrl_id": "f-407",
       "start_position": 2060,
@@ -1012,7 +1012,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Annual Report",
+    "standard_concept": "Document Annual Report",
     "html_location": {
       "ixbrl_id": "f-2",
       "start_position": 89213,
@@ -1072,7 +1072,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Period End Date",
+    "standard_concept": "Document Period End Date",
     "html_location": {
       "ixbrl_id": "f-4",
       "start_position": 89857,
@@ -1132,7 +1132,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Fiscal Year End Date",
+    "standard_concept": "Current Fiscal Year End Date",
     "html_location": {
       "ixbrl_id": "f-3",
       "start_position": 89971,
@@ -1192,7 +1192,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Transition Report",
+    "standard_concept": "Document Transition Report",
     "html_location": {
       "ixbrl_id": "f-5",
       "start_position": 90479,
@@ -1312,7 +1312,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Registrant Name",
+    "standard_concept": "Company Name",
     "html_location": {
       "ixbrl_id": "f-7",
       "start_position": 92935,
@@ -1972,7 +1972,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Exchange",
+    "standard_concept": "Security Exchange Name",
     "html_location": {
       "ixbrl_id": "f-18",
       "start_position": 100501,
@@ -2152,7 +2152,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Exchange",
+    "standard_concept": "Security Exchange Name",
     "html_location": {
       "ixbrl_id": "f-21",
       "start_position": 101494,
@@ -2332,7 +2332,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Exchange",
+    "standard_concept": "Security Exchange Name",
     "html_location": {
       "ixbrl_id": "f-24",
       "start_position": 102487,
@@ -2512,7 +2512,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Exchange",
+    "standard_concept": "Security Exchange Name",
     "html_location": {
       "ixbrl_id": "f-27",
       "start_position": 103480,
@@ -2692,7 +2692,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Exchange",
+    "standard_concept": "Security Exchange Name",
     "html_location": {
       "ixbrl_id": "f-30",
       "start_position": 104473,
@@ -2872,7 +2872,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Exchange",
+    "standard_concept": "Security Exchange Name",
     "html_location": {
       "ixbrl_id": "f-33",
       "start_position": 105466,
@@ -3052,7 +3052,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Exchange",
+    "standard_concept": "Security Exchange Name",
     "html_location": {
       "ixbrl_id": "f-36",
       "start_position": 106459,
@@ -3232,7 +3232,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Exchange",
+    "standard_concept": "Security Exchange Name",
     "html_location": {
       "ixbrl_id": "f-39",
       "start_position": 107452,
@@ -3292,7 +3292,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Well Known Seasoned Issuer",
+    "standard_concept": "Entity Well Known Seasoned Issuer",
     "html_location": {
       "ixbrl_id": "f-40",
       "start_position": 108686,
@@ -3352,7 +3352,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Voluntary Filer",
+    "standard_concept": "Entity Voluntary Filers",
     "html_location": {
       "ixbrl_id": "f-41",
       "start_position": 109961,
@@ -3412,7 +3412,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Current Reporting Status",
+    "standard_concept": "Entity Current Reporting Status",
     "html_location": {
       "ixbrl_id": "f-42",
       "start_position": 110940,
@@ -3532,7 +3532,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Filer Category",
+    "standard_concept": "Entity Filer Category",
     "html_location": {
       "ixbrl_id": "f-44",
       "start_position": 114111,
@@ -3892,7 +3892,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Public Float",
+    "standard_concept": "Entity Public Float",
     "html_location": {
       "ixbrl_id": "f-50",
       "start_position": 120882,
@@ -3952,7 +3952,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Common Shares Outstanding",
+    "standard_concept": "Entity Common Stock Shares Outstanding",
     "html_location": {
       "ixbrl_id": "f-51",
       "start_position": 121575,
@@ -5212,7 +5212,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Selling General and Administrative",
+    "standard_concept": "Selling General And Administrative Expense",
     "html_location": {
       "ixbrl_id": "f-96",
       "start_position": 507120,
@@ -5392,7 +5392,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Income Before Tax",
+    "standard_concept": "Income Loss From Continuing Operations Before Income Taxes Extraordinary Items Noncontrolling Interest",
     "html_location": {
       "ixbrl_id": "f-108",
       "start_position": 515532,
@@ -5992,7 +5992,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Comprehensive Income",
+    "standard_concept": "Comprehensive Income Net Of Tax",
     "html_location": {
       "ixbrl_id": "f-156",
       "start_position": 560042,
@@ -6052,7 +6052,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Accounts Receivable",
+    "standard_concept": "Accounts Receivable Net Current",
     "html_location": {
       "ixbrl_id": "f-163",
       "start_position": 569141,
@@ -6172,7 +6172,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Inventory",
+    "standard_concept": "Inventory Net",
     "html_location": {
       "ixbrl_id": "f-167",
       "start_position": 571882,
@@ -6232,7 +6232,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Other Current Assets",
+    "standard_concept": "Other Assets Current",
     "html_location": {
       "ixbrl_id": "f-169",
       "start_position": 573221,
@@ -6352,7 +6352,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Noncurrent Assets",
+    "standard_concept": "Assets Noncurrent",
     "html_location": {
       "ixbrl_id": "f-179",
       "start_position": 580949,
@@ -6472,7 +6472,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Accounts Payable",
+    "standard_concept": "Accounts Payable Current",
     "html_location": {
       "ixbrl_id": "f-183",
       "start_position": 585574,
@@ -6532,7 +6532,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Contract Liability Current",
+    "standard_concept": "Contract With Customer Liability Current",
     "html_location": {
       "ixbrl_id": "f-187",
       "start_position": 588499,
@@ -6712,7 +6712,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Other Noncurrent Liabilities",
+    "standard_concept": "Other Liabilities Noncurrent",
     "html_location": {
       "ixbrl_id": "f-197",
       "start_position": 596164,
@@ -6772,7 +6772,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Noncurrent Liabilities",
+    "standard_concept": "Liabilities Noncurrent",
     "html_location": {
       "ixbrl_id": "f-199",
       "start_position": 597571,
@@ -6892,7 +6892,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Commitments and Contingencies",
+    "standard_concept": "Commitments And Contingencies",
     "html_location": {
       "ixbrl_id": "f-203",
       "start_position": 600668,
@@ -6952,7 +6952,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Common Stock Par Value",
+    "standard_concept": "Common Stock Par Or Stated Value Per Share",
     "html_location": {
       "ixbrl_id": "f-205",
       "start_position": 602150,
@@ -7192,7 +7192,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Common Stock and Additional Paid In Capital",
+    "standard_concept": "Common Stocks Including Additional Paid In Capital",
     "html_location": {
       "ixbrl_id": "f-213",
       "start_position": 603872,
@@ -7252,7 +7252,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Retained Earnings",
+    "standard_concept": "Retained Earnings Accumulated Deficit",
     "html_location": {
       "ixbrl_id": "f-215",
       "start_position": 605263,
@@ -7312,7 +7312,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Accumulated Other Comprehensive Income",
+    "standard_concept": "Accumulated Other Comprehensive Income Loss Net Of Tax",
     "html_location": {
       "ixbrl_id": "f-217",
       "start_position": 606657,
@@ -7335,8 +7335,8 @@
     "fiscal_period": null,
     "fiscal_year": 2025,
     "is_dimensioned": false,
-    "label": "Total liabilities and shareholders\u2019 equity",
-    "original_label": "Total liabilities and shareholders\u2019 equity",
+    "label": "Total liabilities and shareholders’ equity",
+    "original_label": "Total liabilities and shareholders’ equity",
     "balance": "credit",
     "preferred_sign": 1.0,
     "statement_type": "BalanceSheet",
@@ -7576,7 +7576,7 @@
     "fiscal_year": 2025,
     "is_dimensioned": true,
     "label": "Common stock and additional paid-in capital",
-    "original_label": "Total shareholders\u2019 equity",
+    "original_label": "Total shareholders’ equity",
     "balance": "credit",
     "preferred_sign": 1.0,
     "statement_type": "BalanceSheet",
@@ -7876,7 +7876,7 @@
     "fiscal_year": 2025,
     "is_dimensioned": true,
     "label": "Retained earnings/(Accumulated deficit)",
-    "original_label": "Total shareholders\u2019 equity",
+    "original_label": "Total shareholders’ equity",
     "balance": "credit",
     "preferred_sign": 1.0,
     "statement_type": "BalanceSheet",
@@ -7996,7 +7996,7 @@
     "fiscal_year": 2025,
     "is_dimensioned": true,
     "label": "Accumulated other comprehensive income/(loss)",
-    "original_label": "Total shareholders\u2019 equity",
+    "original_label": "Total shareholders’ equity",
     "balance": "credit",
     "preferred_sign": 1.0,
     "statement_type": "BalanceSheet",
@@ -8055,8 +8055,8 @@
     "fiscal_period": null,
     "fiscal_year": 2025,
     "is_dimensioned": false,
-    "label": "Total shareholders\u2019 equity",
-    "original_label": "Total shareholders\u2019 equity",
+    "label": "Total shareholders’ equity",
+    "original_label": "Total shareholders’ equity",
     "balance": "credit",
     "preferred_sign": 1.0,
     "statement_type": "BalanceSheet",
@@ -8212,7 +8212,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Depreciation and Amortization",
+    "standard_concept": "Depreciation Depletion And Amortization",
     "html_location": {
       "ixbrl_id": "f-280",
       "start_position": 664216,
@@ -8872,7 +8872,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Proceeds from Securities Maturities",
+    "standard_concept": "Proceeds From Maturities Prepayments And Calls Of Available For Sale Securities",
     "html_location": {
       "ixbrl_id": "f-313",
       "start_position": 687655,
@@ -8992,7 +8992,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Capital Expenditures",
+    "standard_concept": "Payments To Acquire Property Plant And Equipment",
     "html_location": {
       "ixbrl_id": "f-319",
       "start_position": 691785,
@@ -9052,7 +9052,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Other Investing Activities",
+    "standard_concept": "Payments For Proceeds From Other Investing Activities",
     "html_location": {
       "ixbrl_id": "f-322",
       "start_position": 693979,
@@ -9232,7 +9232,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Dividend Payments",
+    "standard_concept": "Payments Of Dividends",
     "html_location": {
       "ixbrl_id": "f-331",
       "start_position": 701331,
@@ -9292,7 +9292,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Stock Repurchases",
+    "standard_concept": "Payments For Repurchase Of Common Stock",
     "html_location": {
       "ixbrl_id": "f-334",
       "start_position": 703242,
@@ -9352,7 +9352,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Debt Issuance Proceeds",
+    "standard_concept": "Proceeds From Issuance Of Long Term Debt",
     "html_location": {
       "ixbrl_id": "f-337",
       "start_position": 705210,
@@ -9592,7 +9592,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Restricted Cash Change",
+    "standard_concept": "Cash Cash Equivalents Restricted Cash And Restricted Cash Equivalents Period Increase Decrease Including Exchange Rate Effect",
     "html_location": {
       "ixbrl_id": "f-352",
       "start_position": 715784,
@@ -10132,7 +10132,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash Policy",
+    "standard_concept": "Cash And Cash Equivalents Policy Text Block",
     "html_location": {
       "ixbrl_id": "f-367",
       "start_position": 730437,
@@ -11092,7 +11092,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Contract Liability Revenue Recognized",
+    "standard_concept": "Contract With Customer Liability Revenue Recognized",
     "html_location": {
       "ixbrl_id": "f-395",
       "start_position": 759314,
@@ -11152,7 +11152,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Contract Liability",
+    "standard_concept": "Contract With Customer Liability",
     "html_location": {
       "ixbrl_id": "f-398",
       "start_position": 762495,
@@ -11572,7 +11572,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Shares Outstanding Basic",
+    "standard_concept": "Weighted Average Number Of Shares Outstanding Basic",
     "html_location": {
       "ixbrl_id": "f-413",
       "start_position": 770553,
@@ -11692,7 +11692,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Shares Outstanding Diluted",
+    "standard_concept": "Weighted Average Number Of Diluted Shares Outstanding",
     "html_location": {
       "ixbrl_id": "f-419",
       "start_position": 774709,
@@ -11752,7 +11752,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "EPS Basic",
+    "standard_concept": "Earnings Per Share Basic",
     "html_location": {
       "ixbrl_id": "f-422",
       "start_position": 777591,
@@ -11812,7 +11812,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "EPS Diluted",
+    "standard_concept": "Earnings Per Share Diluted",
     "html_location": {
       "ixbrl_id": "f-425",
       "start_position": 780056,
@@ -12052,7 +12052,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-433",
       "start_position": 791163,
@@ -12352,7 +12352,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-438",
       "start_position": 796613,
@@ -12772,7 +12772,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-445",
       "start_position": 800819,
@@ -13192,7 +13192,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-452",
       "start_position": 805259,
@@ -13372,7 +13372,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities Cost",
+    "standard_concept": "Available For Sale Debt Securities Amortized Cost Basis",
     "html_location": {
       "ixbrl_id": "f-455",
       "start_position": 808903,
@@ -13552,7 +13552,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities",
+    "standard_concept": "Available For Sale Securities Debt Securities",
     "html_location": {
       "ixbrl_id": "f-458",
       "start_position": 810676,
@@ -13612,7 +13612,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-459",
       "start_position": 811268,
@@ -13792,7 +13792,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities Cost",
+    "standard_concept": "Available For Sale Debt Securities Amortized Cost Basis",
     "html_location": {
       "ixbrl_id": "f-462",
       "start_position": 813213,
@@ -13972,7 +13972,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities",
+    "standard_concept": "Available For Sale Securities Debt Securities",
     "html_location": {
       "ixbrl_id": "f-465",
       "start_position": 815014,
@@ -14032,7 +14032,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-466",
       "start_position": 815605,
@@ -14212,7 +14212,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities Cost",
+    "standard_concept": "Available For Sale Debt Securities Amortized Cost Basis",
     "html_location": {
       "ixbrl_id": "f-469",
       "start_position": 817526,
@@ -14392,7 +14392,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities",
+    "standard_concept": "Available For Sale Securities Debt Securities",
     "html_location": {
       "ixbrl_id": "f-472",
       "start_position": 819299,
@@ -14452,7 +14452,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-473",
       "start_position": 819890,
@@ -14632,7 +14632,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities Cost",
+    "standard_concept": "Available For Sale Debt Securities Amortized Cost Basis",
     "html_location": {
       "ixbrl_id": "f-476",
       "start_position": 821819,
@@ -14812,7 +14812,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities",
+    "standard_concept": "Available For Sale Securities Debt Securities",
     "html_location": {
       "ixbrl_id": "f-479",
       "start_position": 823621,
@@ -14872,7 +14872,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-480",
       "start_position": 824181,
@@ -15052,7 +15052,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities Cost",
+    "standard_concept": "Available For Sale Debt Securities Amortized Cost Basis",
     "html_location": {
       "ixbrl_id": "f-483",
       "start_position": 826053,
@@ -15232,7 +15232,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities",
+    "standard_concept": "Available For Sale Securities Debt Securities",
     "html_location": {
       "ixbrl_id": "f-486",
       "start_position": 827855,
@@ -15292,7 +15292,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-487",
       "start_position": 828415,
@@ -15472,7 +15472,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities Cost",
+    "standard_concept": "Available For Sale Debt Securities Amortized Cost Basis",
     "html_location": {
       "ixbrl_id": "f-490",
       "start_position": 830295,
@@ -15652,7 +15652,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities",
+    "standard_concept": "Available For Sale Securities Debt Securities",
     "html_location": {
       "ixbrl_id": "f-493",
       "start_position": 832069,
@@ -15712,7 +15712,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-494",
       "start_position": 832661,
@@ -15892,7 +15892,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities Cost",
+    "standard_concept": "Available For Sale Debt Securities Amortized Cost Basis",
     "html_location": {
       "ixbrl_id": "f-497",
       "start_position": 834602,
@@ -16072,7 +16072,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities",
+    "standard_concept": "Available For Sale Securities Debt Securities",
     "html_location": {
       "ixbrl_id": "f-500",
       "start_position": 836370,
@@ -16132,7 +16132,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-501",
       "start_position": 836930,
@@ -16312,7 +16312,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities Cost",
+    "standard_concept": "Available For Sale Debt Securities Amortized Cost Basis",
     "html_location": {
       "ixbrl_id": "f-504",
       "start_position": 838823,
@@ -16492,7 +16492,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities",
+    "standard_concept": "Available For Sale Securities Debt Securities",
     "html_location": {
       "ixbrl_id": "f-507",
       "start_position": 840628,
@@ -16552,7 +16552,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-508",
       "start_position": 841220,
@@ -16732,7 +16732,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities Cost",
+    "standard_concept": "Available For Sale Debt Securities Amortized Cost Basis",
     "html_location": {
       "ixbrl_id": "f-511",
       "start_position": 843146,
@@ -16912,7 +16912,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Available for Sale Securities",
+    "standard_concept": "Available For Sale Securities Debt Securities",
     "html_location": {
       "ixbrl_id": "f-514",
       "start_position": 845126,
@@ -16972,7 +16972,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-515",
       "start_position": 845776,
@@ -17392,7 +17392,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Cash and Cash Equivalents",
+    "standard_concept": "Cash And Cash Equivalents At Carrying Value",
     "html_location": {
       "ixbrl_id": "f-522",
       "start_position": 852153,
@@ -18892,7 +18892,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Property Plant and Equipment Gross",
+    "standard_concept": "Property Plant And Equipment Gross",
     "html_location": {
       "ixbrl_id": "f-653",
       "start_position": 952527,
@@ -18952,7 +18952,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Property Plant and Equipment Gross",
+    "standard_concept": "Property Plant And Equipment Gross",
     "html_location": {
       "ixbrl_id": "f-655",
       "start_position": 954150,
@@ -19012,7 +19012,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Property Plant and Equipment Gross",
+    "standard_concept": "Property Plant And Equipment Gross",
     "html_location": {
       "ixbrl_id": "f-657",
       "start_position": 955531,
@@ -19072,7 +19072,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Property Plant and Equipment Gross",
+    "standard_concept": "Property Plant And Equipment Gross",
     "html_location": {
       "ixbrl_id": "f-659",
       "start_position": 956954,
@@ -19132,7 +19132,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Accumulated Depreciation",
+    "standard_concept": "Accumulated Depreciation Depletion And Amortization Property Plant And Equipment",
     "html_location": {
       "ixbrl_id": "f-661",
       "start_position": 958452,
@@ -19192,7 +19192,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Property Plant and Equipment",
+    "standard_concept": "Property Plant And Equipment Net",
     "html_location": {
       "ixbrl_id": "f-663",
       "start_position": 960248,
@@ -19552,7 +19552,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Other Noncurrent Assets",
+    "standard_concept": "Other Assets Noncurrent",
     "html_location": {
       "ixbrl_id": "f-674",
       "start_position": 968757,
@@ -19672,7 +19672,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Accrued Income Taxes",
+    "standard_concept": "Accrued Income Taxes Current",
     "html_location": {
       "ixbrl_id": "f-677",
       "start_position": 972014,
@@ -19792,7 +19792,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Other Accrued Liabilities",
+    "standard_concept": "Other Accrued Liabilities Current",
     "html_location": {
       "ixbrl_id": "f-681",
       "start_position": 975003,
@@ -20572,7 +20572,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Income Tax Expense",
+    "standard_concept": "Income Tax Expense Benefit",
     "html_location": {
       "ixbrl_id": "f-747",
       "start_position": 1024498,
@@ -25972,7 +25972,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Debt Term",
+    "standard_concept": "Debt Instrument Term",
     "html_location": {
       "ixbrl_id": "f-896",
       "start_position": 1126567,
@@ -26392,7 +26392,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Commercial Paper Proceeds",
+    "standard_concept": "Proceeds From Repayments Of Commercial Paper",
     "html_location": {
       "ixbrl_id": "f-913",
       "start_position": 1140816,
@@ -26488,7 +26488,7 @@
     "member": "srt:MinimumMember",
     "dimension_label": "Fixed-rate notes",
     "dimension_member_label": "Minimum",
-    "full_dimension_label": "Statistical Measurement: Minimum, Debt Instrument: 2013 \u2013 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
+    "full_dimension_label": "Statistical Measurement: Minimum, Debt Instrument: 2013 – 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
     "dim_us-gaap_StatementClassOfStockAxis": null,
     "dim_srt_ProductOrServiceAxis": null,
     "dim_us-gaap_StatementEquityComponentsAxis": null,
@@ -26548,7 +26548,7 @@
     "member": "srt:MaximumMember",
     "dimension_label": "Fixed-rate notes",
     "dimension_member_label": "Maximum",
-    "full_dimension_label": "Statistical Measurement: Maximum, Debt Instrument: 2013 \u2013 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
+    "full_dimension_label": "Statistical Measurement: Maximum, Debt Instrument: 2013 – 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
     "dim_us-gaap_StatementClassOfStockAxis": null,
     "dim_srt_ProductOrServiceAxis": null,
     "dim_us-gaap_StatementEquityComponentsAxis": null,
@@ -26595,7 +26595,7 @@
     "fiscal_period": "FY",
     "fiscal_year": 2025,
     "is_dimensioned": true,
-    "label": "2013 \u2013 2023 debt issuances",
+    "label": "2013 – 2023 debt issuances",
     "original_label": "Debt instrument, maturity year (calendar), start",
     "balance": null,
     "preferred_sign": 1.0,
@@ -26607,8 +26607,8 @@
     "dimension": "us-gaap:DebtInstrumentAxis",
     "member": "aapl:A20132023DebtIssuancesMember",
     "dimension_label": "Fixed-rate notes",
-    "dimension_member_label": "2013 \u2013 2023 debt issuances",
-    "full_dimension_label": "Debt Instrument: 2013 \u2013 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
+    "dimension_member_label": "2013 – 2023 debt issuances",
+    "full_dimension_label": "Debt Instrument: 2013 – 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
     "dim_us-gaap_StatementClassOfStockAxis": null,
     "dim_srt_ProductOrServiceAxis": null,
     "dim_us-gaap_StatementEquityComponentsAxis": null,
@@ -26655,7 +26655,7 @@
     "fiscal_period": "FY",
     "fiscal_year": 2025,
     "is_dimensioned": true,
-    "label": "2013 \u2013 2023 debt issuances",
+    "label": "2013 – 2023 debt issuances",
     "original_label": "Debt instrument, maturity year (calendar), end",
     "balance": null,
     "preferred_sign": 1.0,
@@ -26667,8 +26667,8 @@
     "dimension": "us-gaap:DebtInstrumentAxis",
     "member": "aapl:A20132023DebtIssuancesMember",
     "dimension_label": "Fixed-rate notes",
-    "dimension_member_label": "2013 \u2013 2023 debt issuances",
-    "full_dimension_label": "Debt Instrument: 2013 \u2013 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
+    "dimension_member_label": "2013 – 2023 debt issuances",
+    "full_dimension_label": "Debt Instrument: 2013 – 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
     "dim_us-gaap_StatementClassOfStockAxis": null,
     "dim_srt_ProductOrServiceAxis": null,
     "dim_us-gaap_StatementEquityComponentsAxis": null,
@@ -26715,7 +26715,7 @@
     "fiscal_period": null,
     "fiscal_year": 2025,
     "is_dimensioned": true,
-    "label": "2013 \u2013 2023 debt issuances",
+    "label": "2013 – 2023 debt issuances",
     "original_label": "Total term debt principal",
     "balance": null,
     "preferred_sign": 1.0,
@@ -26727,8 +26727,8 @@
     "dimension": "us-gaap:DebtInstrumentAxis",
     "member": "aapl:A20132023DebtIssuancesMember",
     "dimension_label": "Fixed-rate notes",
-    "dimension_member_label": "2013 \u2013 2023 debt issuances",
-    "full_dimension_label": "Debt Instrument: 2013 \u2013 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
+    "dimension_member_label": "2013 – 2023 debt issuances",
+    "full_dimension_label": "Debt Instrument: 2013 – 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
     "dim_us-gaap_StatementClassOfStockAxis": null,
     "dim_srt_ProductOrServiceAxis": null,
     "dim_us-gaap_StatementEquityComponentsAxis": null,
@@ -26752,7 +26752,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Debt Carrying Amount",
+    "standard_concept": "Debt Instrument Carrying Amount",
     "html_location": {
       "ixbrl_id": "f-921",
       "start_position": 1150172,
@@ -26788,7 +26788,7 @@
     "member": "srt:MinimumMember",
     "dimension_label": "Fixed-rate notes",
     "dimension_member_label": "Minimum",
-    "full_dimension_label": "Statistical Measurement: Minimum, Debt Instrument: 2013 \u2013 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
+    "full_dimension_label": "Statistical Measurement: Minimum, Debt Instrument: 2013 – 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
     "dim_us-gaap_StatementClassOfStockAxis": null,
     "dim_srt_ProductOrServiceAxis": null,
     "dim_us-gaap_StatementEquityComponentsAxis": null,
@@ -26812,7 +26812,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Debt Interest Rate",
+    "standard_concept": "Debt Instrument Interest Rate Effective Percentage",
     "html_location": {
       "ixbrl_id": "f-922",
       "start_position": 1150777,
@@ -26848,7 +26848,7 @@
     "member": "srt:MaximumMember",
     "dimension_label": "Fixed-rate notes",
     "dimension_member_label": "Maximum",
-    "full_dimension_label": "Statistical Measurement: Maximum, Debt Instrument: 2013 \u2013 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
+    "full_dimension_label": "Statistical Measurement: Maximum, Debt Instrument: 2013 – 2023 debt issuances, Long-term Debt, Type: Fixed-rate notes",
     "dim_us-gaap_StatementClassOfStockAxis": null,
     "dim_srt_ProductOrServiceAxis": null,
     "dim_us-gaap_StatementEquityComponentsAxis": null,
@@ -26872,7 +26872,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Debt Interest Rate",
+    "standard_concept": "Debt Instrument Interest Rate Effective Percentage",
     "html_location": {
       "ixbrl_id": "f-923",
       "start_position": 1150956,
@@ -27172,7 +27172,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Debt Carrying Amount",
+    "standard_concept": "Debt Instrument Carrying Amount",
     "html_location": {
       "ixbrl_id": "f-931",
       "start_position": 1155544,
@@ -27232,7 +27232,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Debt Interest Rate",
+    "standard_concept": "Debt Instrument Interest Rate Effective Percentage",
     "html_location": {
       "ixbrl_id": "f-932",
       "start_position": 1156148,
@@ -27292,7 +27292,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Debt Interest Rate",
+    "standard_concept": "Debt Instrument Interest Rate Effective Percentage",
     "html_location": {
       "ixbrl_id": "f-933",
       "start_position": 1156327,
@@ -27592,7 +27592,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Long Term Debt",
+    "standard_concept": "Long Term Debt Noncurrent",
     "html_location": {
       "ixbrl_id": "f-944",
       "start_position": 1167624,
@@ -28072,7 +28072,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Debt Carrying Amount",
+    "standard_concept": "Debt Instrument Carrying Amount",
     "html_location": {
       "ixbrl_id": "f-953",
       "start_position": 1176563,
@@ -29512,7 +29512,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Share Based Compensation Expense",
+    "standard_concept": "Allocated Share Based Compensation Expense",
     "html_location": {
       "ixbrl_id": "f-996",
       "start_position": 1209275,
@@ -30292,7 +30292,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Segment Disclosure",
+    "standard_concept": "Segment Reporting Disclosure Text Block",
     "html_location": {
       "ixbrl_id": "f-1013",
       "start_position": 1227325,
@@ -31132,7 +31132,7 @@
     "dim_srt_ConsolidationItemsAxis": "us-gaap:CorporateNonSegmentMember",
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Research and Development",
+    "standard_concept": "Research And Development Expense",
     "html_location": {
       "ixbrl_id": "f-1028",
       "start_position": 1246100,
@@ -31192,7 +31192,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Research and Development",
+    "standard_concept": "Research And Development Expense",
     "html_location": {
       "ixbrl_id": "f-1029",
       "start_position": 1246679,
@@ -31612,7 +31612,7 @@
     "dim_srt_ConsolidationItemsAxis": "us-gaap:CorporateNonSegmentMember",
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "General and Administrative",
+    "standard_concept": "General And Administrative Expense",
     "html_location": {
       "ixbrl_id": "f-1036",
       "start_position": 1253562,
@@ -31672,7 +31672,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "General and Administrative",
+    "standard_concept": "General And Administrative Expense",
     "html_location": {
       "ixbrl_id": "f-1037",
       "start_position": 1254142,
@@ -32632,7 +32632,7 @@
     "dim_srt_ConsolidationItemsAxis": null,
     "dim_us-gaap_StatementBusinessSegmentsAxis": null,
     "dim_srt_StatementGeographicalAxis": null,
-    "standard_concept": "Auditor",
+    "standard_concept": "Auditor Name",
     "html_location": {
       "ixbrl_id": "f-1124",
       "start_position": 1356117,

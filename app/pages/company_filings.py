@@ -35,14 +35,26 @@ COMPANY_NAMES = {
 }
 
 # Map directory names to display names for document types
+# Map directory names to display names (handles both old "10K" and new "10-K" folders)
 DOC_TYPE_MAP = {
     "10K": "10-K",
+    "10-K": "10-K",
     "10Q": "10-Q",
+    "10-Q": "10-Q",
     "8K": "8-K",
+    "8-K": "8-K",
     "DEF14A": "DEF 14A",
     "S1": "S-1",
+    "S-1": "S-1",
 }
-DOC_TYPE_REVERSE = {v: k for k, v in DOC_TYPE_MAP.items()}
+# Reverse map: display name → DB doc_type (uses new hyphenated folder names)
+DOC_TYPE_REVERSE = {
+    "10-K": "10-K",
+    "10-Q": "10-Q",
+    "8-K": "8-K",
+    "DEF 14A": "DEF14A",
+    "S-1": "S-1",
+}
 
 # Annual document types (no quarter filter needed)
 ANNUAL_DOC_TYPES = {"10-K", "DEF 14A", "S-1"}
@@ -75,20 +87,21 @@ def scan_filings_directory():
                 if not os.path.isdir(doc_dir):
                     continue
 
-                # Find best HTML file: prefer -clean.html, then .html, then .htm
-                clean_files = []
+                # Find best HTML file: prefer filing.html (has iXBRL IDs),
+                # then other .html, then .htm. Avoid -clean.html (strips iXBRL).
+                filing_html = None
                 html_files = []
                 htm_files = []
                 for f in os.listdir(doc_dir):
                     full = os.path.join(doc_dir, f)
-                    if f.endswith('-clean.html'):
-                        clean_files.append(full)
-                    elif f.endswith('.html'):
+                    if f == 'filing.html':
+                        filing_html = full
+                    elif f.endswith('.html') and not f.endswith('-clean.html'):
                         html_files.append(full)
                     elif f.endswith('.htm'):
                         htm_files.append(full)
 
-                html_file = (clean_files or html_files or htm_files or [None])[0]
+                html_file = filing_html or (html_files or htm_files or [None])[0]
 
                 if html_file:
                     display_type = DOC_TYPE_MAP.get(doc_type_dir_name, doc_type_dir_name)
@@ -559,6 +572,28 @@ def render_document_viewer(document: Optional[FilingDocument]) -> str:
     return f'<div class="document-viewer"><div class="document-header"><div class="document-title-section"><span class="document-title">{document.company_name} ({document.ticker}) {document.document_type}</span><span class="document-badge">{document.year}</span><span class="document-meta"><span class="document-meta-dot"></span><span>{document.quarter}</span></span></div><a href="#" class="download-btn" onclick="alert(\'Download functionality coming soon!\'); return false;">{download_icon}<span>Download</span></a></div><div class="document-content"><div class="document-placeholder"><div class="document-placeholder-text">FILING DOCUMENT</div><div class="document-placeholder-subtext">{document.company_name} {document.document_type} for {document.year} {document.quarter}</div></div></div></div>'
 
 
+def _convert_ixbrl_to_spans(html: str) -> str:
+    """Convert iXBRL namespace elements (ix:nonFraction, ix:nonNumeric, etc.)
+    to regular <span> elements so their id attributes are accessible via
+    document.getElementById() in the browser.
+
+    The HTML5 parser does not create proper DOM nodes for namespace-prefixed
+    elements like <ix:nonFraction>, so id attributes on them are invisible
+    to JavaScript. Converting to <span> fixes this.
+    """
+    import re
+    # Convert opening ix: tags → <span> while keeping id and other attrs
+    # Matches <ix:nonFraction ...>, <ix:nonNumeric ...>, <ix:continuation ...>, etc.
+    html = re.sub(
+        r'<ix:(\w+)(\s[^>]*)?>',
+        lambda m: f'<span data-ix="{m.group(1)}"{m.group(2) or ""}>',
+        html,
+    )
+    # Convert closing tags
+    html = re.sub(r'</ix:\w+>', '</span>', html)
+    return html
+
+
 def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = None) -> None:
     """
     Render SEC HTML document using components.html for iframe isolation.
@@ -577,6 +612,9 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
         logger.error(f"[RENDER HTML] Error loading document: {e}")
         st.error(f"Error loading document: {e}")
         return
+
+    # Convert iXBRL namespace tags to spans so IDs are in the DOM
+    clean_html = _convert_ixbrl_to_spans(clean_html)
 
     # Inject highlight script if fact_id provided
     if highlight_fact_id:
@@ -751,21 +789,18 @@ def main():
         )
         st.session_state.cf_search = search_term
 
-        # DB Search — works for any company with data in filing_metrics table
+        # DB Search — matches on original_label OR standard_concept
         search_results = []
         if search_term.strip():
             doc_type_dir = DOC_TYPE_REVERSE.get(doc_type, doc_type)
-            logger.info(f"[SEARCH] ticker={company}, fiscal_year={year}, doc_type={doc_type_dir}, query='{search_term}'")
             try:
                 search_results = FilingMetricRepository.search(
                     ticker=company,
                     fiscal_year=int(year),
                     doc_type=doc_type_dir,
                     query=search_term,
-                    is_numeric=True,
                     limit=20,
                 )
-                logger.info(f"[SEARCH] Got {len(search_results)} results")
             except Exception as e:
                 logger.error(f"[SEARCH] DB search error: {e}", exc_info=True)
                 search_results = []

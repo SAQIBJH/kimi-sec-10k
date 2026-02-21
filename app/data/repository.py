@@ -1597,24 +1597,22 @@ class FilingMetricRepository:
         fiscal_year: int,
         doc_type: str,
         query: str,
-        is_numeric: bool = True,
         limit: int = 20,
     ) -> List[FilingMetricResult]:
         """
-        Search filing metrics by original_label.
-        Case-insensitive substring match using LIKE.
-        Composite index on (ticker, fiscal_year, doc_type, is_numeric)
-        narrows to ~500 rows, making LIKE fast enough.
+        Search filing metrics by original_label OR standard_concept.
+        Case-insensitive substring match using LIKE on both fields.
         """
         sql = """
             SELECT original_label, numeric_value, unit_ref, fiscal_year,
-                   is_dimensioned, dimension_label, statement_type, ixbrl_id
+                   is_dimensioned, dimension_label, statement_type, ixbrl_id,
+                   standard_concept, concept, balance, period_type
             FROM filing_metrics
             WHERE ticker = :ticker
               AND fiscal_year = :fiscal_year
               AND doc_type = :doc_type
-              AND is_numeric = :is_numeric
-              AND LOWER(original_label) LIKE :query
+              AND (LOWER(original_label) LIKE :query
+                   OR LOWER(standard_concept) LIKE :query)
             ORDER BY is_dimensioned ASC, original_label ASC
             LIMIT :limit
         """
@@ -1622,7 +1620,6 @@ class FilingMetricRepository:
             "ticker": ticker,
             "fiscal_year": fiscal_year,
             "doc_type": doc_type,
-            "is_numeric": is_numeric,
             "query": f"%{query.strip().lower()}%",
             "limit": limit,
         }
@@ -1638,6 +1635,10 @@ class FilingMetricRepository:
                 dimension_label=row["dimension_label"],
                 statement_type=row["statement_type"],
                 ixbrl_id=row["ixbrl_id"],
+                standard_concept=row["standard_concept"],
+                concept=row["concept"],
+                balance=row["balance"],
+                period_type=row["period_type"],
             )
             for row in results
         ]

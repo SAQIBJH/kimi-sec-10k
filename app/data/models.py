@@ -300,6 +300,10 @@ class FilingMetricResult:
     dimension_label: Optional[str]
     statement_type: Optional[str]
     ixbrl_id: Optional[str]
+    standard_concept: Optional[str] = None
+    concept: Optional[str] = None
+    balance: Optional[str] = None
+    period_type: Optional[str] = None
 
     @property
     def formatted_value(self) -> str:
