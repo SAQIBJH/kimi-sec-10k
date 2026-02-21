@@ -304,28 +304,57 @@ class FilingMetricResult:
     concept: Optional[str] = None
     balance: Optional[str] = None
     period_type: Optional[str] = None
+    value: Optional[str] = None  # raw text value (e.g. "P1Y" duration, text)
 
     @property
     def formatted_value(self) -> str:
-        """Format numeric value: USD -> $X.XB / $X.XM, others as-is."""
+        """Format numeric value: USD -> $ X.XXXB / $ X,XXXM, others as-is.
+        Falls back to raw value string if numeric_value is None.
+        """
         if self.numeric_value is None:
-            return "N/A"
-        val = self.numeric_value
+            return self._format_raw_value()
+        val = abs(self.numeric_value)  # bracket notation (123) stored as negative — always display positive
         if self.unit_ref and self.unit_ref.lower() == "usd":
             if abs(val) >= 1e12:
-                return f"${val / 1e12:,.2f}T"
+                return f"$ {val / 1e12:,.3f}T"
             elif abs(val) >= 1e9:
-                return f"${val / 1e9:,.1f}B"
+                return f"$ {val / 1e9:,.3f}B"
             elif abs(val) >= 1e6:
-                return f"${val / 1e6:,.0f}M"
+                return f"$ {val / 1e6:,.0f}M"
             elif abs(val) >= 1e3:
-                return f"${val / 1e3:,.0f}K"
+                return f"$ {val / 1e3:,.0f}K"
             else:
-                return f"${val:,.2f}"
-        # Non-USD: plain number
+                return f"$ {val:,.2f}"
+        # Percentage: label or concept contains "percent" → decimal × 100
+        label_lower = self.original_label.lower()
+        concept_lower = (self.standard_concept or "").lower()
+        if "percent" in label_lower or "percent" in concept_lower or "rate" in label_lower:
+            pct = val * 100 if abs(val) <= 1.0 else val  # already in % if > 1
+            return f"{pct:,.2f}%"
+        # Plain number
         if val == int(val):
             return f"{int(val):,}"
         return f"{val:,.4f}"
+
+    def _format_raw_value(self) -> str:
+        """Format the raw text value when numeric_value is absent."""
+        raw = getattr(self, 'value', None)
+        if not raw:
+            return "N/A"
+        # ISO 8601 duration: P1Y → "1 Year", P2Y → "2 Years", P1M → "1 Month", etc.
+        import re
+        m = re.fullmatch(r'P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)D)?', raw.strip())
+        if m:
+            years, months, days = m.group(1), m.group(2), m.group(3)
+            parts = []
+            if years:
+                parts.append(f"{years} {'Year' if years == '1' else 'Years'}")
+            if months:
+                parts.append(f"{months} {'Month' if months == '1' else 'Months'}")
+            if days:
+                parts.append(f"{days} {'Day' if days == '1' else 'Days'}")
+            return " ".join(parts) if parts else raw
+        return raw
 
     @property
     def display_label(self) -> str:

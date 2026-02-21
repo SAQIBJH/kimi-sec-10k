@@ -10,7 +10,8 @@ from data.models import (
     Company, IncomeStatementLineItem, FiscalPeriod, IncomeStatementData,
     NewsArticle, TickerSentiment, CompanyOverview, EarningsCall,
     BalanceSheetLineItem, BalanceSheetData,
-    CashFlowLineItem, CashFlowData,FilingMetricResult
+    CashFlowLineItem, CashFlowData,
+    FilingMetricResult
 )
 
 
@@ -1155,95 +1156,6 @@ class CashFlowRepository:
         return "USD"  # Default fallback
 
 
-class ForexRepository:
-    """Repository for currency conversion rates from coreiq_av_forex_daily table."""
-    
-    @staticmethod
-    def get_conversion_rate(from_currency: str, to_currency: str, as_of_date: Optional[date] = None) -> float:
-        """
-        Get conversion rate between two currencies from the forex table.
-        
-        Args:
-            from_currency: Source currency code (e.g., 'USD')
-            to_currency: Target currency code (e.g., 'EUR')
-            as_of_date: Date for the rate (defaults to most recent)
-            
-        Returns:
-            Conversion rate as float (1.0 if same currency or not found)
-        """
-        if from_currency == to_currency:
-            return 1.0
-        
-        # Query the forex table for the most recent rate
-        if as_of_date:
-            query = """
-                SELECT close
-                FROM coreiq_av_forex_daily
-                WHERE from_currency = :from_currency
-                  AND to_currency = :to_currency
-                  AND day_date <= :as_of_date
-                ORDER BY day_date DESC
-                LIMIT 1
-            """
-            params = {
-                "from_currency": from_currency,
-                "to_currency": to_currency,
-                "as_of_date": as_of_date
-            }
-        else:
-            query = """
-                SELECT close
-                FROM coreiq_av_forex_daily
-                WHERE from_currency = :from_currency
-                  AND to_currency = :to_currency
-                ORDER BY day_date DESC
-                LIMIT 1
-            """
-            params = {
-                "from_currency": from_currency,
-                "to_currency": to_currency
-            }
-        
-        results = db_manager.execute_query(query, params)
-        
-        if results and results[0].get('close'):
-            return float(results[0]['close'])
-        
-        # Fallback: try reverse rate (1/rate)
-        reverse_query = """
-            SELECT close
-            FROM coreiq_av_forex_daily
-            WHERE from_currency = :to_currency
-              AND to_currency = :from_currency
-            ORDER BY day_date DESC
-            LIMIT 1
-        """
-        reverse_results = db_manager.execute_query(reverse_query, {
-            "from_currency": from_currency,
-            "to_currency": to_currency
-        })
-        
-        if reverse_results and reverse_results[0].get('close'):
-            return 1.0 / float(reverse_results[0]['close'])
-        
-        # If no rate found, return 1.0 (no conversion)
-        return 1.0
-    
-    @staticmethod
-    def get_available_currencies() -> List[str]:
-        """Get list of available currencies from the forex table."""
-        query = """
-            SELECT DISTINCT from_currency as currency
-            FROM coreiq_av_forex_daily
-            UNION
-            SELECT DISTINCT to_currency as currency
-            FROM coreiq_av_forex_daily
-            ORDER BY currency
-        """
-        results = db_manager.execute_query(query)
-        return [row['currency'] for row in results if row['currency']]
-
-
 class KeyStatsRepository:
     """Repository for Key Stats data combining multiple tables.
     
@@ -1587,7 +1499,96 @@ class KeyStatsRepository:
             return results[0]['reported_currency']
         return "USD"
 
+
+class ForexRepository:
+    """Repository for currency conversion rates from coreiq_av_forex_daily table."""
     
+    @staticmethod
+    def get_conversion_rate(from_currency: str, to_currency: str, as_of_date: Optional[date] = None) -> float:
+        """
+        Get conversion rate between two currencies from the forex table.
+        
+        Args:
+            from_currency: Source currency code (e.g., 'USD')
+            to_currency: Target currency code (e.g., 'EUR')
+            as_of_date: Date for the rate (defaults to most recent)
+            
+        Returns:
+            Conversion rate as float (1.0 if same currency or not found)
+        """
+        if from_currency == to_currency:
+            return 1.0
+        
+        # Query the forex table for the most recent rate
+        if as_of_date:
+            query = """
+                SELECT close
+                FROM coreiq_av_forex_daily
+                WHERE from_currency = :from_currency
+                  AND to_currency = :to_currency
+                  AND day_date <= :as_of_date
+                ORDER BY day_date DESC
+                LIMIT 1
+            """
+            params = {
+                "from_currency": from_currency,
+                "to_currency": to_currency,
+                "as_of_date": as_of_date
+            }
+        else:
+            query = """
+                SELECT close
+                FROM coreiq_av_forex_daily
+                WHERE from_currency = :from_currency
+                  AND to_currency = :to_currency
+                ORDER BY day_date DESC
+                LIMIT 1
+            """
+            params = {
+                "from_currency": from_currency,
+                "to_currency": to_currency
+            }
+        
+        results = db_manager.execute_query(query, params)
+        
+        if results and results[0].get('close'):
+            return float(results[0]['close'])
+        
+        # Fallback: try reverse rate (1/rate)
+        reverse_query = """
+            SELECT close
+            FROM coreiq_av_forex_daily
+            WHERE from_currency = :to_currency
+              AND to_currency = :from_currency
+            ORDER BY day_date DESC
+            LIMIT 1
+        """
+        reverse_results = db_manager.execute_query(reverse_query, {
+            "from_currency": from_currency,
+            "to_currency": to_currency
+        })
+        
+        if reverse_results and reverse_results[0].get('close'):
+            return 1.0 / float(reverse_results[0]['close'])
+        
+        # If no rate found, return 1.0 (no conversion)
+        return 1.0
+    
+    @staticmethod
+    def get_available_currencies() -> List[str]:
+        """Get list of available currencies from the forex table."""
+        query = """
+            SELECT DISTINCT from_currency as currency
+            FROM coreiq_av_forex_daily
+            UNION
+            SELECT DISTINCT to_currency as currency
+            FROM coreiq_av_forex_daily
+            ORDER BY currency
+        """
+        results = db_manager.execute_query(query)
+        return [row['currency'] for row in results if row['currency']]
+
+
 class FilingMetricRepository:
     """Repository for filing_metrics table — SEC filing metric search."""
 
@@ -1606,13 +1607,15 @@ class FilingMetricRepository:
         sql = """
             SELECT original_label, numeric_value, unit_ref, fiscal_year,
                    is_dimensioned, dimension_label, statement_type, ixbrl_id,
-                   standard_concept, concept, balance, period_type
+                   standard_concept, concept, balance, period_type, value
             FROM filing_metrics
             WHERE ticker = :ticker
               AND fiscal_year = :fiscal_year
               AND doc_type = :doc_type
               AND (LOWER(original_label) LIKE :query
                    OR LOWER(standard_concept) LIKE :query)
+              AND (standard_concept IS NULL OR standard_concept NOT LIKE '%Text Block')
+              AND numeric_value IS NOT NULL
             ORDER BY is_dimensioned ASC, original_label ASC
             LIMIT :limit
         """
@@ -1639,6 +1642,7 @@ class FilingMetricRepository:
                 concept=row["concept"],
                 balance=row["balance"],
                 period_type=row["period_type"],
+                value=row["value"],
             )
             for row in results
         ]
