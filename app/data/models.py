@@ -306,6 +306,7 @@ class FilingMetricResult:
     period_type: Optional[str] = None
     value: Optional[str] = None  # raw text value (e.g. "P1Y" duration, text)
     source: Optional[str] = None  # 'xbrl' | 'calculated' | 'llm' | 'edgartools'
+    calculation_note: Optional[str] = None  # raw formula string for calculated metrics
 
     @property
     def formatted_value(self) -> str:

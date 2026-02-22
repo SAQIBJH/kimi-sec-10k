@@ -439,6 +439,804 @@ def step_5_finalize(facts: List[Dict]) -> List[Dict]:
     
     return facts
 
+# ========== SEGMENT EXTRACTION ==========
+
+def extract_segments(xbrl, year: int, statements: Dict = None, year_col: str = None) -> Tuple[List[Dict], List[Dict]]:
+    """
+    Extract Business and Geographic segments from XBRL
+    Returns: (business_segments, geographic_segments)
+    """
+    facts_df = xbrl.facts.to_dataframe()
+    contexts = xbrl.contexts
+    
+    # Get fiscal year from DEI or facts
+    fy_facts = facts_df[facts_df['concept'] == 'dei:DocumentFiscalYearFocus']
+    if len(fy_facts) > 0:
+        fiscal_year = int(fy_facts.iloc[0]['value'])
+    else:
+        fiscal_year = year - 1  # Assume filing year - 1
+    
+    business_segments = []
+    geographic_segments = []
+    
+    # Track seen segments to avoid duplicates
+    seen_business = set()
+    seen_geographic = set()
+    
+    for ctx_id, ctx in contexts.items():
+        if not hasattr(ctx, 'dimensions') or not ctx.dimensions:
+            continue
+        
+        dims = ctx.dimensions
+        period = ctx.period
+        if not isinstance(period, dict):
+            continue
+        
+        # Check period end date matches fiscal year
+        period_end = period.get('endDate', '') if period.get('type') == 'duration' else period.get('instant', '')
+        if str(fiscal_year) not in period_end:
+            continue
+        
+        # Business Segments - Revenue & Operating Income
+        if period.get('type') == 'duration':
+            if 'us-gaap:StatementBusinessSegmentsAxis' in dims:
+                member = dims['us-gaap:StatementBusinessSegmentsAxis']
+                # Extract segment name from member
+                raw_name = member.split(':')[-1] if ':' in member else member
+                raw_name = raw_name.replace('SegmentMember', '').replace('Member', '')
+                
+                # Clean up common prefixes
+                segment_name = raw_name
+                if segment_name.startswith('aapl:'):
+                    segment_name = segment_name[5:]  # Remove aapl: prefix
+                elif segment_name.startswith('amzn:'):
+                    segment_name = segment_name[5:]  # Remove amzn: prefix
+                
+                # Map common names
+                name_map = {
+                    'NorthAmerica': 'North America',
+                    'International': 'International',
+                    'AmazonWebServices': 'AWS',
+                    'Americas': 'Americas',
+                    'Europe': 'Europe',
+                    'GreaterChina': 'Greater China',
+                    'Japan': 'Japan',
+                    'RestOfAsiaPacific': 'Rest of Asia Pacific',
+                }
+                segment_name = name_map.get(segment_name, segment_name)
+                
+                # Revenue
+                rev = facts_df[
+                    (facts_df['context_ref'] == ctx_id) & 
+                    (facts_df['concept'] == 'us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax')
+                ]
+                if len(rev) > 0:
+                    row = rev.iloc[0]
+                    key = (segment_name, 'Revenue')
+                    if key not in seen_business:
+                        seen_business.add(key)
+                        business_segments.append({
+                            "concept": row.get('concept', ''),
+                            "context_ref": ctx_id,
+                            "value": str(int(row['value'])) if pd.notna(row['value']) else str(row.get('value', '')),
+                            "dimension": row.get('dimension', ''),
+                            "member": row.get('member', ''),
+                            "dimension_label": segment_name,
+                            "segment_name": segment_name,
+                            "metric_type": "Revenue",
+                            "original_label": row.get('original_label', ''),
+                            "standard_concept": row.get('concept', '').replace('us-gaap:', '').replace('aapl:', '').replace('amzn:', ''),
+                            "unit": row.get('unit_ref', 'USD'),
+                            "decimals": str(row.get('decimals', ''))
+                        })
+                
+                # Operating Income
+                op = facts_df[
+                    (facts_df['context_ref'] == ctx_id) & 
+                    (facts_df['concept'] == 'us-gaap:OperatingIncomeLoss')
+                ]
+                if len(op) > 0:
+                    row = op.iloc[0]
+                    key = (segment_name, 'Operating Income')
+                    if key not in seen_business:
+                        seen_business.add(key)
+                        business_segments.append({
+                            "concept": row.get('concept', ''),
+                            "context_ref": ctx_id,
+                            "value": str(int(row['value'])) if pd.notna(row['value']) else str(row.get('value', '')),
+                            "dimension": row.get('dimension', ''),
+                            "member": row.get('member', ''),
+                            "dimension_label": segment_name,
+                            "segment_name": segment_name,
+                            "metric_type": "Operating Income",
+                            "original_label": row.get('original_label', ''),
+                            "standard_concept": row.get('concept', '').replace('us-gaap:', '').replace('aapl:', '').replace('amzn:', ''),
+                            "unit": row.get('unit_ref', 'USD'),
+                            "decimals": str(row.get('decimals', ''))
+                        })
+        
+        # Geographic Segments - Revenue (duration period)
+        if period.get('type') == 'duration':
+            if 'srt:StatementGeographicalAxis' in dims:
+                member = dims['srt:StatementGeographicalAxis']
+                
+                # Country code to name mapping
+                country_map = {
+                    'country:US': 'United States',
+                    'country:CN': 'China',
+                    'country:DE': 'Germany',
+                    'country:GB': 'United Kingdom',
+                    'country:JP': 'Japan',
+                }
+                
+                if member in country_map:
+                    segment_name = country_map[member]
+                elif 'UnitedStates' in member:
+                    segment_name = 'United States'
+                elif 'China' in member or 'GreaterChina' in member:
+                    segment_name = 'Greater China'
+                elif 'OtherCountries' in member:
+                    segment_name = 'Other Countries'
+                else:
+                    # Skip unknown countries for now
+                    continue
+                
+                rev = facts_df[
+                    (facts_df['context_ref'] == ctx_id) & 
+                    (facts_df['concept'] == 'us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax')
+                ]
+                if len(rev) > 0:
+                    row = rev.iloc[0]
+                    key = (segment_name, 'Revenue')
+                    if key not in seen_geographic:
+                        seen_geographic.add(key)
+                        geographic_segments.append({
+                            "concept": row.get('concept', ''),
+                            "context_ref": ctx_id,
+                            "value": str(int(row['value'])) if pd.notna(row['value']) else str(row.get('value', '')),
+                            "dimension": row.get('dimension', ''),
+                            "member": row.get('member', ''),
+                            "dimension_label": segment_name,
+                            "segment_name": segment_name,
+                            "metric_type": "Revenue",
+                            "original_label": row.get('original_label', ''),
+                            "standard_concept": row.get('concept', '').replace('us-gaap:', '').replace('aapl:', '').replace('amzn:', ''),
+                            "unit": row.get('unit_ref', 'USD'),
+                            "decimals": str(row.get('decimals', ''))
+                        })
+        
+        # Geographic Segments - Assets (instant period)
+        if period.get('type') == 'instant':
+            if 'srt:StatementGeographicalAxis' in dims:
+                member = dims['srt:StatementGeographicalAxis']
+                
+                country_map = {
+                    'country:US': 'United States',
+                    'country:CN': 'China',
+                    'country:DE': 'Germany',
+                    'country:GB': 'United Kingdom',
+                    'country:JP': 'Japan',
+                }
+                
+                if member in country_map:
+                    segment_name = country_map[member]
+                elif 'UnitedStates' in member:
+                    segment_name = 'United States'
+                elif 'China' in member or 'GreaterChina' in member:
+                    segment_name = 'Greater China'
+                elif 'OtherCountries' in member:
+                    segment_name = 'Other Countries'
+                else:
+                    continue
+                
+                # Try multiple asset concepts
+                asset_concepts = [
+                    'us-gaap:NoncurrentAssets',
+                    'us-gaap:Assets'
+                ]
+                for asset_concept in asset_concepts:
+                    ast = facts_df[
+                        (facts_df['context_ref'] == ctx_id) & 
+                        (facts_df['concept'] == asset_concept)
+                    ]
+                    if len(ast) > 0:
+                        row = ast.iloc[0]
+                        key = (segment_name, 'Assets')
+                        if key not in seen_geographic:
+                            seen_geographic.add(key)
+                            geographic_segments.append({
+                                "concept": row.get('concept', ''),
+                                "context_ref": ctx_id,
+                                "value": str(int(row['value'])) if pd.notna(row['value']) else str(row.get('value', '')),
+                                "dimension": row.get('dimension', ''),
+                                "member": row.get('member', ''),
+                                "dimension_label": segment_name,
+                                "segment_name": segment_name,
+                                "metric_type": "Assets",
+                                "original_label": row.get('original_label', ''),
+                                "standard_concept": row.get('concept', '').replace('us-gaap:', '').replace('aapl:', '').replace('amzn:', ''),
+                                "unit": row.get('unit_ref', 'USD'),
+                                "decimals": str(row.get('decimals', ''))
+                            })
+                        break
+    
+    # Handle single-segment companies
+    if not business_segments and statements and year_col:
+        # Check if this is a single-segment company
+        num_segments = facts_df[facts_df['concept'] == 'us-gaap:NumberOfReportableSegments']
+        if len(num_segments) > 0:
+            try:
+                num = int(num_segments.iloc[0]['value'])
+                if num == 1:
+                    # Create synthetic segment from consolidated data
+                    revenue = None
+                    op_income = None
+                    
+                    if statements.get('income') is not None:
+                        income_df = statements['income']
+                        # Try to get revenue
+                        rev_row = income_df[income_df['concept'] == 'us-gaap_Revenues']
+                        if len(rev_row) > 0:
+                            val = rev_row.iloc[0].get(year_col)
+                            if pd.notna(val):
+                                revenue = float(val)
+                        
+                        # Try to get operating income
+                        op_row = income_df[income_df['concept'] == 'us-gaap_OperatingIncomeLoss']
+                        if len(op_row) > 0:
+                            val = op_row.iloc[0].get(year_col)
+                            if pd.notna(val):
+                                op_income = float(val)
+                    
+                    segment_name = "Retail - Department Stores"  # Generic retail name
+                    
+                    if revenue:
+                        business_segments.append({
+                            "concept": "us-gaap:Revenues",
+                            "context_ref": "consolidated",
+                            "value": str(int(revenue)),
+                            "dimension": "",
+                            "member": "",
+                            "dimension_label": segment_name,
+                            "segment_name": segment_name,
+                            "metric_type": "Revenue",
+                            "original_label": "Total revenue",
+                            "standard_concept": "Revenues",
+                            "unit": "USD",
+                            "decimals": "-6"
+                        })
+                    
+                    if op_income:
+                        business_segments.append({
+                            "concept": "us-gaap:OperatingIncomeLoss",
+                            "context_ref": "consolidated",
+                            "value": str(int(op_income)),
+                            "dimension": "",
+                            "member": "",
+                            "dimension_label": segment_name,
+                            "segment_name": segment_name,
+                            "metric_type": "Operating Income",
+                            "original_label": "Operating income",
+                            "standard_concept": "OperatingIncomeLoss",
+                            "unit": "USD",
+                            "decimals": "-6"
+                        })
+            except Exception as e:
+                pass  # Silent fail for synthetic segment
+    
+    return business_segments, geographic_segments
+
+def save_segments(business_segments: List[Dict], geographic_segments: List[Dict], 
+                  ticker: str, year: int, config: Config):
+    """Save segment data to separate JSON files"""
+    output_dir = Path(config.OUTPUT_BASE_DIR) / ticker / str(year) / config.FORM
+    
+    try:
+        ensure_dir(output_dir)
+        
+        # Save Business Segments
+        if business_segments:
+            bs_path = output_dir / "BUSINESS_SEGMENTS.json"
+            with open(bs_path, 'w', encoding='utf-8') as f:
+                json.dump(business_segments, f, indent=2, ensure_ascii=False)
+            log(f"  Saved Business Segments: {len(business_segments)} entries -> {bs_path}")
+        
+        # Save Geographic Segments
+        if geographic_segments:
+            gs_path = output_dir / "GEOGRAPHIC_SEGMENTS.json"
+            with open(gs_path, 'w', encoding='utf-8') as f:
+                json.dump(geographic_segments, f, indent=2, ensure_ascii=False)
+            log(f"  Saved Geographic Segments: {len(geographic_segments)} entries -> {gs_path}")
+            
+    except Exception as e:
+        log(f"  Error saving segments: {e}", "ERROR")
+
+# ========== STEP 7: CALCULATE FINANCIAL RATIOS ==========
+
+def safe_divide(numerator: float, denominator: float, default: float = 0.0) -> float:
+    """Safe division with default value"""
+    if denominator and denominator != 0:
+        return numerator / denominator
+    return default
+
+def get_statement_value(statements: Dict, statement_type: str, concept_pattern: str, year_col: str) -> Optional[float]:
+    """Get consolidated value from financial statements DataFrame"""
+    if statement_type not in statements or statements[statement_type] is None:
+        return None
+    
+    df = statements[statement_type]
+    # Convert to underscore format
+    underscore_pattern = concept_pattern.replace(':', '_')
+    
+    # Try exact match on underscore format
+    matches = df[df['concept'] == underscore_pattern]
+    
+    candidates = []
+    for _, row in matches.iterrows():
+        val = row.get(year_col)
+        if pd.notna(val) and val is not None:
+            try:
+                float_val = float(val)
+                # Skip unreasonable values
+                if abs(float_val) > 1e15:
+                    continue
+                # Check if consolidated (no dimension or member)
+                dimension = row.get('dimension', '') or ''
+                member = row.get('member', '') or ''
+                is_consolidated = not dimension and not member
+                candidates.append({
+                    'value': float_val,
+                    'is_consolidated': is_consolidated,
+                    'concept': row.get('concept', '')
+                })
+            except:
+                continue
+    
+    if not candidates:
+        return None
+    
+    # Return first consolidated value, or largest value
+    consolidated = [c for c in candidates if c['is_consolidated']]
+    if consolidated:
+        return consolidated[0]['value']
+    return candidates[0]['value']
+
+def get_year_columns(statements: Dict, target_year: int) -> Tuple[str, Optional[str]]:
+    """Dynamically detect year columns from statements"""
+    # Get columns from income statement (or any available statement)
+    df = None
+    for stmt_type in ['income', 'balance', 'cashflow']:
+        if statements.get(stmt_type) is not None:
+            df = statements[stmt_type]
+            break
+    
+    if df is None:
+        return (str(target_year), None)
+    
+    # Get all columns that look like dates (YYYY-MM-DD)
+    date_cols = []
+    for col in df.columns:
+        if isinstance(col, str) and len(col) == 10 and col[4] == '-' and col[7] == '-':
+            try:
+                year = int(col[:4])
+                date_cols.append((year, col))
+            except:
+                pass
+    
+    # Sort by year descending
+    date_cols.sort(reverse=True)
+    
+    if not date_cols:
+        return (str(target_year), None)
+    
+    # Find the column matching target year (fiscal year might be year-1 for calendar companies)
+    year_col = None
+    prev_year_col = None
+    
+    for i, (yr, col) in enumerate(date_cols):
+        if yr == target_year or yr == target_year - 1:
+            year_col = col
+            if i + 1 < len(date_cols):
+                prev_year_col = date_cols[i + 1][1]
+            break
+    
+    if not year_col:
+        year_col = date_cols[0][1]  # Most recent
+        if len(date_cols) > 1:
+            prev_year_col = date_cols[1][1]
+    
+    return (year_col, prev_year_col)
+
+def calculate_all_ratios(statements: Dict, facts: List[Dict], ticker: str, year: int) -> List[Dict]:
+    """Calculate all 47 financial ratios from statements and facts"""
+    ratios = []
+    
+    # Dynamically detect year columns
+    year_col, prev_year_col = get_year_columns(statements, year)
+    log(f"  Using year columns: current={year_col}, prior={prev_year_col}")
+    
+    # Helper to get values from statements
+    def get_val(statement_type, concept, col):
+        return get_statement_value(statements, statement_type, concept, col)
+    
+    # ========== EXTRACT ALL METRICS ==========
+    
+    # Income Statement - Current Year
+    # Revenue - multiple patterns for different companies
+    revenue = get_val('income', 'us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax', year_col)
+    revenue_prev = get_val('income', 'us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax', prev_year_col) if prev_year_col else None
+    
+    # Net Income
+    net_income = get_val('income', 'us-gaap:NetIncomeLoss', year_col)
+    net_income_prev = get_val('income', 'us-gaap:NetIncomeLoss', prev_year_col) if prev_year_col else None
+    
+    # Gross Profit - try explicit first, then calculate from Revenue - COGS
+    gross_profit = get_val('income', 'us-gaap:GrossProfit', year_col)
+    gross_profit_prev = get_val('income', 'us-gaap:GrossProfit', prev_year_col) if prev_year_col else None
+    cogs = get_val('income', 'us-gaap:CostOfGoodsAndServicesSold', year_col)
+    if gross_profit is None and revenue and cogs:
+        gross_profit = revenue - cogs
+    if gross_profit_prev is None and revenue_prev and prev_year_col:
+        cogs_prev = get_val('income', 'us-gaap:CostOfGoodsAndServicesSold', prev_year_col)
+        if revenue_prev and cogs_prev:
+            gross_profit_prev = revenue_prev - cogs_prev
+    
+    # Operating Income
+    operating_income = get_val('income', 'us-gaap:OperatingIncomeLoss', year_col)
+    operating_income_prev = get_val('income', 'us-gaap:OperatingIncomeLoss', prev_year_col) if prev_year_col else None
+    
+    # R&D - some companies don't report this separately (e.g., Amazon uses TechnologyAndInfrastructure)
+    rd_exp = get_val('income', 'us-gaap:ResearchAndDevelopmentExpense', year_col)
+    if rd_exp is None:
+        rd_exp = get_val('income', 'us-gaap:TechnologyAndDevelopmentExpense', year_col)
+    
+    # SG&A - try combined first, then sum components
+    sgna_exp = get_val('income', 'us-gaap:SellingGeneralAndAdministrativeExpense', year_col)
+    if sgna_exp is None:
+        # Try to sum Selling/Marketing + GeneralAndAdministrative
+        selling = get_val('income', 'us-gaap:SellingExpense', year_col)
+        if selling is None:
+            selling = get_val('income', 'us-gaap:MarketingExpense', year_col)
+        admin = get_val('income', 'us-gaap:GeneralAndAdministrativeExpense', year_col)
+        if selling and admin:
+            sgna_exp = selling + admin
+        elif admin:
+            sgna_exp = admin  # Some companies only report G&A
+    
+    # Balance Sheet - Current Year
+    total_assets = get_val('balance', 'us-gaap:Assets', year_col)
+    total_assets_prev = get_val('balance', 'us-gaap:Assets', prev_year_col) if prev_year_col else None
+    
+    # Total Liabilities - some companies don't have single concept, calculate from components
+    total_liabilities = get_val('balance', 'us-gaap:Liabilities', year_col)
+    if total_liabilities is None:
+        current_liab = get_val('balance', 'us-gaap:LiabilitiesCurrent', year_col) or 0
+        noncurrent_liab = get_val('balance', 'us-gaap:LiabilitiesNoncurrent', year_col) or 0
+        other_noncurrent = get_val('balance', 'us-gaap:OtherLiabilitiesNoncurrent', year_col) or 0
+        total_liabilities = current_liab + noncurrent_liab + other_noncurrent
+    
+    equity = get_val('balance', 'us-gaap:StockholdersEquity', year_col)
+    equity_prev = get_val('balance', 'us-gaap:StockholdersEquity', prev_year_col) if prev_year_col else None
+    current_assets = get_val('balance', 'us-gaap:AssetsCurrent', year_col)
+    current_liabilities = get_val('balance', 'us-gaap:LiabilitiesCurrent', year_col)
+    cash = get_val('balance', 'us-gaap:CashAndCashEquivalentsAtCarryingValue', year_col)
+    ar = get_val('balance', 'us-gaap:AccountsReceivableNetCurrent', year_col)
+    ar_prev = get_val('balance', 'us-gaap:AccountsReceivableNetCurrent', prev_year_col) if prev_year_col else None
+    inventory = get_val('balance', 'us-gaap:InventoryNet', year_col)
+    inventory_prev = get_val('balance', 'us-gaap:InventoryNet', prev_year_col) if prev_year_col else None
+    
+    # PP&E - multiple patterns for different companies
+    ppe = get_val('balance', 'us-gaap:PropertyPlantAndEquipmentNet', year_col)
+    if ppe is None:
+        ppe = get_val('balance', 'us-gaap:PropertyPlantAndEquipmentAndFinanceLeaseRightOfUseAssetAfterAccumulatedDepreciationAndAmortization', year_col)
+    
+    # Debt
+    lt_debt = get_val('balance', 'us-gaap:LongTermDebtNoncurrent', year_col)
+    st_debt = get_val('balance', 'us-gaap:LongTermDebtCurrent', year_col)
+    comm_paper = get_val('balance', 'us-gaap:CommercialPaper', year_col)
+    
+    # Cash Flow
+    ocf = get_val('cashflow', 'us-gaap:NetCashProvidedByUsedInOperatingActivities', year_col)
+    ocf_prev = get_val('cashflow', 'us-gaap:NetCashProvidedByUsedInOperatingActivities', prev_year_col) if prev_year_col else None
+    
+    # CapEx - multiple patterns
+    capex = get_val('cashflow', 'us-gaap:PaymentsToAcquirePropertyPlantAndEquipment', year_col)
+    if capex is None:
+        capex = get_val('cashflow', 'us-gaap:PaymentsToAcquireProductiveAssets', year_col)
+    
+    depreciation = get_val('cashflow', 'us-gaap:DepreciationDepletionAndAmortization', year_col)
+    
+    # EPS from facts (not in statements)
+    eps_basic = None
+    eps_diluted = None
+    shares = None
+    for fact in facts:
+        if fact.get('concept') == 'us-gaap:EarningsPerShareBasic' and not fact.get('dimension'):
+            try:
+                eps_basic = float(fact['value'])
+            except:
+                pass
+        if fact.get('concept') == 'us-gaap:EarningsPerShareDiluted' and not fact.get('dimension'):
+            try:
+                eps_diluted = float(fact['value'])
+            except:
+                pass
+        if fact.get('concept') == 'us-gaap:CommonStockSharesOutstanding' and not fact.get('dimension'):
+            try:
+                shares = float(fact['value'])
+            except:
+                pass
+    
+    # ========== DERIVED VALUES ==========
+    total_debt = (lt_debt or 0) + (st_debt or 0) + (comm_paper or 0)
+    ebitda = (operating_income or 0) + (depreciation or 0)
+    ebitda_prev = (operating_income_prev or 0) + (depreciation or 0) if operating_income_prev else None
+    fcf = (ocf or 0) - abs(capex or 0)
+    fcf_prev = (ocf_prev or 0) - abs(capex or 0) if ocf_prev else None
+    # NOPAT calculation using actual effective tax rate (NOT hardcoded 21%)
+    tax_provision = get_val('income', 'us-gaap:IncomeTaxExpenseBenefit', year_col)
+    pretax_income_calc = get_val('income', 'us-gaap:IncomeLossBeforeIncomeTaxExpenseBenefit', year_col)
+    
+    if tax_provision and pretax_income_calc and pretax_income_calc != 0:
+        effective_tax_rate = abs(tax_provision) / pretax_income_calc
+        nopat = operating_income * (1 - effective_tax_rate) if operating_income else None
+        nopat_note = f"Using actual tax rate {effective_tax_rate:.1%}"
+    else:
+        # Fallback to statutory rate with CLEAR FLAG
+        nopat = (operating_income or 0) * 0.79 if operating_income else None
+        nopat_note = "WARNING: Using estimated 21% tax rate (actual unavailable)"
+    # END NOPAT fix
+    invested_capital = total_debt + (equity or 0)
+    capital_employed = (total_assets or 0) - (current_liabilities or 0)
+    
+    # Average balances for turnover ratios
+    avg_assets = ((total_assets or 0) + (total_assets_prev or 0)) / 2 if total_assets_prev else total_assets
+    avg_equity = ((equity or 0) + (equity_prev or 0)) / 2 if equity_prev else equity
+    avg_ar = ((ar or 0) + (ar_prev or 0)) / 2 if ar_prev else ar
+    avg_inv = ((inventory or 0) + (inventory_prev or 0)) / 2 if inventory_prev else inventory
+    
+    def add_ratio(name: str, value: float, formula: str, category: str, is_pct: bool = False):
+        if value is not None and not (is_pct and value == 0):
+            display_val = value * 100 if is_pct else value
+            ratios.append({
+                "concept": "calculated",
+                "context_ref": "calculated",
+                "value": str(round(display_val, 2)),
+                "dimension": "",
+                "member": "",
+                "dimension_label": "Company Wide",
+                "ratio_name": name,
+                "category": category,
+                "formula": formula,
+                "metric_type": "Financial Ratio",
+                "is_percentage": is_pct,
+                "fiscal_year": year,
+                "original_label": name,
+                "standard_concept": name.replace(' ', '').replace('/', '').replace('%', ''),
+                "unit": "percent" if is_pct else "ratio",
+                "html_location": {}
+            })
+    
+    # ========== PROFITABILITY (8 ratios) ==========
+    # Gross Margin - use explicit or calculated gross profit
+    gross_margin_gp = gross_profit  # May have been calculated as Revenue - COGS
+    if revenue and gross_margin_gp:
+        add_ratio("Gross Margin %", safe_divide(gross_margin_gp, revenue), "Gross Profit / Revenue", "Profitability", True)
+    if revenue and operating_income:
+        add_ratio("Operating Margin %", safe_divide(operating_income, revenue), "Operating Income / Revenue", "Profitability", True)
+    if revenue and net_income:
+        add_ratio("Net Margin %", safe_divide(net_income, revenue), "Net Income / Revenue", "Profitability", True)
+    if revenue and ebitda:
+        add_ratio("EBITDA Margin %", safe_divide(ebitda, revenue), "EBITDA / Revenue", "Profitability", True)
+    if revenue and operating_income:
+        add_ratio("EBIT Margin %", safe_divide(operating_income, revenue), "EBIT / Revenue", "Profitability", True)
+    if revenue and sgna_exp:
+        add_ratio("SG&A Margin %", safe_divide(sgna_exp, revenue), "SG&A / Revenue", "Profitability", True)
+    if revenue and rd_exp:
+        add_ratio("R&D Margin %", safe_divide(rd_exp, revenue), "R&D / Revenue", "Profitability", True)
+    # Pre-tax Margin - use actual Pre-tax Income (not Operating Income)
+    pretax_income_val = get_val('income', 'us-gaap:IncomeLossBeforeIncomeTaxExpenseBenefit', year_col)
+    if revenue and pretax_income_val:
+        add_ratio("Pre-tax Margin %", safe_divide(pretax_income_val, revenue), "Pre-tax Income / Revenue", "Profitability", True)
+    elif revenue and operating_income:
+        # Fallback with clear flag
+        add_ratio("Pre-tax Margin % (Est.)", safe_divide(operating_income, revenue), "Operating Income / Revenue (Pre-tax Income unavailable)", "Profitability", True)
+    
+    # ========== RETURNS (5 ratios) ==========
+    if net_income and avg_assets:
+        add_ratio("Return on Assets %", safe_divide(net_income, avg_assets), "Net Income / Avg Total Assets", "Returns", True)
+    if net_income and avg_equity:
+        add_ratio("Return on Equity %", safe_divide(net_income, avg_equity), "Net Income / Avg Equity", "Returns", True)
+    if operating_income and invested_capital:
+        add_ratio("Return on Capital %", safe_divide(operating_income, invested_capital), "Operating Income / Invested Capital", "Returns", True)
+    if nopat and invested_capital:
+        add_ratio("Return on Invested Capital %", safe_divide(nopat, invested_capital), "NOPAT / Invested Capital", "Returns", True)
+    if nopat and capital_employed:
+        add_ratio("Return on Capital Employed %", safe_divide(nopat, capital_employed), "NOPAT / Capital Employed", "Returns", True)
+    
+    # ========== LEVERAGE (8 ratios) ==========
+    if total_debt and equity:
+        add_ratio("Total Debt-to-Equity", safe_divide(total_debt, equity), "Total Debt / Equity", "Leverage")
+    if total_debt and total_assets:
+        add_ratio("Total Debt-to-Assets", safe_divide(total_debt, total_assets), "Total Debt / Total Assets", "Leverage")
+    if lt_debt and equity:
+        add_ratio("LT Debt-to-Equity", safe_divide(lt_debt, equity), "Long-term Debt / Equity", "Leverage")
+    if total_debt and ebitda:
+        add_ratio("Debt-to-EBITDA", safe_divide(total_debt, ebitda), "Total Debt / EBITDA", "Leverage")
+    if total_liabilities and total_assets:
+        add_ratio("Total Liabilities-to-Assets", safe_divide(total_liabilities, total_assets), "Total Liabilities / Total Assets", "Leverage")
+    if total_debt and invested_capital:
+        add_ratio("Total Debt-to-Capital", safe_divide(total_debt, invested_capital), "Debt / (Debt + Equity)", "Leverage")
+    if lt_debt and invested_capital:
+        add_ratio("LT Debt-to-Capital", safe_divide(lt_debt, invested_capital), "LT Debt / (Debt + Equity)", "Leverage")
+    # Interest Coverage - try to get actual interest expense, then estimate
+    interest_expense = get_val('income', 'us-gaap:InterestExpense', year_col)
+    if interest_expense is None:
+        interest_expense = get_val('income', 'us-gaap:InterestExpenseNonoperating', year_col)
+    
+    if operating_income and interest_expense and interest_expense > 0:
+        add_ratio("Interest Coverage", safe_divide(operating_income, interest_expense), "Operating Income / Interest Expense", "Leverage")
+    # REMOVED: Hardcoded $321M fallback was misleading - only calculate if actual data available
+    elif operating_income and total_debt and total_debt > 0:
+        # Estimate based on debt balance (5% avg interest rate assumption)
+        est_interest = total_debt * 0.05
+        add_ratio("Interest Coverage (Est.)", safe_divide(operating_income, est_interest), "Operating Income / Est. Interest (5% of Total Debt)", "Leverage")
+    
+    # ========== LIQUIDITY (4 ratios) ==========
+    if current_assets and current_liabilities:
+        add_ratio("Current Ratio", safe_divide(current_assets, current_liabilities), "Current Assets / Current Liabilities", "Liquidity")
+        if inventory:
+            add_ratio("Quick Ratio", safe_divide(current_assets - inventory, current_liabilities), "(CA - Inventory) / CL", "Liquidity")
+    if cash and current_liabilities:
+        add_ratio("Cash Ratio", safe_divide(cash, current_liabilities), "Cash / Current Liabilities", "Liquidity")
+    if ocf and current_liabilities:
+        add_ratio("OCF Ratio", safe_divide(ocf, current_liabilities), "Operating Cash Flow / Current Liabilities", "Liquidity")
+    
+    # ========== EFFICIENCY (8 ratios) ==========
+    if revenue and avg_assets:
+        add_ratio("Asset Turnover", safe_divide(revenue, avg_assets), "Revenue / Avg Total Assets", "Efficiency")
+    if revenue and ppe:
+        add_ratio("Fixed Asset Turnover", safe_divide(revenue, ppe), "Revenue / PP&E", "Efficiency")
+    if cogs and avg_inv and avg_inv > 0:
+        add_ratio("Inventory Turnover", safe_divide(cogs, avg_inv), "COGS / Avg Inventory", "Efficiency")
+    if revenue and avg_ar and avg_ar > 0:
+        add_ratio("Receivables Turnover", safe_divide(revenue, avg_ar), "Revenue / Avg AR", "Efficiency")
+    if avg_ar and revenue:
+        add_ratio("Days Sales Outstanding", safe_divide(avg_ar, revenue) * 365, "(Avg AR / Revenue) × 365", "Efficiency")
+    if avg_inv and cogs:
+        add_ratio("Days Inventory Outstanding", safe_divide(avg_inv, cogs) * 365, "(Avg Inv / COGS) × 365", "Efficiency")
+    # Days Payable Outstanding - try actual AP first
+    ap_actual = get_val('balance', 'us-gaap:AccountsPayableCurrent', year_col)
+    if ap_actual and cogs:
+        add_ratio("Days Payable Outstanding", safe_divide(ap_actual, cogs) * 365, "(AP / COGS) × 365", "Efficiency")
+    elif cogs:
+        # Estimate only if actual AP unavailable
+        estimated_dpo_days = 45  # Conservative estimate
+        ap_est = cogs * (estimated_dpo_days / 365)
+        add_ratio("Days Payable Outstanding (Est.)", safe_divide(ap_est, cogs) * 365, f"Estimated {estimated_dpo_days} days (actual AP unavailable)", "Efficiency")
+        dso = safe_divide(avg_ar, revenue) * 365 if avg_ar and revenue else 0
+        dio = safe_divide(avg_inv, cogs) * 365 if avg_inv and cogs else 0
+        dpo = safe_divide(ap_est, cogs) * 365
+        add_ratio("Cash Conversion Cycle", dso + dio - dpo, "DSO + DIO - DPO", "Efficiency")
+    
+    # ========== CASH FLOW (5 ratios) ==========
+    if ocf is not None and capex is not None:
+        add_ratio("Free Cash Flow", fcf, "Operating Cash Flow - CapEx", "Cash Flow")
+    if fcf and revenue:
+        add_ratio("FCF Margin %", safe_divide(fcf, revenue), "FCF / Revenue", "Cash Flow", True)
+    if ocf and revenue:
+        add_ratio("OCF Margin %", safe_divide(ocf, revenue), "OCF / Revenue", "Cash Flow", True)
+    if ocf and net_income:
+        add_ratio("OCF to Net Income", safe_divide(ocf, net_income), "OCF / Net Income", "Cash Flow")
+    if fcf and net_income:
+        add_ratio("FCF to Net Income", safe_divide(fcf, net_income), "FCF / Net Income", "Cash Flow")
+    
+    # ========== GROWTH (5 ratios) ==========
+    if revenue and revenue_prev:
+        add_ratio("Revenue Growth %", (revenue - revenue_prev) / revenue_prev, "(Current - Prior) / Prior", "Growth", True)
+    if net_income and net_income_prev:
+        add_ratio("Net Income Growth %", (net_income - net_income_prev) / net_income_prev, "(Current - Prior) / Prior", "Growth", True)
+    if gross_profit and gross_profit_prev:
+        add_ratio("Gross Profit Growth %", (gross_profit - gross_profit_prev) / gross_profit_prev, "(Current - Prior) / Prior", "Growth", True)
+    if ebitda and ebitda_prev:
+        add_ratio("EBITDA Growth %", (ebitda - ebitda_prev) / ebitda_prev, "(Current - Prior) / Prior", "Growth", True)
+    if operating_income and operating_income_prev:
+        add_ratio("Operating Income Growth %", (operating_income - operating_income_prev) / operating_income_prev, "(Current - Prior) / Prior", "Growth", True)
+    
+    # ========== PER SHARE (4 ratios) ==========
+    if eps_basic:
+        add_ratio("EPS Basic", eps_basic, "Earnings Per Share Basic", "Per Share")
+    if eps_diluted:
+        add_ratio("EPS Diluted", eps_diluted, "Earnings Per Share Diluted", "Per Share")
+    if equity and shares:
+        add_ratio("Book Value Per Share", safe_divide(equity, shares), "Equity / Shares Outstanding", "Per Share")
+    if fcf and shares:
+        add_ratio("FCF Per Share", safe_divide(fcf, shares), "FCF / Shares Outstanding", "Per Share")
+    
+    return ratios
+
+def fetch_financial_statements(filing) -> Dict:
+    """Fetch all three financial statements as DataFrames"""
+    statements = {'income': None, 'balance': None, 'cashflow': None}
+    
+    try:
+        financials = filing.obj().financials
+        statements['income'] = financials.income_statement().to_dataframe()
+    except Exception as e:
+        log(f"  Could not fetch income statement: {e}", "WARNING")
+    
+    try:
+        financials = filing.obj().financials
+        statements['balance'] = financials.balance_sheet().to_dataframe()
+    except Exception as e:
+        log(f"  Could not fetch balance sheet: {e}", "WARNING")
+    
+    try:
+        financials = filing.obj().financials
+        statements['cashflow'] = financials.cashflow_statement().to_dataframe()
+    except Exception as e:
+        log(f"  Could not fetch cash flow statement: {e}", "WARNING")
+    
+    return statements
+
+def calculate_and_save_ratios(facts: List[Dict], filing, ticker: str, year: int, config: Config):
+    """Calculate ratios and save to JSON"""
+    # Fetch financial statements
+    statements = fetch_financial_statements(filing)
+    
+    # Calculate ratios
+    ratios = calculate_all_ratios(statements, facts, ticker, year)
+    
+    if not ratios:
+        log("  No ratios calculated")
+        return
+    
+    output_dir = Path(config.OUTPUT_BASE_DIR) / ticker / str(year) / config.FORM
+    output_path = output_dir / "FINANCIAL_RATIOS.json"
+    
+    try:
+        ensure_dir(output_dir)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(ratios, f, indent=2, ensure_ascii=False)
+        log(f"  Saved {len(ratios)} ratios -> {output_path}")
+        
+        # Log summary by category
+        by_cat = {}
+        for r in ratios:
+            cat = r['category']
+            by_cat[cat] = by_cat.get(cat, 0) + 1
+        log(f"  Ratios by category: {dict(by_cat)}")
+    except Exception as e:
+        log(f"  Error saving ratios: {e}", "ERROR")
+
+def calculate_and_save_ratios_with_statements(facts: List[Dict], statements: Dict, year_col: str, 
+                                               ticker: str, year: int, config: Config):
+    """Calculate ratios using pre-fetched statements and save to JSON"""
+    # Calculate ratios
+    ratios = calculate_all_ratios(statements, facts, ticker, year)
+    
+    if not ratios:
+        log("  No ratios calculated")
+        return
+    
+    output_dir = Path(config.OUTPUT_BASE_DIR) / ticker / str(year) / config.FORM
+    output_path = output_dir / "FINANCIAL_RATIOS.json"
+    
+    try:
+        ensure_dir(output_dir)
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(ratios, f, indent=2, ensure_ascii=False)
+        log(f"  Saved {len(ratios)} ratios -> {output_path}")
+        
+        # Log summary by category
+        by_cat = {}
+        for r in ratios:
+            cat = r['category']
+            by_cat[cat] = by_cat.get(cat, 0) + 1
+        log(f"  Ratios by category: {dict(by_cat)}")
+    except Exception as e:
+        log(f"  Error saving ratios: {e}", "ERROR")
+
 # ========== SAVE OUTPUT ==========
 
 def save_output(facts: List[Dict], ticker: str, year: int, config: Config) -> bool:
@@ -518,14 +1316,76 @@ def process_company_year(ticker: str, year: int, config: Config) -> bool:
     if not save_output(facts, ticker, year, config):
         return False
     
+    # Step 6: Extract and Save Segments
+    log("Step 6: Extracting Business & Geographic Segments")
+    
+    # Fetch statements once for both segments and ratios
+    statements = {}
+    year_col = None
+    try:
+        company = Company(ticker)
+        filings = company.get_filings(form=config.FORM, year=year)
+        if len(filings) > 0:
+            filing_obj = filings.latest()
+            xbrl = filing_obj.xbrl()
+            statements = fetch_financial_statements(filing_obj)
+            year_col, _ = get_year_columns(statements, year)
+            
+            business_segments, geographic_segments = extract_segments(xbrl, year, statements, year_col)
+            save_segments(business_segments, geographic_segments, ticker, year, config)
+    except Exception as e:
+        log(f"  Error extracting segments: {e}", "WARNING")
+    
+    # Step 7: Calculate and Save Financial Ratios
+    log("Step 7: Calculating Financial Ratios")
+    try:
+        if statements and year_col:
+            calculate_and_save_ratios_with_statements(facts, statements, year_col, ticker, year, config)
+        else:
+            # Fallback to old method
+            company = Company(ticker)
+            filings = company.get_filings(form=config.FORM, year=year)
+            if len(filings) > 0:
+                filing_obj = filings.latest()
+                calculate_and_save_ratios(facts, filing_obj, ticker, year, config)
+    except Exception as e:
+        log(f"  Error calculating ratios: {e}", "WARNING")
+    
     # Summary
     all_concepts = set(f['concept'] for f in facts)
     with_location = sum(1 for f in facts if f.get('html_location'))
+    
+    # Count segments and ratios
+    output_dir = Path(config.OUTPUT_BASE_DIR) / ticker / str(year) / config.FORM
+    bs_count = 0
+    gs_count = 0
+    ratios_count = 0
+    try:
+        bs_path = output_dir / "BUSINESS_SEGMENTS.json"
+        gs_path = output_dir / "GEOGRAPHIC_SEGMENTS.json"
+        ratios_path = output_dir / "FINANCIAL_RATIOS.json"
+        if bs_path.exists():
+            with open(bs_path) as f:
+                bs_count = len(json.load(f))
+        if gs_path.exists():
+            with open(gs_path) as f:
+                gs_count = len(json.load(f))
+        if ratios_path.exists():
+            with open(ratios_path) as f:
+                ratios_count = len(json.load(f))
+    except:
+        pass
     
     print(f"\n📊 Summary for {ticker} FY{fiscal_year}:")
     print(f"   Total facts: {len(facts)}")
     print(f"   Unique concepts: {len(all_concepts)}")
     print(f"   With html_location: {with_location} ({with_location/len(facts)*100:.1f}%)")
+    if bs_count > 0:
+        print(f"   Business Segments: {bs_count} entries")
+    if gs_count > 0:
+        print(f"   Geographic Segments: {gs_count} entries")
+    if ratios_count > 0:
+        print(f"   Financial Ratios: {ratios_count} ratios")
     
     return True
 
@@ -569,7 +1429,13 @@ def main():
     print(f"✅ Successful: {success_count}")
     print(f"❌ Failed: {fail_count}")
     print(f"📊 Total: {total}")
-    print(f"📁 Output: {config.OUTPUT_BASE_DIR}/<TICKER>/<YEAR>/{config.FORM}/FINAL_FACTS_FILTERED.json")
+    print(f"\n📁 Output Files:")
+    print(f"   {config.OUTPUT_BASE_DIR}/<TICKER>/<YEAR>/{config.FORM}/")
+    print(f"   ├── FINAL_FACTS_FILTERED.json  (Main XBRL facts)")
+    print(f"   ├── BUSINESS_SEGMENTS.json     (Operating segments)")
+    print(f"   ├── GEOGRAPHIC_SEGMENTS.json   (Geographic breakdown)")
+    print(f"   ├── FINANCIAL_RATIOS.json      (Calculated ratios)")
+    print(f"   └── filing.html                (Raw HTML)")
     print("="*60)
     
     if fail_count == 0:

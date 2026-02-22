@@ -32,6 +32,7 @@ COMPANY_NAMES = {
     "META": "Meta Platforms Inc.",
     "TSLA": "Tesla Inc.",
     "NVDA": "NVIDIA Corp.",
+    "M": "Macy's Inc.",
 }
 
 # Map directory names to display names for document types
@@ -352,9 +353,19 @@ def get_filings_css() -> str:
         font-weight: 600;
         font-size: 16px;
         color: #2D2A29;
-        margin-bottom: 4px;
+        margin-bottom: 2px;
     }
-    
+
+    .metric-formula {
+        font-family: 'Roboto Mono', 'Courier New', monospace;
+        font-size: 11px;
+        color: #888;
+        margin-bottom: 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
     .metric-meta {
         display: flex;
         align-items: center;
@@ -842,6 +853,27 @@ def main():
                 return '<span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;margin-left:6px;vertical-align:middle;">EDGAR</span>'
             return ""  # xbrl = no badge (default, most common)
 
+        def _format_calc_note(note: str) -> str:
+            """Format raw calculation note: replace (123456789) with ($123.5B)."""
+            import re
+            if not note:
+                return ""
+            def _fmt(m):
+                try:
+                    val = abs(float(m.group(1).replace(",", "")))
+                    if val >= 1e12:
+                        return f"(${val/1e12:.1f}T)"
+                    elif val >= 1e9:
+                        return f"(${val/1e9:.1f}B)"
+                    elif val >= 1e6:
+                        return f"(${val/1e6:.0f}M)"
+                    else:
+                        return f"(${val:,.0f})"
+                except Exception:
+                    return m.group(0)
+            result = re.sub(r'\(([\d,]+(?:\.\d+)?)\)', _fmt, note)
+            return "= " + result
+
         # Search Metrics box — bordered container with styled cards
         search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
         eye_icon_svg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
@@ -859,7 +891,10 @@ def main():
                     btn_text = "Viewing" if is_viewing else "View"
                     badge_html = _source_badge(metric.source)
                     label_html = f'{metric.display_label}{badge_html}'
-                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div><div class="metric-value">{metric.formatted_value}</div><div class="metric-meta"><span>{metric.statement_type or "Financial Metric"}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{metric.fiscal_year}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
+                    formula_html = ""
+                    if metric.source == "calculated" and metric.calculation_note:
+                        formula_html = f'<div class="metric-formula">{_format_calc_note(metric.calculation_note)}</div>'
+                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div><div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.statement_type or "Financial Metric"}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{metric.fiscal_year}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
                     if metric.ixbrl_id:
                         btn_key = f"view_{i}_{metric.original_label.replace(' ', '_')}_{metric.ixbrl_id}"
                         if st.button(f"View in Document", key=btn_key, use_container_width=True):
