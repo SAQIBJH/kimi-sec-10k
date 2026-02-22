@@ -1588,6 +1588,97 @@ class ForexRepository:
         results = db_manager.execute_query(query)
         return [row['currency'] for row in results if row['currency']]
 
+    @staticmethod
+    def get_conversion_rates_bulk(
+        from_currency: str,
+        to_currency: str,
+        as_of_dates: List[date]
+    ) -> Dict[date, float]:
+        """
+        Get conversion rates for multiple dates in a single query.
+        
+        For each as_of_date, finds the closest rate on or before that date.
+        Returns a dict mapping each requested date to its conversion rate.
+        
+        Args:
+            from_currency: Source currency code (e.g., 'USD')
+            to_currency: Target currency code (e.g., 'EUR')
+            as_of_dates: List of dates for which rates are needed
+            
+        Returns:
+            Dict mapping each date to its conversion rate (1.0 if same currency or not found)
+        """
+        if from_currency == to_currency:
+            return {d: 1.0 for d in as_of_dates}
+        
+        if not as_of_dates:
+            return {}
+        
+        # Build a query that fetches the closest rate on or before each date
+        # We use a lateral-join style approach via a subquery for each date
+        rate_map: Dict[date, float] = {}
+        
+        # Get all forex data for this pair within a reasonable range
+        min_date = min(as_of_dates)
+        max_date = max(as_of_dates)
+        
+        query = """
+            SELECT day_date, close
+            FROM coreiq_av_forex_daily
+            WHERE from_currency = :from_currency
+              AND to_currency = :to_currency
+              AND day_date <= :max_date
+            ORDER BY day_date DESC
+        """
+        results = db_manager.execute_query(query, {
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+            "max_date": max_date
+        })
+        
+        # Try reverse direction if no results
+        reverse = False
+        if not results:
+            query = """
+                SELECT day_date, close
+                FROM coreiq_av_forex_daily
+                WHERE from_currency = :to_currency
+                  AND to_currency = :from_currency
+                  AND day_date <= :max_date
+                ORDER BY day_date DESC
+            """
+            results = db_manager.execute_query(query, {
+                "from_currency": from_currency,
+                "to_currency": to_currency,
+                "max_date": max_date
+            })
+            reverse = True
+        
+        if not results:
+            return {d: 1.0 for d in as_of_dates}
+        
+        # Build sorted list of (day_date, rate) for binary-search style lookup
+        # Results are already sorted DESC by day_date
+        for target_date in as_of_dates:
+            # Find the first result where day_date <= target_date
+            found_rate = None
+            for row in results:
+                row_date = row['day_date']
+                # Handle both date and datetime objects
+                if hasattr(row_date, 'date'):
+                    row_date = row_date.date()
+                if row_date <= target_date:
+                    try:
+                        rate = float(row['close'])
+                        found_rate = (1.0 / rate) if reverse else rate
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        found_rate = 1.0
+                    break
+            
+            rate_map[target_date] = found_rate if found_rate is not None else 1.0
+        
+        return rate_map
+
 
 class FilingMetricRepository:
     """Repository for filing_metrics table — SEC filing metric search."""
