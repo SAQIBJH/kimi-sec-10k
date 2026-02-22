@@ -1623,7 +1623,7 @@ class FilingMetricRepository:
         "amortization":              ["depreciation and amortization", "depreciation & amortization"],
         "d&a":                       ["depreciation and amortization", "depreciation"],
         "depreciation amortization": ["depreciation and amortization"],
-        "net income":                ["net earnings", "profit after tax", "earnings"],
+        "net income":                ["net income (loss)", "net earnings", "profit after tax", "earnings"],
         "earnings":                  ["net income", "net earnings"],
         "diluted eps":               ["diluted (in dollars per share)", "earnings per share diluted"],
         "eps":                       ["diluted (in dollars per share)", "basic (in dollars per share)", "earnings per share"],
@@ -1663,6 +1663,8 @@ class FilingMetricRepository:
         "long-term debt":            ["term debt", "total term debt"],
         "term debt":                 ["long-term debt", "long term debt", "total term debt"],
         "total debt":                ["term debt", "total term debt", "long-term debt"],
+        "debt to equity":            ["debt-to-equity", "total debt-to-equity", "lt debt-to-equity"],
+        "debt equity":               ["debt-to-equity", "total debt-to-equity"],
         "deferred revenue":          ["deferred revenue", "unearned revenue"],
         "unearned revenue":          ["deferred revenue"],
         "total liabilities":         ["liabilities, total"],
@@ -1710,6 +1712,7 @@ class FilingMetricRepository:
         "basic shares":              ["basic (in shares)", "weighted average basic shares"],
 
         # Segments (search by dimension_label via original_label="Net sales")
+        # AAPL segments
         "iphone":                    ["iphone revenue", "iphone net sales"],
         "iphone revenue":            ["iphone", "net sales"],
         "mac":                       ["mac revenue", "mac net sales"],
@@ -1720,6 +1723,17 @@ class FilingMetricRepository:
         "europe":                    ["europe revenue", "europe net sales"],
         "china":                     ["greater china", "china revenue"],
         "greater china":             ["china", "greater china revenue"],
+
+        # AMZN segments
+        "aws":                       ["amazon web services"],
+        "north america":             ["north america revenue", "north america net sales"],
+        "international":             ["international revenue", "international net sales"],
+        "total net sales":           ["net sales", "total revenue", "revenue"],
+
+        # M (Macy's) segments
+        "macy's":                    ["macys", "macy's first"],
+        "bloomingdale":              ["bloomingdale's", "bloomingdales"],
+        "net sales":                 ["total net sales", "total revenue", "revenue"],
     }
 
     @staticmethod
@@ -1765,7 +1779,7 @@ class FilingMetricRepository:
         sql = f"""
             SELECT original_label, numeric_value, unit_ref, fiscal_year,
                    is_dimensioned, dimension_label, statement_type, ixbrl_id,
-                   standard_concept, concept, balance, period_type, value, source
+                   standard_concept, concept, balance, period_type, value, source, llm_query
             FROM filing_metrics
             WHERE ticker = :ticker
               AND fiscal_year = :fiscal_year
@@ -1773,7 +1787,29 @@ class FilingMetricRepository:
               AND ({where_synonyms})
               AND (standard_concept IS NULL OR standard_concept NOT LIKE '%Text Block')
               AND numeric_value IS NOT NULL
-            ORDER BY is_dimensioned ASC, original_label ASC
+            ORDER BY CASE LOWER(original_label)
+                       WHEN 'net sales'               THEN 0
+                       WHEN 'total net sales'          THEN 0
+                       WHEN 'revenue'                  THEN 0
+                       WHEN 'net revenue'               THEN 0
+                       WHEN 'revenues'                 THEN 0
+                       WHEN 'total revenue'             THEN 0
+                       WHEN 'operating income'          THEN 1
+                       WHEN 'operating income (loss)'   THEN 1
+                       WHEN 'net income'                THEN 2
+                       WHEN 'net income (loss)'         THEN 2
+                       WHEN 'net earnings'              THEN 2
+                       WHEN 'total assets'              THEN 3
+                       WHEN 'cash and cash equivalents' THEN 3
+                       WHEN 'ebitda'                    THEN 4
+                       WHEN 'free cash flow'            THEN 4
+                       WHEN 'long-term debt'            THEN 5
+                       WHEN 'total debt'                THEN 5
+                       WHEN 'net debt'                  THEN 6
+                       ELSE 10
+                     END ASC,
+                     is_dimensioned ASC,
+                     CHAR_LENGTH(original_label) ASC, original_label ASC
             LIMIT :limit
         """
 
@@ -1794,6 +1830,7 @@ class FilingMetricRepository:
                 period_type=row["period_type"],
                 value=row["value"],
                 source=row.get("source"),
+                calculation_note=row.get("llm_query") if row.get("source") == "calculated" else None,
             )
             for row in results
         ]

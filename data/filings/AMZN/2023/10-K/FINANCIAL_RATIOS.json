@@ -2,7 +2,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "44.13",
+    "value": "43.81",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -20,7 +20,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "29.82",
+    "value": "2.38",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -38,7 +38,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "25.31",
+    "value": "-0.53",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -56,7 +56,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "32.83",
+    "value": "10.54",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -74,7 +74,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "29.82",
+    "value": "2.38",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -92,7 +92,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "6.5",
+    "value": "10.53",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -110,25 +110,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "7.8",
-    "dimension": "",
-    "member": "",
-    "dimension_label": "Company Wide",
-    "ratio_name": "R&D Margin %",
-    "category": "Profitability",
-    "formula": "R&D / Revenue",
-    "metric_type": "Financial Ratio",
-    "is_percentage": true,
-    "fiscal_year": 2023,
-    "original_label": "R&D Margin %",
-    "standard_concept": "R&DMargin",
-    "unit": "percent",
-    "html_location": {}
-  },
-  {
-    "concept": "calculated",
-    "context_ref": "calculated",
-    "value": "29.82",
+    "value": "2.38",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -146,7 +128,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "27.5",
+    "value": "-0.62",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -164,7 +146,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "171.95",
+    "value": "-1.91",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -182,7 +164,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "65.98",
+    "value": "5.75",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -200,7 +182,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "52.12",
+    "value": "4.54",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -218,7 +200,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "43.56",
+    "value": "3.15",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -236,7 +218,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "1.79",
+    "value": "0.46",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -254,7 +236,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "0.32",
+    "value": "0.15",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -272,7 +254,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "1.53",
+    "value": "0.46",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -290,7 +272,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "0.88",
+    "value": "1.24",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -308,7 +290,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "0.82",
+    "value": "0.38",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -326,7 +308,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "0.64",
+    "value": "0.31",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -344,7 +326,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "0.55",
+    "value": "0.31",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -362,25 +344,25 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "356.08",
+    "value": "5.17",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
-    "ratio_name": "Interest Coverage (Est.)",
+    "ratio_name": "Interest Coverage",
     "category": "Leverage",
-    "formula": "Operating Income / Est. Interest",
+    "formula": "Operating Income / Interest Expense",
     "metric_type": "Financial Ratio",
     "is_percentage": false,
     "fiscal_year": 2023,
-    "original_label": "Interest Coverage (Est.)",
-    "standard_concept": "InterestCoverage(Est.)",
+    "original_label": "Interest Coverage",
+    "standard_concept": "InterestCoverage",
     "unit": "ratio",
     "html_location": {}
   },
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "0.99",
+    "value": "0.94",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -398,7 +380,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "0.94",
+    "value": "0.72",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -416,7 +398,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "0.21",
+    "value": "0.35",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -434,7 +416,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "0.76",
+    "value": "0.3",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -452,7 +434,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "1.09",
+    "value": "1.16",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -470,7 +452,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "8.77",
+    "value": "2.75",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -488,7 +470,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "37.98",
+    "value": "8.62",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -506,7 +488,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "13.29",
+    "value": "13.66",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -524,7 +506,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "27.47",
+    "value": "26.72",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -542,7 +524,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "9.61",
+    "value": "42.36",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -578,7 +560,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "-17.67",
+    "value": "14.33",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -596,7 +578,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "99584000000.0",
+    "value": "-16893000000.0",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -614,7 +596,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "25.98",
+    "value": "-3.29",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -632,7 +614,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "28.84",
+    "value": "9.1",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -650,7 +632,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "1.14",
+    "value": "-17.18",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -668,7 +650,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "1.03",
+    "value": "6.21",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -686,7 +668,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "-2.8",
+    "value": "9.4",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -704,7 +686,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "-2.81",
+    "value": "-108.16",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -722,7 +704,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "-0.96",
+    "value": "14.01",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -740,7 +722,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "-3.92",
+    "value": "-18.91",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -758,7 +740,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "-4.3",
+    "value": "-50.77",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -776,7 +758,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "6.16",
+    "value": "-0.27",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -794,7 +776,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "6.13",
+    "value": "-0.27",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -812,7 +794,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "4.0",
+    "value": "14.26",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -830,7 +812,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "6.4",
+    "value": "-1.65",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
