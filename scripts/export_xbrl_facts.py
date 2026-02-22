@@ -973,7 +973,19 @@ def calculate_all_ratios(statements: Dict, facts: List[Dict], ticker: str, year:
     ebitda_prev = (operating_income_prev or 0) + (depreciation or 0) if operating_income_prev else None
     fcf = (ocf or 0) - abs(capex or 0)
     fcf_prev = (ocf_prev or 0) - abs(capex or 0) if ocf_prev else None
-    nopat = (operating_income or 0) * 0.79 if operating_income else None  # 21% tax rate
+    # NOPAT calculation using actual effective tax rate (NOT hardcoded 21%)
+    tax_provision = get_val('income', 'us-gaap:IncomeTaxExpenseBenefit', year_col)
+    pretax_income_calc = get_val('income', 'us-gaap:IncomeLossBeforeIncomeTaxExpenseBenefit', year_col)
+    
+    if tax_provision and pretax_income_calc and pretax_income_calc != 0:
+        effective_tax_rate = abs(tax_provision) / pretax_income_calc
+        nopat = operating_income * (1 - effective_tax_rate) if operating_income else None
+        nopat_note = f"Using actual tax rate {effective_tax_rate:.1%}"
+    else:
+        # Fallback to statutory rate with CLEAR FLAG
+        nopat = (operating_income or 0) * 0.79 if operating_income else None
+        nopat_note = "WARNING: Using estimated 21% tax rate (actual unavailable)"
+    # END NOPAT fix
     invested_capital = total_debt + (equity or 0)
     capital_employed = (total_assets or 0) - (current_liabilities or 0)
     
@@ -1022,8 +1034,13 @@ def calculate_all_ratios(statements: Dict, facts: List[Dict], ticker: str, year:
         add_ratio("SG&A Margin %", safe_divide(sgna_exp, revenue), "SG&A / Revenue", "Profitability", True)
     if revenue and rd_exp:
         add_ratio("R&D Margin %", safe_divide(rd_exp, revenue), "R&D / Revenue", "Profitability", True)
-    if revenue and operating_income:
-        add_ratio("Pre-tax Margin %", safe_divide(operating_income, revenue), "Operating Income / Revenue", "Profitability", True)
+    # Pre-tax Margin - use actual Pre-tax Income (not Operating Income)
+    pretax_income_val = get_val('income', 'us-gaap:IncomeLossBeforeIncomeTaxExpenseBenefit', year_col)
+    if revenue and pretax_income_val:
+        add_ratio("Pre-tax Margin %", safe_divide(pretax_income_val, revenue), "Pre-tax Income / Revenue", "Profitability", True)
+    elif revenue and operating_income:
+        # Fallback with clear flag
+        add_ratio("Pre-tax Margin % (Est.)", safe_divide(operating_income, revenue), "Operating Income / Revenue (Pre-tax Income unavailable)", "Profitability", True)
     
     # ========== RETURNS (5 ratios) ==========
     if net_income and avg_assets:
@@ -1059,9 +1076,11 @@ def calculate_all_ratios(statements: Dict, facts: List[Dict], ticker: str, year:
     
     if operating_income and interest_expense and interest_expense > 0:
         add_ratio("Interest Coverage", safe_divide(operating_income, interest_expense), "Operating Income / Interest Expense", "Leverage")
-    elif operating_income:
-        # Estimate if no interest expense found
-        add_ratio("Interest Coverage (Est.)", safe_divide(operating_income, 321000000), "Operating Income / Est. Interest", "Leverage")
+    # REMOVED: Hardcoded $321M fallback was misleading - only calculate if actual data available
+    elif operating_income and total_debt and total_debt > 0:
+        # Estimate based on debt balance (5% avg interest rate assumption)
+        est_interest = total_debt * 0.05
+        add_ratio("Interest Coverage (Est.)", safe_divide(operating_income, est_interest), "Operating Income / Est. Interest (5% of Total Debt)", "Leverage")
     
     # ========== LIQUIDITY (4 ratios) ==========
     if current_assets and current_liabilities:
@@ -1086,10 +1105,15 @@ def calculate_all_ratios(statements: Dict, facts: List[Dict], ticker: str, year:
         add_ratio("Days Sales Outstanding", safe_divide(avg_ar, revenue) * 365, "(Avg AR / Revenue) × 365", "Efficiency")
     if avg_inv and cogs:
         add_ratio("Days Inventory Outstanding", safe_divide(avg_inv, cogs) * 365, "(Avg Inv / COGS) × 365", "Efficiency")
-    if cogs:
-        # Estimate AP from COGS
-        ap_est = cogs * 0.15
-        add_ratio("Days Payable Outstanding", safe_divide(ap_est, cogs) * 365, "(Est. AP / COGS) × 365", "Efficiency")
+    # Days Payable Outstanding - try actual AP first
+    ap_actual = get_val('balance', 'us-gaap:AccountsPayableCurrent', year_col)
+    if ap_actual and cogs:
+        add_ratio("Days Payable Outstanding", safe_divide(ap_actual, cogs) * 365, "(AP / COGS) × 365", "Efficiency")
+    elif cogs:
+        # Estimate only if actual AP unavailable
+        estimated_dpo_days = 45  # Conservative estimate
+        ap_est = cogs * (estimated_dpo_days / 365)
+        add_ratio("Days Payable Outstanding (Est.)", safe_divide(ap_est, cogs) * 365, f"Estimated {estimated_dpo_days} days (actual AP unavailable)", "Efficiency")
         dso = safe_divide(avg_ar, revenue) * 365 if avg_ar and revenue else 0
         dio = safe_divide(avg_inv, cogs) * 365 if avg_inv and cogs else 0
         dpo = safe_divide(ap_est, cogs) * 365
