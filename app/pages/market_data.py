@@ -14,7 +14,7 @@ from components.companyProfile import render_company_profile_content, get_compan
 from components.navigation import render_company_header
 
 hide_sidebar()
-from data.repository import CompanyOverviewRepository, CompanyRepository, IncomeStatementRepository, BalanceSheetRepository, KeyStatsRepository
+from data.repository import CompanyOverviewRepository, CompanyRepository, IncomeStatementRepository, BalanceSheetRepository, KeyStatsRepository, ForexRepository
 from data.models import IncomeStatementData, Company, BalanceSheetData
 from utils.local_storage import (
     get_marketdata_company, set_marketdata_company,
@@ -71,7 +71,6 @@ def get_indent_level(label: str) -> int:
 
 def get_conversion_rate(from_currency: str, to_currency: str) -> float:
     """Get conversion rate between currencies from the forex table."""
-    from data.repository import ForexRepository
     
     if from_currency == to_currency:
         return 1.0
@@ -115,7 +114,7 @@ def get_balance_sheet_indent_level(label: str) -> int:
         return 0
 
 
-def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversion_rate: float, reported_currency: str, sort_ascending: bool = True):
+def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversion_rate: float, reported_currency: str, sort_ascending: bool = True, historical_rate_map: dict = None):
     """Render the balance sheet table."""
     try:
         data = BalanceSheetRepository.get_balance_sheet_data(ticker, start_date, end_date)
@@ -176,8 +175,14 @@ def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversi
                 html += f'<td class="indent-{indent}">{display_label}</td>'
                 
                 # Data columns with converted values
-                for val in item.values:
-                    formatted = format_value(val, conversion_rate)
+                for col_idx, val in enumerate(item.values):
+                    # Use per-column rate from historical_rate_map if available
+                    if historical_rate_map and col_idx < len(data.periods):
+                        period_date = data.periods[col_idx].date
+                        col_rate = historical_rate_map.get(period_date, conversion_rate)
+                    else:
+                        col_rate = conversion_rate
+                    formatted = format_value(val, col_rate)
                     html += f'<td class="data-cell">{formatted}</td>'
                 
                 html += '</tr>'
@@ -185,39 +190,9 @@ def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversi
             html += '</tbody></table></div></div>'
             st.html(html)
             
-            # ==================== CURRENCY CONVERSION - LEFT SIDE ONLY ====================
-            st.html('<div class="currency-section"><div class="currency-label">Currency Conversion</div>')
+
             
-            c1, c2, c3, c4 = st.columns([1.5, 0.3, 1.5, 6])
-            
-            with c1:
-                st.html(f'<div class="currency-box">{reported_currency}</div>')
-            
-            with c2:
-                st.html('<div class="currency-arrow">→</div>')
-            
-            with c3:
-                currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"]
-                default_index = currencies.index(st.session_state.target_currency)
-                
-                target = st.selectbox(
-                    "To",
-                    options=currencies,
-                    index=default_index,
-                    label_visibility="collapsed",
-                    key="currency_to_balance"
-                )
-                
-                if target != st.session_state.target_currency:
-                    st.session_state.target_currency = target
-                    st.rerun()
-            
-            st.html('</div>')
-            
-            if st.session_state.target_currency != reported_currency:
-                rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
-                st.caption(f"Converted at 1 {reported_currency} = {rate:.4f} {st.session_state.target_currency}")
-                
+
         else:
             st.info("No balance sheet data available for the selected date range")
             
@@ -261,7 +236,7 @@ def has_cash_flow_grey_separator(label: str) -> bool:
     return label.strip() in grey_after
 
 
-def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_rate: float, reported_currency: str, sort_ascending: bool = True):
+def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_rate: float, reported_currency: str, sort_ascending: bool = True, historical_rate_map: dict = None):
     """Render the cash flow statement table."""
     try:
         from data.repository import CashFlowRepository
@@ -321,8 +296,14 @@ def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_r
                 html += f'<td class="indent-{indent}">{display_label}</td>'
                 
                 # Data columns with converted values
-                for val in item.values:
-                    formatted = format_value(val, conversion_rate)
+                for col_idx, val in enumerate(item.values):
+                    # Use per-column rate from historical_rate_map if available
+                    if historical_rate_map and col_idx < len(data.periods):
+                        period_date = data.periods[col_idx].date
+                        col_rate = historical_rate_map.get(period_date, conversion_rate)
+                    else:
+                        col_rate = conversion_rate
+                    formatted = format_value(val, col_rate)
                     html += f'<td class="data-cell">{formatted}</td>'
                 
                 html += '</tr>'
@@ -330,39 +311,9 @@ def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_r
             html += '</tbody></table></div></div>'
             st.html(html)
             
-            # ==================== CURRENCY CONVERSION - LEFT SIDE ONLY ====================
-            st.html('<div class="currency-section"><div class="currency-label">Currency Conversion</div>')
+
             
-            c1, c2, c3, c4 = st.columns([1.5, 0.3, 1.5, 6])
-            
-            with c1:
-                st.html(f'<div class="currency-box">{reported_currency}</div>')
-            
-            with c2:
-                st.html('<div class="currency-arrow">→</div>')
-            
-            with c3:
-                currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"]
-                default_index = currencies.index(st.session_state.target_currency)
-                
-                target = st.selectbox(
-                    "To",
-                    options=currencies,
-                    index=default_index,
-                    label_visibility="collapsed",
-                    key="currency_to_cashflow"
-                )
-                
-                if target != st.session_state.target_currency:
-                    st.session_state.target_currency = target
-                    st.rerun()
-            
-            st.html('</div>')
-            
-            if st.session_state.target_currency != reported_currency:
-                rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
-                st.caption(f"Converted at 1 {reported_currency} = {rate:.4f} {st.session_state.target_currency}")
-                
+
         else:
             st.info("No cash flow data available for the selected date range")
             
@@ -433,6 +384,9 @@ def render_page():
 
     if 'target_currency' not in st.session_state:
         st.session_state.target_currency = "USD"
+    
+    if 'conversion_mode' not in st.session_state:
+        st.session_state.conversion_mode = "Today's Spot Rate"
     
     # Initialize sort order from persistent state (tab-specific)
     if sort_order_key not in st.session_state:
@@ -949,8 +903,24 @@ def render_page():
                     selected_ticker, end_date
                 ) or "USD"
 
-            # Get conversion rate
+            # Get conversion rate (spot rate - default)
         conversion_rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
+        
+        # Compute per-date historical rates if Historical mode is selected
+        historical_rate_map = None
+        if st.session_state.conversion_mode == "Historical" and available_dates:
+            fiscal_dates_for_rates = []
+            for d in available_dates:
+                if start_date <= d <= end_date:
+                    # Use the fiscal_date_ending directly (it's already the end date)
+                    fiscal_dates_for_rates.append(d)
+            
+            if fiscal_dates_for_rates:
+                historical_rate_map = ForexRepository.get_conversion_rates_bulk(
+                    reported_currency,
+                    st.session_state.target_currency,
+                    fiscal_dates_for_rates
+                )
     
     # ==================== FILTER ROW - DATES & SORT ====================
 
@@ -965,7 +935,7 @@ def render_page():
         curr_end = end_date.strftime("%B %Y")
         end_idx = date_options.index(curr_end) if curr_end in date_options else len(date_options) - 1
 
-        f1, f2, f3, f4 = st.columns([4, 2, 2, 1.5])
+        f1, f2, f3, f4, f5, f6, f7 = st.columns([1.5, 1.5, 1.5, 1, 1.5, 0.3, 1.5])
         
         with f2:
             st.html('<div class="filter-label">Start Date</div>')
@@ -999,6 +969,44 @@ def render_page():
                 key=f"sort_order_select_{selected_tab}"
             )
         
+        with f5:
+            st.html('<div class="filter-label">Conversion</div>')
+            conversion_modes = ["Today's Spot Rate", "Historical"]
+            conv_idx = conversion_modes.index(st.session_state.conversion_mode) if st.session_state.conversion_mode in conversion_modes else 0
+            new_conversion_mode = st.selectbox(
+                "Conversion",
+                options=conversion_modes,
+                index=conv_idx,
+                label_visibility="collapsed",
+                key="conversion_mode_select"
+            )
+            if new_conversion_mode != st.session_state.conversion_mode:
+                st.session_state.conversion_mode = new_conversion_mode
+                save_market_data_state()
+                st.rerun()
+        
+        with f6:
+            st.html('<div class="filter-label">&nbsp;</div>')
+            st.html(f'<div class="currency-box">{reported_currency}</div>')
+        
+        with f7:
+            st.html('<div class="filter-label">&nbsp;</div>')
+            currencies = ForexRepository.get_available_currencies()
+            default_index = currencies.index(st.session_state.target_currency) if st.session_state.target_currency in currencies else 0
+            
+            target = st.selectbox(
+                "To Currency",
+                options=currencies,
+                index=default_index,
+                label_visibility="collapsed",
+                key="currency_to_unified"
+            )
+            
+            if target != st.session_state.target_currency:
+                st.session_state.target_currency = target
+                save_market_data_state()
+                st.rerun()
+        
         # Update states if changed
         date_changed = new_start_date != start_date or new_end_date != end_date
         sort_changed = new_sort_order != st.session_state[sort_order_key]
@@ -1025,9 +1033,9 @@ def render_page():
     elif not start_date or not end_date:
         pass  # No data available message already shown above
     elif selected_tab == "balance_sheet":
-        render_balance_sheet(selected_ticker, start_date, end_date, conversion_rate, reported_currency, sort_ascending)
+        render_balance_sheet(selected_ticker, start_date, end_date, conversion_rate, reported_currency, sort_ascending, historical_rate_map)
     elif selected_tab == "cash_flow":
-        render_cash_flow(selected_ticker, start_date, end_date, conversion_rate, reported_currency, sort_ascending)
+        render_cash_flow(selected_ticker, start_date, end_date, conversion_rate, reported_currency, sort_ascending, historical_rate_map)
     elif selected_tab == "income_statement":
         try:
             data = IncomeStatementRepository.get_income_statement_data(
@@ -1087,8 +1095,14 @@ def render_page():
                     html += f'<td class="indent-{indent}">{item.label}</td>'
                     
                     # Data columns with converted values
-                    for val in item.values:
-                        formatted = format_value(val, conversion_rate)
+                    for col_idx, val in enumerate(item.values):
+                        # Use per-column rate from historical_rate_map if available
+                        if historical_rate_map and col_idx < len(data.periods):
+                            period_date = data.periods[col_idx].date
+                            col_rate = historical_rate_map.get(period_date, conversion_rate)
+                        else:
+                            col_rate = conversion_rate
+                        formatted = format_value(val, col_rate)
                         html += f'<td class="data-cell">{formatted}</td>'
                     
                     html += '</tr>'
@@ -1096,38 +1110,7 @@ def render_page():
                 html += '</tbody></table></div></div>'
                 st.html(html)
                 
-                # ==================== CURRENCY CONVERSION - LEFT SIDE ONLY ====================
-                st.html('<div class="currency-section"><div class="currency-label">Currency Conversion</div>')
-                
-                c1, c2, c3, c4 = st.columns([1.5, 0.3, 1.5, 6])
-                
-                with c1:
-                    st.html(f'<div class="currency-box">{reported_currency}</div>')
-                
-                with c2:
-                    st.html('<div class="currency-arrow">→</div>')
-                
-                with c3:
-                    currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"]
-                    default_index = currencies.index("USD")
-                    
-                    target = st.selectbox(
-                        "To",
-                        options=currencies,
-                        index=default_index,
-                        label_visibility="collapsed",
-                        key="currency_to"
-                    )
-                    
-                    if target != st.session_state.target_currency:
-                        st.session_state.target_currency = target
-                        st.rerun()
-                
-                st.html('</div>')
-                
-                if st.session_state.target_currency != reported_currency:
-                    rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
-                    st.caption(f"Converted at 1 {reported_currency} = {rate:.4f} {st.session_state.target_currency}")
+
                 
             else:
                 st.info("No data available")
@@ -1194,7 +1177,14 @@ def render_page():
                     html += f'<td class="indent-{min(indent, 2)}">{label}</td>'
                     
                     # Data columns with converted values
-                    for val in values:
+                    for col_idx, val in enumerate(values):
+                        # Determine per-column rate for historical mode
+                        if historical_rate_map and col_idx < len(data["periods"]):
+                            period_date = data["periods"][col_idx].date
+                            col_rate = historical_rate_map.get(period_date, conversion_rate)
+                        else:
+                            col_rate = conversion_rate
+                        
                         if is_text:
                             formatted = str(val) if val is not None else "-"
                         elif is_percent:
@@ -1208,7 +1198,7 @@ def render_page():
                             else:
                                 formatted = "-"
                         else:
-                            formatted = format_value(val, conversion_rate)
+                            formatted = format_value(val, col_rate)
                         html += f'<td class="data-cell">{formatted}</td>'
                     
                     html += '</tr>'
@@ -1242,38 +1232,7 @@ def render_page():
                     cap_html += '</tbody></table></div></div>'
                     st.html(cap_html)
                 
-                # Currency Conversion Section - SAME AS OTHER TABS
-                st.html('<div class="currency-section"><div class="currency-label">Currency Conversion</div>')
-                
-                c1, c2, c3, c4 = st.columns([1.5, 0.3, 1.5, 6])
-                
-                with c1:
-                    st.html(f'<div class="currency-box">{reported_currency}</div>')
-                
-                with c2:
-                    st.html('<div class="currency-arrow">→</div>')
-                
-                with c3:
-                    currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "HKD", "KRW", "SEK"]
-                    default_index = currencies.index("USD")
-                    
-                    target = st.selectbox(
-                        "To",
-                        options=currencies,
-                        index=default_index,
-                        label_visibility="collapsed",
-                        key="currency_to_keystats"
-                    )
-                    
-                    if target != st.session_state.target_currency:
-                        st.session_state.target_currency = target
-                        st.rerun()
-                
-                st.html('</div>')
-                
-                if st.session_state.target_currency != reported_currency:
-                    rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
-                    st.caption(f"Converted at 1 {reported_currency} = {rate:.4f} {st.session_state.target_currency}")
+
             else:
                 st.info("No key stats data available for the selected date range")
                 
