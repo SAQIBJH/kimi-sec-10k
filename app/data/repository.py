@@ -10,7 +10,8 @@ from data.models import (
     Company, IncomeStatementLineItem, FiscalPeriod, IncomeStatementData,
     NewsArticle, TickerSentiment, CompanyOverview, EarningsCall,
     BalanceSheetLineItem, BalanceSheetData,
-    CashFlowLineItem, CashFlowData
+    CashFlowLineItem, CashFlowData,
+    FilingMetricResult
 )
 
 
@@ -1155,6 +1156,350 @@ class CashFlowRepository:
         return "USD"  # Default fallback
 
 
+class KeyStatsRepository:
+    """Repository for Key Stats data combining multiple tables.
+    
+    Combines data from:
+    - coreiq_av_financials_income_statement (revenue, ebitda, ebit, net income)
+    - coreiq_av_financials_balance_sheet (cash, debt, equity for TEV calculations)
+    - coreiq_av_company_overview (market cap, share price, eps)
+    """
+    
+    @staticmethod
+    def get_date_range(ticker: str) -> Tuple[Optional[date], Optional[date]]:
+        """Get min and max fiscal dates for a ticker."""
+        query = """
+            SELECT 
+                MIN(fiscal_date_ending) as min_date,
+                MAX(fiscal_date_ending) as max_date
+            FROM coreiq_av_financials_income_statement
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        if not results:
+            return None, None
+        row = results[0]
+        return row['min_date'], row['max_date']
+    
+    @staticmethod
+    def get_available_dates(ticker: str) -> List[date]:
+        """Get all available fiscal dates for dropdown."""
+        query = """
+            SELECT DISTINCT fiscal_date_ending
+            FROM coreiq_av_financials_income_statement
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+            ORDER BY fiscal_date_ending ASC
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        return [row['fiscal_date_ending'] for row in results]
+    
+    @staticmethod
+    def get_key_stats_data(
+        ticker: str,
+        start_date: date,
+        end_date: date
+    ) -> Dict[str, Any]:
+        """Get key stats data for date range.
+        
+        Returns a dictionary with:
+        - periods: List of FiscalPeriod
+        - line_items: List of dict with label and values
+        - reported_currency: str
+        """
+        from data.models import FiscalPeriod
+        
+        # Fetch income statement data with all needed fields
+        query = """
+            SELECT DISTINCT 
+                i.fiscal_date_ending,
+                i.total_revenue,
+                i.gross_profit,
+                i.ebitda,
+                i.ebit,
+                i.net_income_from_continuing_operations,
+                i.net_income,
+                i.reported_currency,
+                i.raw_json
+            FROM coreiq_av_financials_income_statement i
+            WHERE i.ticker = :ticker
+              AND i.fiscal_date_ending BETWEEN :start_date AND :end_date
+              AND i.report_type = 'annual'
+            ORDER BY i.fiscal_date_ending ASC
+        """
+        results = db_manager.execute_query(query, {
+            "ticker": ticker,
+            "start_date": start_date,
+            "end_date": end_date
+        })
+        
+        if not results:
+            return {"periods": [], "line_items": [], "reported_currency": "USD"}
+        
+        # Get company overview for latest EPS and Market Cap
+        overview_query = """
+            SELECT 
+                market_capitalization,
+                eps,
+                pe_ratio,
+                raw_json as overview_raw_json
+            FROM coreiq_av_company_overview
+            WHERE ticker = :ticker
+            ORDER BY fetched_at_utc DESC
+            LIMIT 1
+        """
+        overview_results = db_manager.execute_query(overview_query, {"ticker": ticker})
+        overview = overview_results[0] if overview_results else {}
+        
+        # Parse overview raw_json
+        overview_raw = {}
+        if overview and overview.get('overview_raw_json'):
+            try:
+                overview_raw = json.loads(overview['overview_raw_json'])
+            except (json.JSONDecodeError, TypeError):
+                overview_raw = {}
+        
+        # Get shares outstanding from overview
+        shares_outstanding = None
+        if overview_raw.get('SharesOutstanding'):
+            try:
+                shares_outstanding = float(overview_raw['SharesOutstanding'])
+            except (ValueError, TypeError):
+                shares_outstanding = None
+        
+        # Get latest balance sheet for TEV calculation
+        bs_query = """
+            SELECT 
+                raw_json as bs_raw_json,
+                fiscal_date_ending
+            FROM coreiq_av_financials_balance_sheet
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+            ORDER BY fiscal_date_ending DESC
+            LIMIT 1
+        """
+        bs_results = db_manager.execute_query(bs_query, {"ticker": ticker})
+        latest_bs = bs_results[0] if bs_results else {}
+        
+        # Parse balance sheet raw_json
+        bs_raw = {}
+        if latest_bs and latest_bs.get('bs_raw_json'):
+            try:
+                bs_raw = json.loads(latest_bs['bs_raw_json'])
+            except (json.JSONDecodeError, TypeError):
+                bs_raw = {}
+        
+        # Extract cash and debt from balance sheet
+        cash_and_st_investments = None
+        if bs_raw.get('cashAndShortTermInvestments'):
+            try:
+                cash_and_st_investments = float(bs_raw['cashAndShortTermInvestments'])
+            except (ValueError, TypeError):
+                cash_and_st_investments = None
+        
+        total_debt = None
+        if bs_raw.get('shortLongTermDebtTotal'):
+            try:
+                total_debt = float(bs_raw['shortLongTermDebtTotal'])
+            except (ValueError, TypeError):
+                total_debt = None
+        
+        total_shareholder_equity = None
+        if bs_raw.get('totalShareholderEquity'):
+            try:
+                total_shareholder_equity = float(bs_raw['totalShareholderEquity'])
+            except (ValueError, TypeError):
+                total_shareholder_equity = None
+        
+        # Get market cap from overview (in millions for consistency)
+        market_cap = None
+        if overview and overview.get('market_capitalization'):
+            try:
+                market_cap = float(overview['market_capitalization'])
+            except (ValueError, TypeError):
+                market_cap = None
+        
+        # Create periods
+        periods = [FiscalPeriod.from_date(row['fiscal_date_ending']) for row in results]
+        
+        # Build line items
+        line_items = []
+        
+        # Helper to safely get float value
+        def safe_float_val(val):
+            if val is None or val == 'None':
+                return None
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+        
+        # Helper to convert to millions
+        def to_millions(val):
+            if val is None:
+                return None
+            return val / 1_000_000
+        
+        # Get reported currency from first row
+        reported_currency = results[0]['reported_currency'] if results else 'USD'
+        
+        # 1. Total Revenue
+        total_revenue_vals = [to_millions(safe_float_val(row['total_revenue'])) for row in results]
+        line_items.append({"label": "Total Revenue", "values": total_revenue_vals, "is_bold": True, "indent": 0})
+        
+        # 2. Growth Over Prior Year (calculated)
+        growth_vals = []
+        for i, row in enumerate(results):
+            curr = safe_float_val(row['total_revenue'])
+            if i > 0:
+                prev = safe_float_val(results[i-1]['total_revenue'])
+                if curr is not None and prev is not None and prev != 0:
+                    growth = ((curr - prev) / abs(prev)) * 100
+                    growth_vals.append(growth)
+                else:
+                    growth_vals.append(None)
+            else:
+                growth_vals.append(None)  # No growth for first period
+        line_items.append({"label": "Growth Over Prior Year", "values": growth_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 3. Gross Profit
+        gross_profit_vals = [to_millions(safe_float_val(row['gross_profit'])) for row in results]
+        line_items.append({"label": "Gross Profit", "values": gross_profit_vals, "is_bold": True, "indent": 0})
+        
+        # 5. Margin % (calculated from raw_json for accuracy)
+        gp_margin_vals = []
+        for row in results:
+            raw = json.loads(row['raw_json']) if row['raw_json'] else {}
+            gp = safe_float_val(row['gross_profit'])
+            tr = safe_float_val(row['total_revenue'])
+            if gp is not None and tr is not None and tr != 0:
+                gp_margin_vals.append((gp / tr) * 100)
+            else:
+                gp_margin_vals.append(None)
+        line_items.append({"label": "Margin %", "values": gp_margin_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 4. EBITDA
+        ebitda_vals = [to_millions(safe_float_val(row['ebitda'])) for row in results]
+        line_items.append({"label": "EBITDA", "values": ebitda_vals, "is_bold": True, "indent": 0})
+        
+        # 8. EBITDA Margin %
+        ebitda_margin_vals = []
+        for row in results:
+            ebitda = safe_float_val(row['ebitda'])
+            tr = safe_float_val(row['total_revenue'])
+            if ebitda is not None and tr is not None and tr != 0:
+                ebitda_margin_vals.append((ebitda / tr) * 100)
+            else:
+                ebitda_margin_vals.append(None)
+        line_items.append({"label": "Margin %", "values": ebitda_margin_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 5. EBIT
+        ebit_vals = [to_millions(safe_float_val(row['ebit'])) for row in results]
+        line_items.append({"label": "EBIT", "values": ebit_vals, "is_bold": True, "indent": 0})
+        
+        # 11. EBIT Margin %
+        ebit_margin_vals = []
+        for row in results:
+            ebit = safe_float_val(row['ebit'])
+            tr = safe_float_val(row['total_revenue'])
+            if ebit is not None and tr is not None and tr != 0:
+                ebit_margin_vals.append((ebit / tr) * 100)
+            else:
+                ebit_margin_vals.append(None)
+        line_items.append({"label": "Margin %", "values": ebit_margin_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 6. Earnings from Cont. Ops
+        cont_ops_vals = [to_millions(safe_float_val(row['net_income_from_continuing_operations'])) for row in results]
+        line_items.append({"label": "Earnings from Cont. Ops.", "values": cont_ops_vals, "is_bold": True, "indent": 0})
+        
+        # 14. Cont Ops Margin %
+        cont_ops_margin_vals = []
+        for row in results:
+            cont_ops = safe_float_val(row['net_income_from_continuing_operations'])
+            tr = safe_float_val(row['total_revenue'])
+            if cont_ops is not None and tr is not None and tr != 0:
+                cont_ops_margin_vals.append((cont_ops / tr) * 100)
+            else:
+                cont_ops_margin_vals.append(None)
+        line_items.append({"label": "Margin %", "values": cont_ops_margin_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 7. Net Income
+        net_income_vals = [to_millions(safe_float_val(row['net_income'])) for row in results]
+        line_items.append({"label": "Net Income", "values": net_income_vals, "is_bold": True, "indent": 0})
+        
+        # 17. Net Income Margin %
+        ni_margin_vals = []
+        for row in results:
+            ni = safe_float_val(row['net_income'])
+            tr = safe_float_val(row['total_revenue'])
+            if ni is not None and tr is not None and tr != 0:
+                ni_margin_vals.append((ni / tr) * 100)
+            else:
+                ni_margin_vals.append(None)
+        line_items.append({"label": "Margin %", "values": ni_margin_vals, "is_bold": False, "indent": 1, "is_percent": True})
+        
+        # 8. Diluted EPS - from raw_json
+        eps_vals = []
+        for row in results:
+            raw = json.loads(row['raw_json']) if row['raw_json'] else {}
+            # Try to get diluted EPS from raw_json if available
+            eps = safe_float_val(raw.get('dilutedEPS') or raw.get('dilutedEps'))
+            if eps is None and row['net_income'] and shares_outstanding:
+                # Calculate if not available
+                ni = safe_float_val(row['net_income'])
+                if ni is not None and shares_outstanding > 0:
+                    eps = ni / shares_outstanding
+            eps_vals.append(eps)
+        line_items.append({"label": "Diluted EPS Excl. Extra Items", "values": eps_vals, "is_bold": True, "indent": 0})
+        
+        # 9. EPS Growth Over Prior Year
+        eps_growth_vals = []
+        for i, eps in enumerate(eps_vals):
+            if i > 0 and eps is not None and eps_vals[i-1] is not None and eps_vals[i-1] != 0:
+                growth = ((eps - eps_vals[i-1]) / abs(eps_vals[i-1])) * 100
+                eps_growth_vals.append(growth)
+            else:
+                eps_growth_vals.append(None)
+        line_items.append({"label": "Growth Over Prior Year", "values": eps_growth_vals, "is_bold": False, "indent": 1, "is_percent": True, "has_grey_sep": True})
+        
+        # 10. Same Store Sales Growth % (not available in most data, will show NA or -)
+        same_store_vals = [None] * len(results)
+        line_items.append({"label": "Same Store Sales Growth %", "values": same_store_vals, "is_bold": True, "indent": 0, "has_grey_sep": True})
+        
+        return {
+            "periods": periods,
+            "line_items": line_items,
+            "reported_currency": reported_currency,
+            # Additional data for capitalization section
+            "market_cap": to_millions(market_cap),
+            "cash": to_millions(cash_and_st_investments),
+            "total_debt": to_millions(total_debt),
+            "total_equity": to_millions(total_shareholder_equity),
+            "latest_eps": overview.get('eps'),
+            "latest_pe": overview.get('pe_ratio')
+        }
+    
+    @staticmethod
+    def get_reported_currency(ticker: str, fiscal_date: date) -> str:
+        """Get the reported currency for a specific fiscal period."""
+        query = """
+            SELECT reported_currency
+            FROM coreiq_av_financials_income_statement
+            WHERE ticker = :ticker
+              AND fiscal_date_ending = :fiscal_date
+              AND report_type = 'annual'
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {
+            "ticker": ticker,
+            "fiscal_date": fiscal_date
+        })
+        if results and results[0].get('reported_currency'):
+            return results[0]['reported_currency']
+        return "USD"
+
+
 class ForexRepository:
     """Repository for currency conversion rates from coreiq_av_forex_daily table."""
     
@@ -1242,3 +1587,266 @@ class ForexRepository:
         """
         results = db_manager.execute_query(query)
         return [row['currency'] for row in results if row['currency']]
+
+
+class FilingMetricRepository:
+    """Repository for filing_metrics table — SEC filing metric search."""
+
+    # Synonym map: user-typed term → list of DB label variants.
+    # All keys and values must be lowercase. The original query is always
+    # searched as well — these are ADDITIONAL terms, not replacements.
+    SYNONYM_MAP: Dict[str, List[str]] = {
+        # Income Statement
+        "revenue":                   ["net sales", "total revenue", "revenues", "total net revenue"],
+        "total revenue":             ["net sales", "revenue", "total net revenue"],
+        "net revenue":               ["net sales", "revenue"],
+        "sales":                     ["net sales", "revenue", "total revenue"],
+        "gross profit":              ["gross margin", "gross income"],
+        "gross margin":              ["gross profit", "gross income"],
+        "cost of goods sold":        ["cost of sales", "cost of revenue", "cost of products"],
+        "cogs":                      ["cost of sales", "cost of revenue", "cost of goods sold"],
+        "cost of revenue":           ["cost of sales", "cost of goods sold"],
+        "selling general":           ["selling, general and administrative", "sg&a", "sga"],
+        "sg&a":                      ["selling, general and administrative", "selling general"],
+        "sga":                       ["selling, general and administrative", "selling general and admin"],
+        "operating expenses":        ["total operating expenses", "operating expense"],
+        "operating income":          ["income from operations", "operating profit", "ebit"],
+        "operating profit":          ["operating income", "income from operations"],
+        "ebit":                      ["operating income", "operating profit", "income from operations"],
+        "interest expense":          ["other income", "interest and other income", "net interest expense"],
+        "interest income":           ["other income", "interest and other income", "investment income"],
+        "net interest":              ["other income", "interest expense", "interest income"],
+        "other income":              ["other income/(expense), net", "other income/expense"],
+        "r&d":                       ["research and development", "research & development"],
+        "research and development":  ["r&d", "research & development"],
+        "depreciation":              ["depreciation and amortization", "depreciation & amortization", "d&a"],
+        "amortization":              ["depreciation and amortization", "depreciation & amortization"],
+        "d&a":                       ["depreciation and amortization", "depreciation"],
+        "depreciation amortization": ["depreciation and amortization"],
+        "net income":                ["net earnings", "profit after tax", "earnings"],
+        "earnings":                  ["net income", "net earnings"],
+        "diluted eps":               ["diluted (in dollars per share)", "earnings per share diluted"],
+        "eps":                       ["diluted (in dollars per share)", "basic (in dollars per share)", "earnings per share"],
+        "basic eps":                 ["basic (in dollars per share)", "earnings per share basic"],
+        "stock based comp":          ["share-based compensation expense", "stock-based compensation"],
+        "stock compensation":        ["share-based compensation expense", "stock-based compensation"],
+        "share based compensation":  ["share-based compensation expense"],
+        "advertising":               ["advertising expense", "advertising costs"],
+        "income tax":                ["provision for income taxes", "income tax expense"],
+        "tax expense":               ["provision for income taxes", "income tax expense"],
+
+        # Balance Sheet — Assets
+        "cash":                      ["cash and cash equivalents", "cash & cash equivalents"],
+        "cash equivalents":          ["cash and cash equivalents"],
+        "short term investments":    ["marketable securities", "short-term investments"],
+        "marketable securities":     ["short-term investments", "short term investments"],
+        "accounts receivable":       ["accounts receivable, net", "trade receivables"],
+        "receivables":               ["accounts receivable, net", "vendor non-trade receivables"],
+        "inventory":                 ["inventories"],
+        "inventories":               ["inventory"],
+        "prepaid":                   ["prepaid expenses", "other current assets"],
+        "current assets":            ["total current assets"],
+        "total current assets":      ["current assets"],
+        "ppe":                       ["property, plant and equipment, net", "property plant equipment"],
+        "property plant equipment":  ["property, plant and equipment, net", "gross property, plant and equipment"],
+        "net ppe":                   ["property, plant and equipment, net"],
+        "gross ppe":                 ["gross property, plant and equipment"],
+        "accumulated depreciation":  ["accumulated depreciation"],
+        "goodwill":                  ["goodwill and intangible assets", "intangible assets"],
+        "intangibles":               ["intangible assets", "goodwill"],
+        "total assets":              ["assets, total"],
+
+        # Balance Sheet — Liabilities
+        "accounts payable":          ["accounts payable", "trade payables"],
+        "current liabilities":       ["total current liabilities"],
+        "long term debt":            ["term debt", "total term debt", "long-term debt"],
+        "long-term debt":            ["term debt", "total term debt"],
+        "term debt":                 ["long-term debt", "long term debt", "total term debt"],
+        "total debt":                ["term debt", "total term debt", "long-term debt"],
+        "deferred revenue":          ["deferred revenue", "unearned revenue"],
+        "unearned revenue":          ["deferred revenue"],
+        "total liabilities":         ["liabilities, total"],
+        "operating lease":           ["operating lease liabilities, current", "operating lease liabilities, non-current"],
+        "finance lease":             ["finance lease liabilities, current", "finance lease liabilities, non-current"],
+        "commercial paper":          ["commercial paper"],
+
+        # Balance Sheet — Equity
+        "retained earnings":         ["accumulated deficit", "retained deficit"],
+        "accumulated deficit":       ["retained earnings"],
+        "shareholders equity":       ["total shareholders' equity", "stockholders equity"],
+        "stockholders equity":       ["total shareholders' equity", "shareholders equity"],
+        "total equity":              ["total shareholders' equity", "shareholders equity"],
+        "book value":                ["total shareholders' equity", "book value of equity"],
+
+        # Cash Flow
+        "cash from operations":      ["cash generated by operating activities", "operating cash flow", "cash from operating"],
+        "operating cash flow":       ["cash generated by operating activities", "cash from operations"],
+        "capex":                     ["payments for acquisition of property, plant and equipment", "capital expenditure", "capital expenditures"],
+        "capital expenditure":       ["payments for acquisition of property, plant and equipment", "capex"],
+        "capital expenditures":      ["payments for acquisition of property, plant and equipment", "capex"],
+        "cash from investing":       ["cash generated by/(used in) investing activities"],
+        "investing activities":      ["cash generated by/(used in) investing activities"],
+        "cash from financing":       ["cash used in financing activities"],
+        "financing activities":      ["cash used in financing activities"],
+        "dividends":                 ["payments for dividends and dividend equivalents", "dividends paid"],
+        "dividends paid":            ["payments for dividends and dividend equivalents"],
+        "buyback":                   ["common stock repurchased", "repurchases of common stock", "share repurchase"],
+        "share repurchase":          ["common stock repurchased", "repurchases of common stock"],
+        "stock repurchase":          ["common stock repurchased", "repurchases of common stock"],
+        "debt issuance":             ["proceeds from issuance of term debt, net"],
+        "debt repayment":            ["repayments of term debt", "repayment of debt"],
+
+        # Calculated / Derived (will exist after Phase 6.3)
+        "ebitda":                    ["ebitda", "earnings before interest tax depreciation"],
+        "net debt":                  ["net debt"],
+        "enterprise value":          ["enterprise value", "tev"],
+        "gross margin %":            ["gross margin percentage", "gross margin %"],
+        "operating margin":          ["operating margin %", "operating income margin"],
+        "net margin":                ["net income margin", "net margin %", "profit margin"],
+
+        # Shares
+        "shares outstanding":        ["common stock, shares outstanding (in shares)", "entity common stock, shares outstanding"],
+        "diluted shares":            ["diluted (in shares)", "weighted average diluted shares"],
+        "basic shares":              ["basic (in shares)", "weighted average basic shares"],
+
+        # Segments (search by dimension_label via original_label="Net sales")
+        "iphone":                    ["iphone revenue", "iphone net sales"],
+        "iphone revenue":            ["iphone", "net sales"],
+        "mac":                       ["mac revenue", "mac net sales"],
+        "ipad":                      ["ipad revenue", "ipad net sales"],
+        "services":                  ["services revenue", "services net sales"],
+        "wearables":                 ["wearables, home and accessories", "wearables revenue"],
+        "americas":                  ["americas revenue", "americas net sales"],
+        "europe":                    ["europe revenue", "europe net sales"],
+        "china":                     ["greater china", "china revenue"],
+        "greater china":             ["china", "greater china revenue"],
+    }
+
+    @staticmethod
+    def _expand_query(query: str) -> List[str]:
+        """Return list of LIKE patterns: original query + all synonym expansions."""
+        q = query.strip().lower()
+        patterns = [f"%{q}%"]
+        for synonym in FilingMetricRepository.SYNONYM_MAP.get(q, []):
+            patterns.append(f"%{synonym.lower()}%")
+        return patterns
+
+    @staticmethod
+    def search(
+        ticker: str,
+        fiscal_year: int,
+        doc_type: str,
+        query: str,
+        limit: int = 20,
+    ) -> List[FilingMetricResult]:
+        """
+        Search filing metrics by original_label OR standard_concept OR dimension_label.
+        Expands the query with synonyms so e.g. 'Gross Profit' finds 'Gross margin'.
+        """
+        patterns = FilingMetricRepository._expand_query(query)
+
+        # Build dynamic OR clauses — one per pattern, across label + concept + dimension
+        or_clauses = []
+        params: Dict[str, Any] = {
+            "ticker": ticker,
+            "fiscal_year": fiscal_year,
+            "doc_type": doc_type,
+            "limit": limit,
+        }
+        for i, pattern in enumerate(patterns):
+            k = f"q{i}"
+            or_clauses.append(
+                f"(LOWER(original_label) LIKE :{k} OR LOWER(standard_concept) LIKE :{k} OR LOWER(dimension_label) LIKE :{k})"
+            )
+            params[k] = pattern
+
+        where_synonyms = " OR ".join(or_clauses)
+
+        sql = f"""
+            SELECT original_label, numeric_value, unit_ref, fiscal_year,
+                   is_dimensioned, dimension_label, statement_type, ixbrl_id,
+                   standard_concept, concept, balance, period_type, value, source
+            FROM filing_metrics
+            WHERE ticker = :ticker
+              AND fiscal_year = :fiscal_year
+              AND doc_type = :doc_type
+              AND ({where_synonyms})
+              AND (standard_concept IS NULL OR standard_concept NOT LIKE '%Text Block')
+              AND numeric_value IS NOT NULL
+            ORDER BY is_dimensioned ASC, original_label ASC
+            LIMIT :limit
+        """
+
+        results = db_manager.execute_query(sql, params)
+        return [
+            FilingMetricResult(
+                original_label=row["original_label"] or "",
+                numeric_value=row["numeric_value"],
+                unit_ref=row["unit_ref"],
+                fiscal_year=row["fiscal_year"],
+                is_dimensioned=bool(row["is_dimensioned"]),
+                dimension_label=row["dimension_label"],
+                statement_type=row["statement_type"],
+                ixbrl_id=row["ixbrl_id"],
+                standard_concept=row["standard_concept"],
+                concept=row["concept"],
+                balance=row["balance"],
+                period_type=row["period_type"],
+                value=row["value"],
+                source=row.get("source"),
+            )
+            for row in results
+        ]
+
+    @staticmethod
+    def search_with_llm_fallback(
+        ticker: str,
+        fiscal_year: int,
+        doc_type: str,
+        query: str,
+        limit: int = 20,
+    ) -> tuple:
+        """
+        Search filing metrics; if DB returns no results, attempt LLM extraction.
+
+        Returns:
+            (results: List[FilingMetricResult], used_llm: bool)
+            used_llm=True means LLM was called (show spinner before calling this)
+        """
+        db_results = FilingMetricRepository.search(
+            ticker=ticker,
+            fiscal_year=fiscal_year,
+            doc_type=doc_type,
+            query=query,
+            limit=limit,
+        )
+
+        if db_results:
+            return db_results, False
+
+        # DB miss — try LLM extraction
+        api_key = __import__("os").getenv("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            return [], False
+
+        try:
+            from core.llm_extractor import LLMExtractor
+            from core.database import db_manager as _dbm
+
+            engine = _dbm._engine
+            if engine is None:
+                return [], False
+
+            with engine.begin() as conn:
+                llm_results = LLMExtractor.extract(
+                    conn=conn,
+                    ticker=ticker,
+                    fiscal_year=fiscal_year,
+                    doc_type=doc_type,
+                    query=query,
+                )
+            return llm_results, True
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"[LLM fallback] error: {e}")
+            return [], False
