@@ -553,10 +553,10 @@ def render_page():
     /* Filter row - Figma Design Match */
     .filter-label {
         font-family: var(--font-family);
-        font-size: 12px;
-        font-weight: 400;
+        font-size: 15px;
+        font-weight: 600;
         color: #4F4F4F;
-        margin-bottom: 6px;
+        margin-bottom: -7px;
         margin-top: 0;
         line-height: normal;
         display: block;
@@ -566,6 +566,7 @@ def render_page():
     /* Streamlit selectbox styling to match Figma */
     div[data-testid="stSelectbox"] {
         margin-top: 0 !important;
+        
     }
     
     /* Override the selectbox container */
@@ -623,10 +624,11 @@ def render_page():
     }
     
     div[data-testid="stSelectbox"] > div > div > div {
-        padding: 10px 14px !important;
+        padding: auto !important;
         font-family: var(--font-family) !important;
         font-size: 14px !important;
         color: var(--black) !important;
+        
     }
     
     /* ==================== TABLE STYLING - PIXEL PERFECT FROM FIGMA ==================== */
@@ -935,7 +937,7 @@ def render_page():
         curr_end = end_date.strftime("%B %Y")
         end_idx = date_options.index(curr_end) if curr_end in date_options else len(date_options) - 1
 
-        f1, f2, f3, f4, f5, f6, f7 = st.columns([1.5, 1.5, 1.5, 1, 1.5, 0.3, 1.5])
+        f1, f2, f3, f4, f5, f6, f7 = st.columns([1, 1, 1, 1, 1, 0.5, 0.6])
         
         with f2:
             st.html('<div class="filter-label">Start Date</div>')
