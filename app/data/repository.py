@@ -1592,6 +1592,145 @@ class ForexRepository:
 class FilingMetricRepository:
     """Repository for filing_metrics table — SEC filing metric search."""
 
+    # Synonym map: user-typed term → list of DB label variants.
+    # All keys and values must be lowercase. The original query is always
+    # searched as well — these are ADDITIONAL terms, not replacements.
+    SYNONYM_MAP: Dict[str, List[str]] = {
+        # Income Statement
+        "revenue":                   ["net sales", "total revenue", "revenues", "total net revenue"],
+        "total revenue":             ["net sales", "revenue", "total net revenue"],
+        "net revenue":               ["net sales", "revenue"],
+        "sales":                     ["net sales", "revenue", "total revenue"],
+        "gross profit":              ["gross margin", "gross income"],
+        "gross margin":              ["gross profit", "gross income"],
+        "cost of goods sold":        ["cost of sales", "cost of revenue", "cost of products"],
+        "cogs":                      ["cost of sales", "cost of revenue", "cost of goods sold"],
+        "cost of revenue":           ["cost of sales", "cost of goods sold"],
+        "selling general":           ["selling, general and administrative", "sg&a", "sga"],
+        "sg&a":                      ["selling, general and administrative", "selling general"],
+        "sga":                       ["selling, general and administrative", "selling general and admin"],
+        "operating expenses":        ["total operating expenses", "operating expense"],
+        "operating income":          ["income from operations", "operating profit", "ebit"],
+        "operating profit":          ["operating income", "income from operations"],
+        "ebit":                      ["operating income", "operating profit", "income from operations"],
+        "interest expense":          ["other income", "interest and other income", "net interest expense"],
+        "interest income":           ["other income", "interest and other income", "investment income"],
+        "net interest":              ["other income", "interest expense", "interest income"],
+        "other income":              ["other income/(expense), net", "other income/expense"],
+        "r&d":                       ["research and development", "research & development"],
+        "research and development":  ["r&d", "research & development"],
+        "depreciation":              ["depreciation and amortization", "depreciation & amortization", "d&a"],
+        "amortization":              ["depreciation and amortization", "depreciation & amortization"],
+        "d&a":                       ["depreciation and amortization", "depreciation"],
+        "depreciation amortization": ["depreciation and amortization"],
+        "net income":                ["net earnings", "profit after tax", "earnings"],
+        "earnings":                  ["net income", "net earnings"],
+        "diluted eps":               ["diluted (in dollars per share)", "earnings per share diluted"],
+        "eps":                       ["diluted (in dollars per share)", "basic (in dollars per share)", "earnings per share"],
+        "basic eps":                 ["basic (in dollars per share)", "earnings per share basic"],
+        "stock based comp":          ["share-based compensation expense", "stock-based compensation"],
+        "stock compensation":        ["share-based compensation expense", "stock-based compensation"],
+        "share based compensation":  ["share-based compensation expense"],
+        "advertising":               ["advertising expense", "advertising costs"],
+        "income tax":                ["provision for income taxes", "income tax expense"],
+        "tax expense":               ["provision for income taxes", "income tax expense"],
+
+        # Balance Sheet — Assets
+        "cash":                      ["cash and cash equivalents", "cash & cash equivalents"],
+        "cash equivalents":          ["cash and cash equivalents"],
+        "short term investments":    ["marketable securities", "short-term investments"],
+        "marketable securities":     ["short-term investments", "short term investments"],
+        "accounts receivable":       ["accounts receivable, net", "trade receivables"],
+        "receivables":               ["accounts receivable, net", "vendor non-trade receivables"],
+        "inventory":                 ["inventories"],
+        "inventories":               ["inventory"],
+        "prepaid":                   ["prepaid expenses", "other current assets"],
+        "current assets":            ["total current assets"],
+        "total current assets":      ["current assets"],
+        "ppe":                       ["property, plant and equipment, net", "property plant equipment"],
+        "property plant equipment":  ["property, plant and equipment, net", "gross property, plant and equipment"],
+        "net ppe":                   ["property, plant and equipment, net"],
+        "gross ppe":                 ["gross property, plant and equipment"],
+        "accumulated depreciation":  ["accumulated depreciation"],
+        "goodwill":                  ["goodwill and intangible assets", "intangible assets"],
+        "intangibles":               ["intangible assets", "goodwill"],
+        "total assets":              ["assets, total"],
+
+        # Balance Sheet — Liabilities
+        "accounts payable":          ["accounts payable", "trade payables"],
+        "current liabilities":       ["total current liabilities"],
+        "long term debt":            ["term debt", "total term debt", "long-term debt"],
+        "long-term debt":            ["term debt", "total term debt"],
+        "term debt":                 ["long-term debt", "long term debt", "total term debt"],
+        "total debt":                ["term debt", "total term debt", "long-term debt"],
+        "deferred revenue":          ["deferred revenue", "unearned revenue"],
+        "unearned revenue":          ["deferred revenue"],
+        "total liabilities":         ["liabilities, total"],
+        "operating lease":           ["operating lease liabilities, current", "operating lease liabilities, non-current"],
+        "finance lease":             ["finance lease liabilities, current", "finance lease liabilities, non-current"],
+        "commercial paper":          ["commercial paper"],
+
+        # Balance Sheet — Equity
+        "retained earnings":         ["accumulated deficit", "retained deficit"],
+        "accumulated deficit":       ["retained earnings"],
+        "shareholders equity":       ["total shareholders' equity", "stockholders equity"],
+        "stockholders equity":       ["total shareholders' equity", "shareholders equity"],
+        "total equity":              ["total shareholders' equity", "shareholders equity"],
+        "book value":                ["total shareholders' equity", "book value of equity"],
+
+        # Cash Flow
+        "cash from operations":      ["cash generated by operating activities", "operating cash flow", "cash from operating"],
+        "operating cash flow":       ["cash generated by operating activities", "cash from operations"],
+        "capex":                     ["payments for acquisition of property, plant and equipment", "capital expenditure", "capital expenditures"],
+        "capital expenditure":       ["payments for acquisition of property, plant and equipment", "capex"],
+        "capital expenditures":      ["payments for acquisition of property, plant and equipment", "capex"],
+        "cash from investing":       ["cash generated by/(used in) investing activities"],
+        "investing activities":      ["cash generated by/(used in) investing activities"],
+        "cash from financing":       ["cash used in financing activities"],
+        "financing activities":      ["cash used in financing activities"],
+        "dividends":                 ["payments for dividends and dividend equivalents", "dividends paid"],
+        "dividends paid":            ["payments for dividends and dividend equivalents"],
+        "buyback":                   ["common stock repurchased", "repurchases of common stock", "share repurchase"],
+        "share repurchase":          ["common stock repurchased", "repurchases of common stock"],
+        "stock repurchase":          ["common stock repurchased", "repurchases of common stock"],
+        "debt issuance":             ["proceeds from issuance of term debt, net"],
+        "debt repayment":            ["repayments of term debt", "repayment of debt"],
+
+        # Calculated / Derived (will exist after Phase 6.3)
+        "ebitda":                    ["ebitda", "earnings before interest tax depreciation"],
+        "net debt":                  ["net debt"],
+        "enterprise value":          ["enterprise value", "tev"],
+        "gross margin %":            ["gross margin percentage", "gross margin %"],
+        "operating margin":          ["operating margin %", "operating income margin"],
+        "net margin":                ["net income margin", "net margin %", "profit margin"],
+
+        # Shares
+        "shares outstanding":        ["common stock, shares outstanding (in shares)", "entity common stock, shares outstanding"],
+        "diluted shares":            ["diluted (in shares)", "weighted average diluted shares"],
+        "basic shares":              ["basic (in shares)", "weighted average basic shares"],
+
+        # Segments (search by dimension_label via original_label="Net sales")
+        "iphone":                    ["iphone revenue", "iphone net sales"],
+        "iphone revenue":            ["iphone", "net sales"],
+        "mac":                       ["mac revenue", "mac net sales"],
+        "ipad":                      ["ipad revenue", "ipad net sales"],
+        "services":                  ["services revenue", "services net sales"],
+        "wearables":                 ["wearables, home and accessories", "wearables revenue"],
+        "americas":                  ["americas revenue", "americas net sales"],
+        "europe":                    ["europe revenue", "europe net sales"],
+        "china":                     ["greater china", "china revenue"],
+        "greater china":             ["china", "greater china revenue"],
+    }
+
+    @staticmethod
+    def _expand_query(query: str) -> List[str]:
+        """Return list of LIKE patterns: original query + all synonym expansions."""
+        q = query.strip().lower()
+        patterns = [f"%{q}%"]
+        for synonym in FilingMetricRepository.SYNONYM_MAP.get(q, []):
+            patterns.append(f"%{synonym.lower()}%")
+        return patterns
+
     @staticmethod
     def search(
         ticker: str,
@@ -1601,31 +1740,42 @@ class FilingMetricRepository:
         limit: int = 20,
     ) -> List[FilingMetricResult]:
         """
-        Search filing metrics by original_label OR standard_concept.
-        Case-insensitive substring match using LIKE on both fields.
+        Search filing metrics by original_label OR standard_concept OR dimension_label.
+        Expands the query with synonyms so e.g. 'Gross Profit' finds 'Gross margin'.
         """
-        sql = """
+        patterns = FilingMetricRepository._expand_query(query)
+
+        # Build dynamic OR clauses — one per pattern, across label + concept + dimension
+        or_clauses = []
+        params: Dict[str, Any] = {
+            "ticker": ticker,
+            "fiscal_year": fiscal_year,
+            "doc_type": doc_type,
+            "limit": limit,
+        }
+        for i, pattern in enumerate(patterns):
+            k = f"q{i}"
+            or_clauses.append(
+                f"(LOWER(original_label) LIKE :{k} OR LOWER(standard_concept) LIKE :{k} OR LOWER(dimension_label) LIKE :{k})"
+            )
+            params[k] = pattern
+
+        where_synonyms = " OR ".join(or_clauses)
+
+        sql = f"""
             SELECT original_label, numeric_value, unit_ref, fiscal_year,
                    is_dimensioned, dimension_label, statement_type, ixbrl_id,
-                   standard_concept, concept, balance, period_type, value
+                   standard_concept, concept, balance, period_type, value, source
             FROM filing_metrics
             WHERE ticker = :ticker
               AND fiscal_year = :fiscal_year
               AND doc_type = :doc_type
-              AND (LOWER(original_label) LIKE :query
-                   OR LOWER(standard_concept) LIKE :query)
+              AND ({where_synonyms})
               AND (standard_concept IS NULL OR standard_concept NOT LIKE '%Text Block')
               AND numeric_value IS NOT NULL
             ORDER BY is_dimensioned ASC, original_label ASC
             LIMIT :limit
         """
-        params = {
-            "ticker": ticker,
-            "fiscal_year": fiscal_year,
-            "doc_type": doc_type,
-            "query": f"%{query.strip().lower()}%",
-            "limit": limit,
-        }
 
         results = db_manager.execute_query(sql, params)
         return [
@@ -1643,6 +1793,60 @@ class FilingMetricRepository:
                 balance=row["balance"],
                 period_type=row["period_type"],
                 value=row["value"],
+                source=row.get("source"),
             )
             for row in results
         ]
+
+    @staticmethod
+    def search_with_llm_fallback(
+        ticker: str,
+        fiscal_year: int,
+        doc_type: str,
+        query: str,
+        limit: int = 20,
+    ) -> tuple:
+        """
+        Search filing metrics; if DB returns no results, attempt LLM extraction.
+
+        Returns:
+            (results: List[FilingMetricResult], used_llm: bool)
+            used_llm=True means LLM was called (show spinner before calling this)
+        """
+        db_results = FilingMetricRepository.search(
+            ticker=ticker,
+            fiscal_year=fiscal_year,
+            doc_type=doc_type,
+            query=query,
+            limit=limit,
+        )
+
+        if db_results:
+            return db_results, False
+
+        # DB miss — try LLM extraction
+        api_key = __import__("os").getenv("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            return [], False
+
+        try:
+            from core.llm_extractor import LLMExtractor
+            from core.database import db_manager as _dbm
+
+            engine = _dbm._engine
+            if engine is None:
+                return [], False
+
+            with engine.begin() as conn:
+                llm_results = LLMExtractor.extract(
+                    conn=conn,
+                    ticker=ticker,
+                    fiscal_year=fiscal_year,
+                    doc_type=doc_type,
+                    query=query,
+                )
+            return llm_results, True
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"[LLM fallback] error: {e}")
+            return [], False

@@ -305,6 +305,7 @@ class FilingMetricResult:
     balance: Optional[str] = None
     period_type: Optional[str] = None
     value: Optional[str] = None  # raw text value (e.g. "P1Y" duration, text)
+    source: Optional[str] = None  # 'xbrl' | 'calculated' | 'llm' | 'edgartools'
 
     @property
     def formatted_value(self) -> str:

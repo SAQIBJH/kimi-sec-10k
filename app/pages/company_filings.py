@@ -789,10 +789,14 @@ def main():
         )
         st.session_state.cf_search = search_term
 
-        # DB Search — matches on original_label OR standard_concept
+        # DB Search — matches on original_label OR standard_concept (with synonym expansion)
+        # Falls back to LLM extraction on miss (spinner shown only during LLM call).
         search_results = []
+        used_llm = False
         if search_term.strip():
             doc_type_dir = DOC_TYPE_REVERSE.get(doc_type, doc_type)
+
+            # Step 1: fast DB search (no spinner needed)
             try:
                 search_results = FilingMetricRepository.search(
                     ticker=company,
@@ -803,7 +807,40 @@ def main():
                 )
             except Exception as e:
                 logger.error(f"[SEARCH] DB search error: {e}", exc_info=True)
-                search_results = []
+
+            # Step 2: DB miss → try LLM extraction (spinner only here)
+            if not search_results:
+                import os as _os
+                if _os.getenv("OPENAI_API_KEY", "").strip():
+                    try:
+                        with st.spinner("Searching document with AI..."):
+                            from core.llm_extractor import LLMExtractor
+                            from core.database import db_manager as _dbm
+                            engine = _dbm._engine
+                            if engine:
+                                with engine.begin() as conn:
+                                    llm_res = LLMExtractor.extract(
+                                        conn=conn,
+                                        ticker=company,
+                                        fiscal_year=int(year),
+                                        doc_type=doc_type_dir,
+                                        query=search_term,
+                                    )
+                                if llm_res:
+                                    search_results = llm_res
+                                    used_llm = True
+                    except Exception as e:
+                        logger.error(f"[LLM] extraction error: {e}", exc_info=True)
+
+        # Source badge HTML helpers
+        def _source_badge(source: Optional[str]) -> str:
+            if source == "calculated":
+                return '<span style="background:#E8F4FD;color:#0066CC;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;margin-left:6px;vertical-align:middle;">CALC</span>'
+            if source == "llm":
+                return '<span style="background:#F0F7EE;color:#2E7D32;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;margin-left:6px;vertical-align:middle;">AI</span>'
+            if source == "edgartools":
+                return '<span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;margin-left:6px;vertical-align:middle;">EDGAR</span>'
+            return ""  # xbrl = no badge (default, most common)
 
         # Search Metrics box — bordered container with styled cards
         search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
@@ -813,13 +850,16 @@ def main():
             st.markdown(f'<div class="search-header">{search_icon}<span class="search-title">Search Metrics</span></div>', unsafe_allow_html=True)
 
             if search_results:
-                st.markdown(f'<div class="metrics-count">Showing {len(search_results)} metrics</div>', unsafe_allow_html=True)
+                source_note = " · AI extracted" if used_llm else ""
+                st.markdown(f'<div class="metrics-count">Showing {len(search_results)} metrics{source_note}</div>', unsafe_allow_html=True)
                 for i, metric in enumerate(search_results):
                     is_viewing = (st.session_state.cf_highlight_fact_id == metric.ixbrl_id and metric.ixbrl_id)
                     card_class = "metric-card active" if is_viewing else "metric-card"
                     btn_class = "viewing" if is_viewing else "view"
                     btn_text = "Viewing" if is_viewing else "View"
-                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{metric.display_label}</div><div class="metric-value">{metric.formatted_value}</div><div class="metric-meta"><span>{metric.statement_type or "Financial Metric"}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{metric.fiscal_year}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
+                    badge_html = _source_badge(metric.source)
+                    label_html = f'{metric.display_label}{badge_html}'
+                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div><div class="metric-value">{metric.formatted_value}</div><div class="metric-meta"><span>{metric.statement_type or "Financial Metric"}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{metric.fiscal_year}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
                     if metric.ixbrl_id:
                         btn_key = f"view_{i}_{metric.original_label.replace(' ', '_')}_{metric.ixbrl_id}"
                         if st.button(f"View in Document", key=btn_key, use_container_width=True):
@@ -827,7 +867,7 @@ def main():
                             st.session_state.cf_view_metric = metric.display_label
                             st.rerun()
             elif search_term.strip():
-                st.markdown(f'<div style="text-align:center;color:#888;padding:40px 0;font-size:14px;">No results for &quot;{search_term}&quot;</div>', unsafe_allow_html=True)
+                st.markdown(f'<div style="text-align:center;color:#888;padding:40px 0;font-size:14px;">Not disclosed in this filing for &quot;{search_term}&quot;</div>', unsafe_allow_html=True)
             else:
                 st.markdown(f'<div style="text-align:center;color:#888;padding:40px 0;font-size:14px;">Search for a metric to see results</div>', unsafe_allow_html=True)
 
