@@ -76,7 +76,6 @@ def get_indent_level(label: str) -> int:
 
 def get_conversion_rate(from_currency: str, to_currency: str) -> float:
     """Get conversion rate between currencies from the forex table."""
-    from data.repository import ForexRepository
     
     if from_currency == to_currency:
         return 1.0
