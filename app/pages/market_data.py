@@ -502,56 +502,91 @@ def render_stock_quote(ticker: str) -> None:
 
             fig = make_subplots(
                 rows=2, cols=1,
-                row_heights=[0.75, 0.25],
+                row_heights=[0.72, 0.28],
                 shared_xaxes=True,
-                vertical_spacing=0.02,
+                vertical_spacing=0.0,
             )
 
-            # Price line — red per Figma
+            # ── Price area with fill ──
             fig.add_trace(
                 go.Scatter(
                     x=dates, y=closes,
                     mode="lines",
-                    line=dict(color="#D62E2F", width=1.5),
+                    fill="tozeroy",
+                    fillcolor="rgba(214,46,47,0.07)",
+                    line=dict(color="#D62E2F", width=2),
                     name="Price",
                     showlegend=False,
-                    hovertemplate="%{x}<br>$%{y:,.2f}<extra></extra>",
+                    hovertemplate="<b>%{x|%b %d, %Y}</b><br>Close: <b>$%{y:,.2f}</b><extra></extra>",
                 ),
                 row=1, col=1,
             )
 
-            # Volume bars — gray
+            # ── Volume bars — red tint, transparent ──
             fig.add_trace(
                 go.Bar(
                     x=dates, y=volumes,
-                    marker_color="rgba(203,202,202,0.6)",
+                    marker_color="rgba(214,46,47,0.20)",
                     name="Volume",
                     showlegend=False,
-                    hovertemplate="%{x}<br>Vol: %{y:,.0f}<extra></extra>",
+                    hovertemplate="<b>%{x|%b %d, %Y}</b><br>Vol: <b>%{y:,.0f}</b><extra></extra>",
                 ),
                 row=2, col=1,
             )
 
             fig.update_layout(
-                margin=dict(l=35, r=8, t=4, b=20),
-                plot_bgcolor="#FCFCFC",
+                title=dict(
+                    text="Stock Price (USD)",
+                    font=dict(size=11, color="#2D2A29", family="Roboto"),
+                    x=0.5, xanchor="center",
+                    y=0.98, yanchor="top",
+                ),
+                margin=dict(l=50, r=10, t=26, b=6),
+                plot_bgcolor="#FFFFFF",
                 paper_bgcolor="#FCFCFC",
-                height=185,
-                font=dict(family="Roboto", size=9, color="#4F4F4F"),
+                height=215,
+                font=dict(family="Roboto", size=9, color="#888"),
                 hovermode="x unified",
+                hoverlabel=dict(
+                    bgcolor="white",
+                    bordercolor="#D62E2F",
+                    font=dict(size=10, color="#2D2A29"),
+                ),
+                bargap=0.1,
             )
-            fig.update_xaxes(showgrid=False, showticklabels=False, row=1, col=1)
+
+            # Price row — clean grid, inside tick labels
+            fig.update_xaxes(showgrid=False, showticklabels=False,
+                             showline=False, zeroline=False, row=1, col=1)
+            fig.update_yaxes(
+                showgrid=True, gridcolor="#F0F0F0", gridwidth=1,
+                tickfont=dict(size=8, color="#999"), tickprefix="$",
+                showline=False, zeroline=False,
+                ticklabelposition="inside",
+                nticks=4,
+                row=1, col=1,
+            )
+
+            # Volume row — just dates on x, no y labels
             fig.update_xaxes(
                 showgrid=False, showticklabels=True,
-                tickformat="%b '%y", tickfont=dict(size=8),
+                tickformat="%b '%y", tickfont=dict(size=8, color="#999"),
+                showline=False, zeroline=False, ticks="",
                 row=2, col=1,
             )
             fig.update_yaxes(
-                showgrid=True, gridcolor="#EFEFEF",
-                tickfont=dict(size=8), tickprefix="$",
-                row=1, col=1,
+                showgrid=False, showticklabels=False,
+                zeroline=False, showline=False,
+                row=2, col=1,
             )
-            fig.update_yaxes(showgrid=False, showticklabels=False, row=2, col=1)
+
+            # Subtle "Volume" label bottom-right
+            fig.add_annotation(
+                text="Volume", xref="paper", yref="paper",
+                x=0.99, y=0.02, xanchor="right", yanchor="bottom",
+                font=dict(size=7, color="#BBBBBB"),
+                showarrow=False,
+            )
 
             st.plotly_chart(
                 fig,
