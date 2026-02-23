@@ -14,7 +14,7 @@ from components.companyProfile import render_company_profile_content, get_compan
 from components.navigation import render_company_header
 
 hide_sidebar()
-from data.repository import CompanyOverviewRepository, CompanyRepository, IncomeStatementRepository, BalanceSheetRepository, KeyStatsRepository
+from data.repository import CompanyOverviewRepository, CompanyRepository, IncomeStatementRepository, BalanceSheetRepository, KeyStatsRepository,ForexRepository
 from data.models import IncomeStatementData, Company, BalanceSheetData
 from utils.local_storage import (
     get_marketdata_company, set_marketdata_company,
@@ -71,7 +71,6 @@ def get_indent_level(label: str) -> int:
 
 def get_conversion_rate(from_currency: str, to_currency: str) -> float:
     """Get conversion rate between currencies from the forex table."""
-    from data.repository import ForexRepository
     
     if from_currency == to_currency:
         return 1.0
@@ -197,7 +196,7 @@ def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversi
                 st.html('<div class="currency-arrow">→</div>')
             
             with c3:
-                currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"]
+                currencies = ForexRepository.get_available_currencies()
                 default_index = currencies.index(st.session_state.target_currency)
                 
                 target = st.selectbox(
@@ -342,7 +341,7 @@ def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_r
                 st.html('<div class="currency-arrow">→</div>')
             
             with c3:
-                currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"]
+                currencies = ForexRepository.get_available_currencies()
                 default_index = currencies.index(st.session_state.target_currency)
                 
                 target = st.selectbox(
@@ -1108,7 +1107,7 @@ def render_page():
                     st.html('<div class="currency-arrow">→</div>')
                 
                 with c3:
-                    currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR"]
+                    currencies = ForexRepository.get_available_currencies()
                     default_index = currencies.index("USD")
                     
                     target = st.selectbox(
@@ -1254,7 +1253,7 @@ def render_page():
                     st.html('<div class="currency-arrow">→</div>')
                 
                 with c3:
-                    currencies = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "HKD", "KRW", "SEK"]
+                    currencies = ForexRepository.get_available_currencies()
                     default_index = currencies.index("USD")
                     
                     target = st.selectbox(
