@@ -322,7 +322,7 @@ def get_filings_css() -> str:
         margin-bottom: 12px;
         display: flex;
         justify-content: space-between;
-        align-items: center;
+        align-items: flex-start;
         transition: all 0.2s ease;
     }
     
@@ -361,9 +361,9 @@ def get_filings_css() -> str:
         font-size: 11px;
         color: #888;
         margin-bottom: 4px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: normal;
+        overflow-wrap: break-word;
+        word-break: break-word;
     }
 
     .metric-meta {
@@ -884,6 +884,16 @@ def main():
             if search_results:
                 source_note = " · AI extracted" if used_llm else ""
                 st.markdown(f'<div class="metrics-count">Showing {len(search_results)} metrics{source_note}</div>', unsafe_allow_html=True)
+                def _fmt_period_date(d_str: str) -> str:
+                    """Format "2023-01-29" → "Jan '23"."""
+                    if not d_str:
+                        return ""
+                    try:
+                        from datetime import datetime as _dt
+                        return _dt.strptime(str(d_str)[:10], "%Y-%m-%d").strftime("%b '%y")
+                    except Exception:
+                        return str(d_str)[:7]
+
                 for i, metric in enumerate(search_results):
                     is_viewing = (st.session_state.cf_highlight_fact_id == metric.ixbrl_id and metric.ixbrl_id)
                     card_class = "metric-card active" if is_viewing else "metric-card"
@@ -894,7 +904,15 @@ def main():
                     formula_html = ""
                     if metric.source == "calculated" and metric.calculation_note:
                         formula_html = f'<div class="metric-formula">{_format_calc_note(metric.calculation_note)}</div>'
-                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div><div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.statement_type or "Financial Metric"}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{metric.fiscal_year}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
+                    # ── Period label: show actual data period, not filing year ──
+                    pt = metric.period_type or ""
+                    if pt == "duration" and metric.period_start and metric.period_end:
+                        period_meta = f"{_fmt_period_date(metric.period_start)} → {_fmt_period_date(metric.period_end)}"
+                    elif pt == "instant" and metric.period_instant:
+                        period_meta = _fmt_period_date(metric.period_instant)
+                    else:
+                        period_meta = str(metric.fiscal_year)
+                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div><div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.statement_type or "Financial Metric"}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{period_meta}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
                     if metric.ixbrl_id:
                         btn_key = f"view_{i}_{metric.original_label.replace(' ', '_')}_{metric.ixbrl_id}"
                         if st.button(f"View in Document", key=btn_key, use_container_width=True):
