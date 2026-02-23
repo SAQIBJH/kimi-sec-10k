@@ -283,26 +283,52 @@ class NewsRepository:
             offset: Offset for pagination
         """
         # Build base query
-        query = """
-            SELECT 
-                id,
-                title,
-                summary,
-                url,
-                source_name as source,
-                source_domain,
-                time_published_utc as time_published,
-                time_published_raw,
-                overall_sentiment_score,
-                overall_sentiment_label,
-                banner_image,
-                ticker_sentiment_json,
-                topics_json,
-                category_within_source,
-                raw_json
-            FROM coreiq_av_market_news_sentiment
-            WHERE 1=1
-        """
+        has_keyword = keyword and keyword.strip()
+        
+        if has_keyword:
+            clean_keyword = keyword.strip()
+            query = """
+                SELECT 
+                    id,
+                    title,
+                    summary,
+                    url,
+                    source_name as source,
+                    source_domain,
+                    time_published_utc as time_published,
+                    time_published_raw,
+                    overall_sentiment_score,
+                    overall_sentiment_label,
+                    banner_image,
+                    ticker_sentiment_json,
+                    topics_json,
+                    category_within_source,
+                    raw_json,
+                    MATCH(title, summary) AGAINST(:keyword_rel IN NATURAL LANGUAGE MODE) as relevance
+                FROM coreiq_av_market_news_sentiment
+                WHERE 1=1
+            """
+        else:
+            query = """
+                SELECT 
+                    id,
+                    title,
+                    summary,
+                    url,
+                    source_name as source,
+                    source_domain,
+                    time_published_utc as time_published,
+                    time_published_raw,
+                    overall_sentiment_score,
+                    overall_sentiment_label,
+                    banner_image,
+                    ticker_sentiment_json,
+                    topics_json,
+                    category_within_source,
+                    raw_json
+                FROM coreiq_av_market_news_sentiment
+                WHERE 1=1
+            """
         params = {}
         
         # Add date filters
@@ -334,20 +360,83 @@ class NewsRepository:
             )"""
             params['company_ticker'] = company_ticker
         
-        # Keyword search in title and summary
-        if keyword and keyword.strip():
-            query += " AND (LOWER(title) LIKE :keyword OR LOWER(summary) LIKE :keyword)"
-            params['keyword'] = f'%{keyword.strip().lower()}%'
+        # FULLTEXT keyword search in title and summary (with LIKE fallback)
+        if has_keyword:
+            query += " AND MATCH(title, summary) AGAINST(:keyword IN NATURAL LANGUAGE MODE)"
+            params['keyword'] = clean_keyword
+            params['keyword_rel'] = clean_keyword
         
-        # Order by publication date (newest first)
-        query += " ORDER BY time_published_utc DESC"
+        # Order by relevance when searching, else by date
+        if has_keyword:
+            query += " ORDER BY relevance DESC"
+        else:
+            query += " ORDER BY time_published_utc DESC"
         
         # Add limit and offset
         query += " LIMIT :limit OFFSET :offset"
         params['limit'] = limit
         params['offset'] = offset
         
-        results = db_manager.execute_query(query, params)
+        # Execute with FULLTEXT; fallback to LIKE if 0 results or FULLTEXT not available
+        try:
+            results = db_manager.execute_query(query, params)
+        except Exception:
+            results = []
+        
+        if not results and has_keyword:
+            # Fallback: rebuild with LIKE for each word (ensures keyword match is never lost)
+            like_query = """
+                SELECT 
+                    id, title, summary, url,
+                    source_name as source, source_domain,
+                    time_published_utc as time_published,
+                    time_published_raw,
+                    overall_sentiment_score, overall_sentiment_label,
+                    banner_image, ticker_sentiment_json,
+                    topics_json, category_within_source, raw_json
+                FROM coreiq_av_market_news_sentiment
+                WHERE 1=1
+            """
+            like_params = {}
+            if date_from:
+                like_query += " AND DATE(time_published_utc) >= :date_from"
+                like_params['date_from'] = date_from
+            if date_to:
+                like_query += " AND DATE(time_published_utc) <= :date_to"
+                like_params['date_to'] = date_to
+            if sector:
+                like_query += """ AND EXISTS (
+                    SELECT 1 FROM coreiq_companies c 
+                    WHERE c.primary_industry_coresight = :sector
+                    AND (
+                        JSON_CONTAINS(ticker_sentiment_json, JSON_OBJECT('ticker', c.ticker))
+                        OR ticker_sentiment_json LIKE CONCAT('%"ticker": "', c.ticker, '"%')
+                    )
+                )"""
+                like_params['sector'] = sector
+            if company_ticker:
+                like_query += """ AND (
+                    JSON_CONTAINS(ticker_sentiment_json, JSON_OBJECT('ticker', :company_ticker))
+                    OR ticker_sentiment_json LIKE CONCAT('%"ticker": "', :company_ticker, '"%')
+                )"""
+                like_params['company_ticker'] = company_ticker
+            
+            # LIKE match: search each word individually with OR
+            words = clean_keyword.split()
+            like_clauses = []
+            for i, word in enumerate(words):
+                key = f'kw_{i}'
+                like_clauses.append(f"(LOWER(title) LIKE :{key} OR LOWER(summary) LIKE :{key})")
+                like_params[key] = f'%{word.lower()}%'
+            if like_clauses:
+                like_query += " AND (" + " OR ".join(like_clauses) + ")"
+            
+            like_query += " ORDER BY time_published_utc DESC"
+            like_query += " LIMIT :limit OFFSET :offset"
+            like_params['limit'] = limit
+            like_params['offset'] = offset
+            
+            results = db_manager.execute_query(like_query, like_params)
         
         articles = []
         for row in results:

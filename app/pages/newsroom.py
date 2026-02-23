@@ -75,11 +75,17 @@ def calculate_relative_time(published_time: datetime) -> str:
 
 
 def _highlight_keyword(text: str, keyword: str) -> str:
-    """Wrap keyword matches with <mark> tags for highlighting."""
+    """Wrap keyword matches with <mark> tags — highlights each word individually for multi-word queries."""
     if not keyword or not keyword.strip():
         return text
-    pattern = re.compile(re.escape(keyword.strip()), re.IGNORECASE)
-    return pattern.sub(lambda m: f'<mark>{m.group()}</mark>', text)
+    # Split into individual words and highlight each
+    words = keyword.strip().split()
+    result = text
+    for word in words:
+        if word.strip():
+            pattern = re.compile(re.escape(word.strip()), re.IGNORECASE)
+            result = pattern.sub(lambda m: f'<mark>{m.group()}</mark>', result)
+    return result
 
 
 def render_news_card(article: NewsArticle, company_map: dict, keyword: str = None):
@@ -135,12 +141,13 @@ def get_news_css() -> str:
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Montserrat:wght@400;500;600;700&display=swap');
     
-    /* Keyword highlight */
+    /* Keyword highlight — brand red theme */
     mark {
-        background: #FFF3CD;
+        background: rgba(214, 46, 47, 0.15);
+        color: #D62E2F;
         padding: 2px 4px;
         border-radius: 2px;
-        font-weight: 500;
+        font-weight: 600;
     }
 
     .news-container {

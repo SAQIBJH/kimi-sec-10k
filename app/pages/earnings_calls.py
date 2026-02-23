@@ -296,12 +296,20 @@ def get_earnings_css() -> str:
         background: #999999;
     }
 
-    /* ===== KEYWORD HIGHLIGHT ===== */
-    .transcript-content mark {
-        background: #FFF3CD;
+    /* ===== KEYWORD HIGHLIGHT — BRAND RED THEME ===== */
+    mark {
+        background: rgba(214, 46, 47, 0.15);
+        color: #D62E2F;
         padding: 2px 4px;
         border-radius: 2px;
-        font-weight: 500;
+        font-weight: 600;
+    }
+    .transcript-content mark {
+        background: rgba(214, 46, 47, 0.15);
+        color: #D62E2F;
+        padding: 2px 4px;
+        border-radius: 2px;
+        font-weight: 600;
     }
     
     /* ===== TRANSCRIPT SEARCH SIDEBAR ===== */
@@ -383,6 +391,27 @@ def get_earnings_css() -> str:
         padding: 40px 0;
         font-family: 'Roboto', sans-serif;
         font-size: 14px;
+    }
+    /* Relevance score badges */
+    .relevance-badge {
+        font-family: 'Roboto', sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 10px;
+        white-space: nowrap;
+    }
+    .relevance-high {
+        background: #D4EDDA;
+        color: #155724;
+    }
+    .relevance-mid {
+        background: #FFF3CD;
+        color: #856404;
+    }
+    .relevance-low {
+        background: #F0F0F0;
+        color: #6B6B6B;
     }
 
     /* =======================================================================
@@ -474,11 +503,17 @@ def parse_transcript(transcript_text: str) -> List[SpeakerSegment]:
 
 
 def _highlight_keyword(text: str, keyword: str) -> str:
-    """Wrap keyword matches with <mark> tags for highlighting."""
+    """Wrap keyword matches with <mark> tags — highlights each word individually for multi-word queries."""
     if not keyword or not keyword.strip():
         return text
-    pattern = re.compile(re.escape(keyword.strip()), re.IGNORECASE)
-    return pattern.sub(lambda m: f'<mark>{m.group()}</mark>', text)
+    # Split into individual words and highlight each
+    words = keyword.strip().split()
+    result = text
+    for word in words:
+        if word.strip():
+            pattern = re.compile(re.escape(word.strip()), re.IGNORECASE)
+            result = pattern.sub(lambda m: f'<mark>{m.group()}</mark>', result)
+    return result
 
 
 def render_speaker_section(segment: SpeakerSegment, keyword: str = None, index: int = 0) -> str:
