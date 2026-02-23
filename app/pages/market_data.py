@@ -24,12 +24,17 @@ from utils.local_storage import (
 from utils.local_storage_manager import sync_market_data_state, save_market_data_state, get_persistent_state, set_persistent_state
 
 
-def format_value(value: Optional[float], conversion_rate: float = 1.0) -> str:
-    """Format value in millions with comma separator and currency conversion."""
+def format_value(value: Optional[float], conversion_rate: float = 1.0, units_scale: float = 1.0) -> str:
+    """Format value with comma separator, currency conversion, and units scaling.
+    
+    units_scale: 1.0 = Millions (default), 0.001 = Billions, 1000.0 = Thousands
+    """
     if value is None:
         return "-"
-    converted = value * conversion_rate
-    return f"{converted:,.1f}"
+    converted = value * conversion_rate * units_scale
+    if units_scale == 1000.0:
+        return f"{converted:,.1f}"
+    return f"{converted:,.3f}"
 
 
 def is_bold_row(label: str) -> bool:
@@ -114,7 +119,7 @@ def get_balance_sheet_indent_level(label: str) -> int:
         return 0
 
 
-def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversion_rate: float, reported_currency: str, sort_ascending: bool = True):
+def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversion_rate: float, reported_currency: str, sort_ascending: bool = True, historical_rate_map: dict = None, units_scale: float = 1.0, units_label: str = "Millions"):
     """Render the balance sheet table."""
     try:
         data = BalanceSheetRepository.get_balance_sheet_data(ticker, start_date, end_date)
@@ -131,7 +136,7 @@ def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversi
             html = '<div class="table-container"><div class="table-scroll"><table class="data-table"><thead>'
             
             # Header row
-            html += '<tr class="row-grey-separator"><th>For Fiscal Period Ending<span class="header-subtext">Millions of trading currency, except per share items.</span></th>'
+            html += f'<tr class="row-grey-separator"><th>For Fiscal Period Ending<span class="header-subtext">{units_label} of trading currency, except per share items.</span></th>'
             for period in data.periods:
                 lines = period.label.split('\n')
                 if len(lines) >= 2:
@@ -175,8 +180,14 @@ def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversi
                 html += f'<td class="indent-{indent}">{display_label}</td>'
                 
                 # Data columns with converted values
-                for val in item.values:
-                    formatted = format_value(val, conversion_rate)
+                for col_idx, val in enumerate(item.values):
+                    # Use per-column rate from historical_rate_map if available
+                    if historical_rate_map and col_idx < len(data.periods):
+                        period_date = data.periods[col_idx].date
+                        col_rate = historical_rate_map.get(period_date, conversion_rate)
+                    else:
+                        col_rate = conversion_rate
+                    formatted = format_value(val, col_rate, units_scale)
                     html += f'<td class="data-cell">{formatted}</td>'
                 
                 html += '</tr>'
@@ -184,39 +195,9 @@ def render_balance_sheet(ticker: str, start_date: date, end_date: date, conversi
             html += '</tbody></table></div></div>'
             st.html(html)
             
-            # ==================== CURRENCY CONVERSION - LEFT SIDE ONLY ====================
-            st.html('<div class="currency-section"><div class="currency-label">Currency Conversion</div>')
+
             
-            c1, c2, c3, c4 = st.columns([1.5, 0.3, 1.5, 6])
-            
-            with c1:
-                st.html(f'<div class="currency-box">{reported_currency}</div>')
-            
-            with c2:
-                st.html('<div class="currency-arrow">→</div>')
-            
-            with c3:
-                currencies = ForexRepository.get_available_currencies()
-                default_index = currencies.index(st.session_state.target_currency)
-                
-                target = st.selectbox(
-                    "To",
-                    options=currencies,
-                    index=default_index,
-                    label_visibility="collapsed",
-                    key="currency_to_balance"
-                )
-                
-                if target != st.session_state.target_currency:
-                    st.session_state.target_currency = target
-                    st.rerun()
-            
-            st.html('</div>')
-            
-            if st.session_state.target_currency != reported_currency:
-                rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
-                st.caption(f"Converted at 1 {reported_currency} = {rate:.4f} {st.session_state.target_currency}")
-                
+
         else:
             st.info("No balance sheet data available for the selected date range")
             
@@ -260,7 +241,7 @@ def has_cash_flow_grey_separator(label: str) -> bool:
     return label.strip() in grey_after
 
 
-def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_rate: float, reported_currency: str, sort_ascending: bool = True):
+def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_rate: float, reported_currency: str, sort_ascending: bool = True, historical_rate_map: dict = None, units_scale: float = 1.0, units_label: str = "Millions"):
     """Render the cash flow statement table."""
     try:
         from data.repository import CashFlowRepository
@@ -279,7 +260,7 @@ def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_r
             html = '<div class="table-container"><div class="table-scroll"><table class="data-table"><thead>'
             
             # Header row
-            html += '<tr class="row-grey-separator"><th>For Fiscal Period Ending<span class="header-subtext">Millions of trading currency, except per share items.</span></th>'
+            html += f'<tr class="row-grey-separator"><th>For Fiscal Period Ending<span class="header-subtext">{units_label} of trading currency, except per share items.</span></th>'
             for period in data.periods:
                 lines = period.label.split('\n')
                 if len(lines) >= 2:
@@ -320,8 +301,14 @@ def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_r
                 html += f'<td class="indent-{indent}">{display_label}</td>'
                 
                 # Data columns with converted values
-                for val in item.values:
-                    formatted = format_value(val, conversion_rate)
+                for col_idx, val in enumerate(item.values):
+                    # Use per-column rate from historical_rate_map if available
+                    if historical_rate_map and col_idx < len(data.periods):
+                        period_date = data.periods[col_idx].date
+                        col_rate = historical_rate_map.get(period_date, conversion_rate)
+                    else:
+                        col_rate = conversion_rate
+                    formatted = format_value(val, col_rate, units_scale)
                     html += f'<td class="data-cell">{formatted}</td>'
                 
                 html += '</tr>'
@@ -329,44 +316,285 @@ def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_r
             html += '</tbody></table></div></div>'
             st.html(html)
             
-            # ==================== CURRENCY CONVERSION - LEFT SIDE ONLY ====================
-            st.html('<div class="currency-section"><div class="currency-label">Currency Conversion</div>')
+
             
-            c1, c2, c3, c4 = st.columns([1.5, 0.3, 1.5, 6])
-            
-            with c1:
-                st.html(f'<div class="currency-box">{reported_currency}</div>')
-            
-            with c2:
-                st.html('<div class="currency-arrow">→</div>')
-            
-            with c3:
-                currencies = ForexRepository.get_available_currencies()
-                default_index = currencies.index(st.session_state.target_currency)
-                
-                target = st.selectbox(
-                    "To",
-                    options=currencies,
-                    index=default_index,
-                    label_visibility="collapsed",
-                    key="currency_to_cashflow"
-                )
-                
-                if target != st.session_state.target_currency:
-                    st.session_state.target_currency = target
-                    st.rerun()
-            
-            st.html('</div>')
-            
-            if st.session_state.target_currency != reported_currency:
-                rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
-                st.caption(f"Converted at 1 {reported_currency} = {rate:.4f} {st.session_state.target_currency}")
-                
+
         else:
             st.info("No cash flow data available for the selected date range")
             
     except Exception as e:
         st.error(f"Error loading cash flow statement: {e}")
+
+
+def render_stock_quote(ticker: str) -> None:
+    """Render Stock Quote and Chart table matching Figma design node-id=20660-223833.
+
+    Layout (Figma):
+    ┌──────────────────────────────────────────────────────┐
+    │  Stock Quote and Chart (Currency: USD)  [bold 16px]  │
+    ├────────────────────────┬─────────────────────────────┤
+    │  Left col (4 sub-cols) │  Right col (chart area)     │
+    │  7 rows × [label|val | label|val]                    │
+    └────────────────────────┴─────────────────────────────┘
+    """
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    from data.repository import StockQuoteRepository
+
+    quote   = StockQuoteRepository.get_latest_quote(ticker)
+    overview = StockQuoteRepository.get_overview_data(ticker)
+    history  = StockQuoteRepository.get_price_history(ticker, days=365)
+
+    # ── helper formatters ─────────────────────────────────
+    def _fmt_price(v):
+        if v is None:
+            return "-"
+        return f"{v:,.2f}"
+
+    def _fmt_mm(v):
+        if v is None:
+            return "-"
+        return f"{v:,.1f}"
+
+    def _fmt_pct(v):
+        if v is None:
+            return "-"
+        return f"{v:.2f}%"
+
+    def _fmt_change(v):
+        if v is None:
+            return "-"
+        sign = "+" if v > 0 else ""
+        return f"{sign}{v:,.2f}"
+
+    def _fmt_pct_change(v):
+        if v is None:
+            return "-"
+        sign = "+" if v > 0 else ""
+        return f"{sign}{v:.2f}%"
+
+    def _fmt_pe(v):
+        if v is None:
+            return "-"
+        return f"{v:.2f}x"
+
+    # ── extract values ────────────────────────────────────
+    if quote:
+        last       = _fmt_price(quote.get("close"))
+        open_      = _fmt_price(quote.get("open"))
+        prev_close = _fmt_price(quote.get("close"))      # same day prev_close ≈ close
+        change     = _fmt_change(quote.get("change_on_day"))
+        change_pct = _fmt_pct_change(quote.get("change_percent"))
+        day_hl     = f"{_fmt_price(quote.get('high'))} / {_fmt_price(quote.get('low'))}"
+    else:
+        last = open_ = prev_close = change = change_pct = day_hl = "-"
+
+    if overview:
+        market_cap   = _fmt_mm(overview.get("market_cap_mm"))
+        shares_out   = _fmt_mm(overview.get("shares_outstanding_mm"))
+        div_yield    = _fmt_pct(overview.get("dividend_yield"))
+        diluted_eps  = _fmt_price(overview.get("diluted_eps"))
+        pe           = _fmt_pe(overview.get("pe_ratio"))
+        w52h         = _fmt_price(overview.get("week_52_high"))
+        w52l         = _fmt_price(overview.get("week_52_low"))
+        week_52_hl   = f"{w52h} / {w52l}"
+    else:
+        market_cap = shares_out = div_yield = diluted_eps = pe = week_52_hl = "-"
+
+    # Float % and Shares Sold Short — not in DB
+    float_pct  = "-"
+    short_mm   = "-"
+
+    # ── 7 rows (left_label, left_val, right_label, right_val) ──
+    rows = [
+        ("Last (Delayed)",     last,       "Market Cap (mm)",              market_cap),
+        ("Open",               open_,      "Shares Out. (mm)",             shares_out),
+        ("Previous Close",     prev_close, "Float %",                      float_pct),
+        ("Change on Day",      change,     "Shares Sold Short (mm)",       short_mm),
+        ("Change % on Day",    change_pct, "Dividend Yield %",             div_yield),
+        ("Day High/Low",       day_hl,     "Diluted EPS Excl. Extra Items", diluted_eps),
+        ("52 wk High/Low",     week_52_hl, "P/Diluted EPS Before Extra",   pe),
+    ]
+
+    # ── CSS ───────────────────────────────────────────────
+    css = """
+    <style>
+    .sq-header {
+        font-family: 'Roboto', sans-serif;
+        background: #F9F9F9;
+        border: 1px solid #CFCFCF;
+        border-bottom: none;
+        padding: 4px 12px;
+        font-weight: 700;
+        font-size: 16px;
+        color: #000000;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        margin-bottom: 0;
+    }
+    .sq-table-box {
+        border: 4px solid #CBCACA;
+        border-right: 2px solid #CBCACA;
+    }
+    .sq-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-family: 'Roboto', sans-serif;
+    }
+    .sq-table tr {
+        height: 24px;
+    }
+    .sq-table td {
+        height: 24px;
+        padding: 0 12px;
+        vertical-align: middle;
+        font-size: 14px;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .sq-lbl {
+        background: #F9F9F9;
+        color: #4F4F4F;
+        width: 33%;
+    }
+    .sq-val {
+        background: #FFFFFF;
+        color: #000000;
+        text-align: right;
+        width: 17%;
+        border-right: 1px solid #CFCFCF;
+        vertical-align: bottom;
+        padding-bottom: 2px;
+    }
+    .sq-val:last-child {
+        border-right: none;
+    }
+    </style>
+    """
+    st.html(css)
+
+    # ── Section header ────────────────────────────────────
+    st.html('<div class="sq-header">Stock Quote and Chart (Currency: USD)</div>')
+
+    # ── Body: table left (63%) | chart right (37%) ────────
+    col_tbl, col_chart = st.columns([63, 37])
+
+    with col_tbl:
+        tbl_rows = ""
+        for ll, lv, rl, rv in rows:
+            tbl_rows += (
+                f'<tr>'
+                f'<td class="sq-lbl">{ll}</td>'
+                f'<td class="sq-val">{lv}</td>'
+                f'<td class="sq-lbl">{rl}</td>'
+                f'<td class="sq-val">{rv}</td>'
+                f'</tr>'
+            )
+        st.html(f'<div class="sq-table-box"><table class="sq-table">{tbl_rows}</table></div>')
+
+    with col_chart:
+        if history:
+            dates   = [h["date"] for h in history]
+            closes  = [h["close"] for h in history]
+            volumes = [h.get("volume") or 0 for h in history]
+
+            fig = make_subplots(
+                rows=2, cols=1,
+                row_heights=[0.72, 0.28],
+                shared_xaxes=True,
+                vertical_spacing=0.0,
+            )
+
+            # ── Price area with fill ──
+            fig.add_trace(
+                go.Scatter(
+                    x=dates, y=closes,
+                    mode="lines",
+                    fill="tozeroy",
+                    fillcolor="rgba(214,46,47,0.07)",
+                    line=dict(color="#D62E2F", width=2),
+                    name="Price",
+                    showlegend=False,
+                    hovertemplate="<b>%{x|%b %d, %Y}</b><br>Close: <b>$%{y:,.2f}</b><extra></extra>",
+                ),
+                row=1, col=1,
+            )
+
+            # ── Volume bars — red tint, transparent ──
+            fig.add_trace(
+                go.Bar(
+                    x=dates, y=volumes,
+                    marker_color="rgba(214,46,47,0.20)",
+                    name="Volume",
+                    showlegend=False,
+                    hovertemplate="<b>%{x|%b %d, %Y}</b><br>Vol: <b>%{y:,.0f}</b><extra></extra>",
+                ),
+                row=2, col=1,
+            )
+
+            fig.update_layout(
+                title=dict(
+                    text="Stock Price (USD)",
+                    font=dict(size=11, color="#2D2A29", family="Roboto"),
+                    x=0.5, xanchor="center",
+                    y=0.98, yanchor="top",
+                ),
+                margin=dict(l=50, r=10, t=26, b=6),
+                plot_bgcolor="#FFFFFF",
+                paper_bgcolor="#FCFCFC",
+                height=215,
+                font=dict(family="Roboto", size=9, color="#888"),
+                hovermode="x unified",
+                hoverlabel=dict(
+                    bgcolor="white",
+                    bordercolor="#D62E2F",
+                    font=dict(size=10, color="#2D2A29"),
+                ),
+                bargap=0.1,
+            )
+
+            # Price row — clean grid, inside tick labels
+            fig.update_xaxes(showgrid=False, showticklabels=False,
+                             showline=False, zeroline=False, row=1, col=1)
+            fig.update_yaxes(
+                showgrid=True, gridcolor="#F0F0F0", gridwidth=1,
+                tickfont=dict(size=8, color="#999"), tickprefix="$",
+                showline=False, zeroline=False,
+                ticklabelposition="inside",
+                nticks=4,
+                row=1, col=1,
+            )
+
+            # Volume row — just dates on x, no y labels
+            fig.update_xaxes(
+                showgrid=False, showticklabels=True,
+                tickformat="%b '%y", tickfont=dict(size=8, color="#999"),
+                showline=False, zeroline=False, ticks="",
+                row=2, col=1,
+            )
+            fig.update_yaxes(
+                showgrid=False, showticklabels=False,
+                zeroline=False, showline=False,
+                row=2, col=1,
+            )
+
+            # Subtle "Volume" label bottom-right
+            fig.add_annotation(
+                text="Volume", xref="paper", yref="paper",
+                x=0.99, y=0.02, xanchor="right", yanchor="bottom",
+                font=dict(size=7, color="#BBBBBB"),
+                showarrow=False,
+            )
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                config={"displayModeBar": False},
+            )
+        else:
+            st.caption("No price history available")
 
 
 def render_page():
@@ -389,6 +617,21 @@ def render_page():
     # Save the selected ticker to local storage to persist across sessions
     set_marketdata_company(selected_ticker)
     
+    # Detect ticker change — clear date/sort widget keys so Streamlit doesn't
+    # raise "widget created with default value but also set via Session State API"
+    prev_ticker = st.session_state.get("_prev_ticker_market_data")
+    if prev_ticker != selected_ticker:
+        for _tab in ["income_statement", "balance_sheet", "cash_flow", "key_stats"]:
+            for _prefix in ("start_dt_", "end_dt_", "sort_order_select_"):
+                _key = f"{_prefix}{_tab}"
+                if _key in st.session_state:
+                    del st.session_state[_key]
+            # Also clear tab-specific date range so it re-initialises from min/max
+            _dr_key = f"date_range_market_data_{_tab}"
+            if _dr_key in st.session_state:
+                del st.session_state[_dr_key]
+        st.session_state["_prev_ticker_market_data"] = selected_ticker
+
     # Store the selected ticker in session state for persistence
     st.session_state.selected_ticker_market_data = selected_ticker
 
@@ -432,6 +675,12 @@ def render_page():
 
     if 'target_currency' not in st.session_state:
         st.session_state.target_currency = "USD"
+    
+    if 'conversion_mode' not in st.session_state:
+        st.session_state.conversion_mode = "Today's Spot Rate"
+
+    if 'units' not in st.session_state:
+        st.session_state.units = "Millions (mm)"
     
     # Initialize sort order from persistent state (tab-specific)
     if sort_order_key not in st.session_state:
@@ -598,19 +847,21 @@ def render_page():
     /* Filter row - Figma Design Match */
     .filter-label {
         font-family: var(--font-family);
-        font-size: 12px;
-        font-weight: 400;
+        font-size: 15px;
+        font-weight: 600;
         color: #4F4F4F;
-        margin-bottom: 6px;
+        margin-bottom: -7px;
         margin-top: 0;
         line-height: normal;
         display: block;
         padding-top: 12px;
+        
     }
     
     /* Streamlit selectbox styling to match Figma */
     div[data-testid="stSelectbox"] {
         margin-top: 0 !important;
+        
     }
     
     /* Override the selectbox container */
@@ -668,10 +919,11 @@ def render_page():
     }
     
     div[data-testid="stSelectbox"] > div > div > div {
-        padding: 10px 14px !important;
+        padding: auto !important;
         font-family: var(--font-family) !important;
         font-size: 14px !important;
         color: var(--black) !important;
+        
     }
     
     /* ==================== TABLE STYLING - PIXEL PERFECT FROM FIGMA ==================== */
@@ -948,8 +1200,24 @@ def render_page():
                     selected_ticker, end_date
                 ) or "USD"
 
-            # Get conversion rate
+            # Get conversion rate (spot rate - default)
         conversion_rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
+        
+        # Compute per-date historical rates if Historical mode is selected
+        historical_rate_map = None
+        if st.session_state.conversion_mode == "Historical" and available_dates:
+            fiscal_dates_for_rates = []
+            for d in available_dates:
+                if start_date <= d <= end_date:
+                    # Use the fiscal_date_ending directly (it's already the end date)
+                    fiscal_dates_for_rates.append(d)
+            
+            if fiscal_dates_for_rates:
+                historical_rate_map = ForexRepository.get_conversion_rates_bulk(
+                    reported_currency,
+                    st.session_state.target_currency,
+                    fiscal_dates_for_rates
+                )
     
     # ==================== FILTER ROW - DATES & SORT ====================
 
@@ -964,9 +1232,10 @@ def render_page():
         curr_end = end_date.strftime("%B %Y")
         end_idx = date_options.index(curr_end) if curr_end in date_options else len(date_options) - 1
 
-        f1, f2, f3, f4 = st.columns([4, 2, 2, 1.5])
+        space, f1, f2, f3, f4, f5, f6, f7 = st.columns([0.8, 1.3, 1.3, 1, 1.5, 0.5, 1,1.7])
         
-        with f2:
+        
+        with f1:
             st.html('<div class="filter-label">Start Date</div>')
             new_start_label = st.selectbox(
                 "Start",
@@ -977,7 +1246,7 @@ def render_page():
             )
             new_start_date = date_values.get(new_start_label, start_date)
         
-        with f3:
+        with f2:
             st.html('<div class="filter-label">End Date</div>')
             new_end_label = st.selectbox(
                 "End",
@@ -988,7 +1257,7 @@ def render_page():
             )
             new_end_date = date_values.get(new_end_label, end_date)
         
-        with f4:
+        with f3:
             st.html('<div class="filter-label">Sort</div>')
             new_sort_order = st.selectbox(
                 "Sort",
@@ -998,6 +1267,58 @@ def render_page():
                 key=f"sort_order_select_{selected_tab}"
             )
         
+        with f4:
+            st.html('<div class="filter-label">Conversion</div>')
+            conversion_modes = ["Today's Spot Rate", "Historical"]
+            conv_idx = conversion_modes.index(st.session_state.conversion_mode) if st.session_state.conversion_mode in conversion_modes else 0
+            new_conversion_mode = st.selectbox(
+                "Conversion",
+                options=conversion_modes,
+                index=conv_idx,
+                label_visibility="collapsed",
+                key="conversion_mode_select"
+            )
+            if new_conversion_mode != st.session_state.conversion_mode:
+                st.session_state.conversion_mode = new_conversion_mode
+                save_market_data_state()
+                st.rerun()
+        
+        with f5:
+            st.html('<div class="filter-label">Currency</div>')
+            st.html(f'<div class="currency-box">{reported_currency}</div>')
+        
+        with f6:
+            st.html('<div class="filter-label">➜ To Currency</div>')
+            currencies = ForexRepository.get_available_currencies()
+            default_index = currencies.index(st.session_state.target_currency) if st.session_state.target_currency in currencies else 0
+            
+            target = st.selectbox(
+                "To Currency",
+                options=currencies,
+                index=default_index,
+                label_visibility="collapsed",
+                key="currency_to_unified"
+            )
+            
+            if target != st.session_state.target_currency:
+                st.session_state.target_currency = target
+                save_market_data_state()
+                st.rerun()
+        with f7:
+            st.html('<div class="filter-label">Units</div>')
+            unit_options = ["Millions (mm)", "Billions (bn)", "Thousands (k)"]
+            unit_idx = unit_options.index(st.session_state.units) if st.session_state.units in unit_options else 0
+            new_units = st.selectbox(
+                "Units",
+                options=unit_options,
+                index=unit_idx,
+                label_visibility="collapsed",
+                key="units_select"
+            )
+            if new_units != st.session_state.units:
+                st.session_state.units = new_units
+                save_market_data_state()
+                st.rerun()
         # Update states if changed
         date_changed = new_start_date != start_date or new_end_date != end_date
         sort_changed = new_sort_order != st.session_state[sort_order_key]
@@ -1019,14 +1340,20 @@ def render_page():
     # Apply sort order to data
     sort_ascending = st.session_state[sort_order_key] == "Earliest"
 
+    # Compute units scale factor (data is stored in millions)
+    _units_map = {"Millions (mm)": 1.0, "Billions (bn)": 0.001, "Thousands (k)": 1000.0}
+    units_scale = _units_map.get(st.session_state.get("units", "Millions (mm)"), 1.0)
+    _units_label_map = {"Millions (mm)": "Millions", "Billions (bn)": "Billions", "Thousands (k)": "Thousands"}
+    units_label = _units_label_map.get(st.session_state.get("units", "Millions (mm)"), "Millions")
+
     if selected_tab == "company_profile":
         render_company_profile_content(company)
     elif not start_date or not end_date:
         pass  # No data available message already shown above
     elif selected_tab == "balance_sheet":
-        render_balance_sheet(selected_ticker, start_date, end_date, conversion_rate, reported_currency, sort_ascending)
+        render_balance_sheet(selected_ticker, start_date, end_date, conversion_rate, reported_currency, sort_ascending, historical_rate_map, units_scale, units_label)
     elif selected_tab == "cash_flow":
-        render_cash_flow(selected_ticker, start_date, end_date, conversion_rate, reported_currency, sort_ascending)
+        render_cash_flow(selected_ticker, start_date, end_date, conversion_rate, reported_currency, sort_ascending, historical_rate_map, units_scale, units_label)
     elif selected_tab == "income_statement":
         try:
             data = IncomeStatementRepository.get_income_statement_data(
@@ -1045,7 +1372,7 @@ def render_page():
                 html = '<div class="table-container"><div class="table-scroll"><table class="data-table"><thead>'
                 
                 # Header row - with grey separator
-                html += '<tr class="row-grey-separator"><th>For Fiscal Period Ending<span class="header-subtext">Millions of trading currency, except per share items.</span></th>'
+                html += f'<tr class="row-grey-separator"><th>For Fiscal Period Ending<span class="header-subtext">{units_label} of trading currency, except per share items.</span></th>'
                 for period in data.periods:
                     lines = period.label.split('\n')
                     if len(lines) >= 2:
@@ -1086,8 +1413,14 @@ def render_page():
                     html += f'<td class="indent-{indent}">{item.label}</td>'
                     
                     # Data columns with converted values
-                    for val in item.values:
-                        formatted = format_value(val, conversion_rate)
+                    for col_idx, val in enumerate(item.values):
+                        # Use per-column rate from historical_rate_map if available
+                        if historical_rate_map and col_idx < len(data.periods):
+                            period_date = data.periods[col_idx].date
+                            col_rate = historical_rate_map.get(period_date, conversion_rate)
+                        else:
+                            col_rate = conversion_rate
+                        formatted = format_value(val, col_rate, units_scale)
                         html += f'<td class="data-cell">{formatted}</td>'
                     
                     html += '</tr>'
@@ -1095,38 +1428,7 @@ def render_page():
                 html += '</tbody></table></div></div>'
                 st.html(html)
                 
-                # ==================== CURRENCY CONVERSION - LEFT SIDE ONLY ====================
-                st.html('<div class="currency-section"><div class="currency-label">Currency Conversion</div>')
-                
-                c1, c2, c3, c4 = st.columns([1.5, 0.3, 1.5, 6])
-                
-                with c1:
-                    st.html(f'<div class="currency-box">{reported_currency}</div>')
-                
-                with c2:
-                    st.html('<div class="currency-arrow">→</div>')
-                
-                with c3:
-                    currencies = ForexRepository.get_available_currencies()
-                    default_index = currencies.index("USD")
-                    
-                    target = st.selectbox(
-                        "To",
-                        options=currencies,
-                        index=default_index,
-                        label_visibility="collapsed",
-                        key="currency_to"
-                    )
-                    
-                    if target != st.session_state.target_currency:
-                        st.session_state.target_currency = target
-                        st.rerun()
-                
-                st.html('</div>')
-                
-                if st.session_state.target_currency != reported_currency:
-                    rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
-                    st.caption(f"Converted at 1 {reported_currency} = {rate:.4f} {st.session_state.target_currency}")
+
                 
             else:
                 st.info("No data available")
@@ -1148,7 +1450,7 @@ def render_page():
                 html = '<div class="table-container"><div class="table-scroll"><table class="data-table"><thead>'
                 
                 # Header row - with grey separator
-                html += '<tr class="row-grey-separator"><th>For Fiscal Period Ending<span class="header-subtext">Millions of USD, except per share items.</span></th>'
+                html += f'<tr class="row-grey-separator"><th>For Fiscal Period Ending<span class="header-subtext">{units_label} of USD, except per share items.</span></th>'
                 for period in data["periods"]:
                     lines = period.label.split('\n')
                     if len(lines) >= 2:
@@ -1193,7 +1495,14 @@ def render_page():
                     html += f'<td class="indent-{min(indent, 2)}">{label}</td>'
                     
                     # Data columns with converted values
-                    for val in values:
+                    for col_idx, val in enumerate(values):
+                        # Determine per-column rate for historical mode
+                        if historical_rate_map and col_idx < len(data["periods"]):
+                            period_date = data["periods"][col_idx].date
+                            col_rate = historical_rate_map.get(period_date, conversion_rate)
+                        else:
+                            col_rate = conversion_rate
+                        
                         if is_text:
                             formatted = str(val) if val is not None else "-"
                         elif is_percent:
@@ -1207,7 +1516,7 @@ def render_page():
                             else:
                                 formatted = "-"
                         else:
-                            formatted = format_value(val, conversion_rate)
+                            formatted = format_value(val, col_rate, units_scale)
                         html += f'<td class="data-cell">{formatted}</td>'
                     
                     html += '</tr>'
@@ -1215,67 +1524,12 @@ def render_page():
                 html += '</tbody></table></div></div>'
                 st.html(html)
                 
-                # Capitalization Section
-                if data.get("market_cap"):
-                    st.html('<div style="margin-top: 30px;"></div>')
-                    
-                    cap_html = '<div class="table-container"><div class="table-scroll"><table class="data-table">'
-                    cap_html += '<thead><tr class="row-grey-separator"><th>Latest Capitalization (Millions of USD)</th><th></th></tr></thead><tbody>'
-                    
-                    market_cap = data.get("market_cap", 0) or 0
-                    cash = data.get("cash", 0) or 0
-                    total_debt = data.get("total_debt", 0) or 0
-                    total_equity = data.get("total_equity", 0) or 0
-                    
-                    tev = market_cap - cash + total_debt
-                    total_capital = total_equity + total_debt
-                    
-                    cap_html += f'<tr class="row-bold"><td class="indent-0">Market Capitalization</td><td class="data-cell">{format_value(market_cap, conversion_rate)}</td></tr>'
-                    cap_html += f'<tr><td class="indent-0">- Cash & Short Term Investments</td><td class="data-cell">{format_value(cash, conversion_rate)}</td></tr>'
-                    cap_html += f'<tr><td class="indent-0">+ Total Debt</td><td class="data-cell">{format_value(total_debt, conversion_rate)}</td></tr>'
-                    cap_html += f'<tr class="row-bold"><td class="indent-0">= Total Enterprise Value (TEV)</td><td class="data-cell">{format_value(tev, conversion_rate)}</td></tr>'
-                    cap_html += f'<tr><td class="indent-0">Book Value of Common Equity</td><td class="data-cell">{format_value(total_equity, conversion_rate)}</td></tr>'
-                    cap_html += f'<tr><td class="indent-0">+ Total Debt</td><td class="data-cell">{format_value(total_debt, conversion_rate)}</td></tr>'
-                    cap_html += f'<tr class="row-bold"><td class="indent-0">= Total Capital</td><td class="data-cell">{format_value(total_capital, conversion_rate)}</td></tr>'
-                    
-                    cap_html += '</tbody></table></div></div>'
-                    st.html(cap_html)
-                
-                # Currency Conversion Section - SAME AS OTHER TABS
-                st.html('<div class="currency-section"><div class="currency-label">Currency Conversion</div>')
-                
-                c1, c2, c3, c4 = st.columns([1.5, 0.3, 1.5, 6])
-                
-                with c1:
-                    st.html(f'<div class="currency-box">{reported_currency}</div>')
-                
-                with c2:
-                    st.html('<div class="currency-arrow">→</div>')
-                
-                with c3:
-                    currencies = ForexRepository.get_available_currencies()
-                    default_index = currencies.index("USD")
-                    
-                    target = st.selectbox(
-                        "To",
-                        options=currencies,
-                        index=default_index,
-                        label_visibility="collapsed",
-                        key="currency_to_keystats"
-                    )
-                    
-                    if target != st.session_state.target_currency:
-                        st.session_state.target_currency = target
-                        st.rerun()
-                
-                st.html('</div>')
-                
-                if st.session_state.target_currency != reported_currency:
-                    rate = get_conversion_rate(reported_currency, st.session_state.target_currency)
-                    st.caption(f"Converted at 1 {reported_currency} = {rate:.4f} {st.session_state.target_currency}")
             else:
                 st.info("No key stats data available for the selected date range")
-                
+
+            # ── Stock Quote and Chart table (always shown below key stats) ──
+            render_stock_quote(selected_ticker)
+
         except Exception as e:
             st.error(f"Error loading key stats: {e}")
     # company_profile tab is handled above in the table section

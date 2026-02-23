@@ -1588,6 +1588,263 @@ class ForexRepository:
         results = db_manager.execute_query(query)
         return [row['currency'] for row in results if row['currency']]
 
+    @staticmethod
+    def get_conversion_rates_bulk(
+        from_currency: str,
+        to_currency: str,
+        as_of_dates: List[date]
+    ) -> Dict[date, float]:
+        """
+        Get conversion rates for multiple dates in a single query.
+        
+        For each as_of_date, finds the closest rate on or before that date.
+        Returns a dict mapping each requested date to its conversion rate.
+        
+        Args:
+            from_currency: Source currency code (e.g., 'USD')
+            to_currency: Target currency code (e.g., 'EUR')
+            as_of_dates: List of dates for which rates are needed
+            
+        Returns:
+            Dict mapping each date to its conversion rate (1.0 if same currency or not found)
+        """
+        if from_currency == to_currency:
+            return {d: 1.0 for d in as_of_dates}
+        
+        if not as_of_dates:
+            return {}
+        
+        # Build a query that fetches the closest rate on or before each date
+        # We use a lateral-join style approach via a subquery for each date
+        rate_map: Dict[date, float] = {}
+        
+        # Get all forex data for this pair within a reasonable range
+        min_date = min(as_of_dates)
+        max_date = max(as_of_dates)
+        
+        query = """
+            SELECT day_date, close
+            FROM coreiq_av_forex_daily
+            WHERE from_currency = :from_currency
+              AND to_currency = :to_currency
+              AND day_date <= :max_date
+            ORDER BY day_date DESC
+        """
+        results = db_manager.execute_query(query, {
+            "from_currency": from_currency,
+            "to_currency": to_currency,
+            "max_date": max_date
+        })
+        
+        # Try reverse direction if no results
+        reverse = False
+        if not results:
+            query = """
+                SELECT day_date, close
+                FROM coreiq_av_forex_daily
+                WHERE from_currency = :to_currency
+                  AND to_currency = :from_currency
+                  AND day_date <= :max_date
+                ORDER BY day_date DESC
+            """
+            results = db_manager.execute_query(query, {
+                "from_currency": from_currency,
+                "to_currency": to_currency,
+                "max_date": max_date
+            })
+            reverse = True
+        
+        if not results:
+            return {d: 1.0 for d in as_of_dates}
+        
+        # Build sorted list of (day_date, rate) for binary-search style lookup
+        # Results are already sorted DESC by day_date
+        for target_date in as_of_dates:
+            # Find the first result where day_date <= target_date
+            found_rate = None
+            for row in results:
+                row_date = row['day_date']
+                # Handle both date and datetime objects
+                if hasattr(row_date, 'date'):
+                    row_date = row_date.date()
+                if row_date <= target_date:
+                    try:
+                        rate = float(row['close'])
+                        found_rate = (1.0 / rate) if reverse else rate
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        found_rate = 1.0
+                    break
+            
+            rate_map[target_date] = found_rate if found_rate is not None else 1.0
+        
+        return rate_map
+
+
+class StockQuoteRepository:
+    """Repository for Stock Quote table — fetches latest price data + company overview."""
+
+    @staticmethod
+    def get_latest_quote(ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch the most recent day's bar data from coreiq_av_time_series_daily.
+
+        Returns a dict with keys:
+            open, high, low, close, volume, day_date,
+            change_on_day, change_percent_on_day
+        or None if no data found.
+        """
+        query = """
+            SELECT raw_json, day_date
+            FROM coreiq_av_time_series_daily
+            WHERE ticker = :ticker
+              AND raw_json IS NOT NULL
+            ORDER BY day_date DESC
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        if not results:
+            return None
+
+        row = results[0]
+        raw = {}
+        if row.get("raw_json"):
+            try:
+                raw = json.loads(row["raw_json"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        bar = raw.get("bar", {})
+
+        def _f(val: Any) -> Optional[float]:
+            if val is None:
+                return None
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+
+        open_p  = _f(bar.get("1. open"))
+        high_p  = _f(bar.get("2. high"))
+        low_p   = _f(bar.get("3. low"))
+        close_p = _f(bar.get("4. close"))
+        volume  = _f(bar.get("5. volume"))
+
+        change_on_day = None
+        change_pct    = None
+        if open_p is not None and close_p is not None and open_p != 0:
+            change_on_day = close_p - open_p
+            change_pct    = (change_on_day / open_p) * 100.0
+
+        return {
+            "open":              open_p,
+            "high":              high_p,
+            "low":               low_p,
+            "close":             close_p,
+            "volume":            int(volume) if volume is not None else None,
+            "day_date":          row.get("day_date"),
+            "change_on_day":     change_on_day,
+            "change_percent":    change_pct,
+        }
+
+    @staticmethod
+    def get_price_history(ticker: str, days: int = 365) -> List[Dict[str, Any]]:
+        """
+        Fetch daily close prices for charting (last `days` calendar days).
+
+        Returns list of dicts sorted ASC by date:
+            [{"date": "2025-01-30", "close": 204.79, "volume": 12345678}, ...]
+        """
+        query = """
+            SELECT day_date, close, raw_json
+            FROM coreiq_av_time_series_daily
+            WHERE ticker = :ticker
+              AND day_date >= DATE_SUB(CURDATE(), INTERVAL :days DAY)
+              AND raw_json IS NOT NULL
+            ORDER BY day_date ASC
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker, "days": days})
+        history = []
+        for row in results:
+            close_val = None
+            volume_val = None
+            # Prefer the dedicated column; fall back to raw_json
+            if row.get("close") is not None:
+                try:
+                    close_val = float(row["close"])
+                except (ValueError, TypeError):
+                    pass
+            if close_val is None and row.get("raw_json"):
+                try:
+                    bar = json.loads(row["raw_json"]).get("bar", {})
+                    close_val = float(bar.get("4. close", 0)) or None
+                    volume_val = int(float(bar.get("5. volume", 0))) or None
+                except (ValueError, TypeError, json.JSONDecodeError):
+                    pass
+            if close_val is not None:
+                day = row["day_date"]
+                history.append({
+                    "date":   str(day) if not isinstance(day, str) else day,
+                    "close":  close_val,
+                    "volume": volume_val,
+                })
+        return history
+
+    @staticmethod
+    def get_overview_data(ticker: str) -> Optional[Dict[str, Any]]:
+        """
+        Fetch company overview fields needed for the Stock Quote table.
+
+        Returns a dict with keys:
+            market_cap_mm, shares_outstanding_mm, dividend_yield,
+            diluted_eps, pe_ratio, week_52_high, week_52_low
+        or None if no data found.
+        """
+        query = """
+            SELECT market_capitalization, dividend_yield, eps, pe_ratio, raw_json
+            FROM coreiq_av_company_overview
+            WHERE ticker = :ticker
+            ORDER BY fetched_at_utc DESC
+            LIMIT 1
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker})
+        if not results:
+            return None
+
+        row = results[0]
+        raw = {}
+        if row.get("raw_json"):
+            try:
+                raw = json.loads(row["raw_json"])
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        def _f(val: Any) -> Optional[float]:
+            if val is None or val == "None":
+                return None
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
+
+        market_cap = _f(row.get("market_capitalization"))
+        market_cap_mm = (market_cap / 1_000_000) if market_cap is not None else None
+
+        shares_raw = _f(raw.get("SharesOutstanding"))
+        shares_mm  = (shares_raw / 1_000_000) if shares_raw is not None else None
+
+        week_52_high = _f(raw.get("52WeekHigh"))
+        week_52_low  = _f(raw.get("52WeekLow"))
+
+        return {
+            "market_cap_mm":        market_cap_mm,
+            "shares_outstanding_mm": shares_mm,
+            "dividend_yield":       _f(row.get("dividend_yield")),
+            "diluted_eps":          _f(row.get("eps")),
+            "pe_ratio":             _f(row.get("pe_ratio")),
+            "week_52_high":         week_52_high,
+            "week_52_low":          week_52_low,
+        }
+
 
 class FilingMetricRepository:
     """Repository for filing_metrics table — SEC filing metric search."""
@@ -1623,7 +1880,7 @@ class FilingMetricRepository:
         "amortization":              ["depreciation and amortization", "depreciation & amortization"],
         "d&a":                       ["depreciation and amortization", "depreciation"],
         "depreciation amortization": ["depreciation and amortization"],
-        "net income":                ["net earnings", "profit after tax", "earnings"],
+        "net income":                ["net income (loss)", "net earnings", "profit after tax", "earnings"],
         "earnings":                  ["net income", "net earnings"],
         "diluted eps":               ["diluted (in dollars per share)", "earnings per share diluted"],
         "eps":                       ["diluted (in dollars per share)", "basic (in dollars per share)", "earnings per share"],
@@ -1663,6 +1920,8 @@ class FilingMetricRepository:
         "long-term debt":            ["term debt", "total term debt"],
         "term debt":                 ["long-term debt", "long term debt", "total term debt"],
         "total debt":                ["term debt", "total term debt", "long-term debt"],
+        "debt to equity":            ["debt-to-equity", "total debt-to-equity", "lt debt-to-equity"],
+        "debt equity":               ["debt-to-equity", "total debt-to-equity"],
         "deferred revenue":          ["deferred revenue", "unearned revenue"],
         "unearned revenue":          ["deferred revenue"],
         "total liabilities":         ["liabilities, total"],
@@ -1710,6 +1969,7 @@ class FilingMetricRepository:
         "basic shares":              ["basic (in shares)", "weighted average basic shares"],
 
         # Segments (search by dimension_label via original_label="Net sales")
+        # AAPL segments
         "iphone":                    ["iphone revenue", "iphone net sales"],
         "iphone revenue":            ["iphone", "net sales"],
         "mac":                       ["mac revenue", "mac net sales"],
@@ -1720,6 +1980,17 @@ class FilingMetricRepository:
         "europe":                    ["europe revenue", "europe net sales"],
         "china":                     ["greater china", "china revenue"],
         "greater china":             ["china", "greater china revenue"],
+
+        # AMZN segments
+        "aws":                       ["amazon web services"],
+        "north america":             ["north america revenue", "north america net sales"],
+        "international":             ["international revenue", "international net sales"],
+        "total net sales":           ["net sales", "total revenue", "revenue"],
+
+        # M (Macy's) segments
+        "macy's":                    ["macys", "macy's first"],
+        "bloomingdale":              ["bloomingdale's", "bloomingdales"],
+        "net sales":                 ["total net sales", "total revenue", "revenue"],
     }
 
     @staticmethod
@@ -1765,7 +2036,9 @@ class FilingMetricRepository:
         sql = f"""
             SELECT original_label, numeric_value, unit_ref, fiscal_year,
                    is_dimensioned, dimension_label, statement_type, ixbrl_id,
-                   standard_concept, concept, balance, period_type, value, source
+                   standard_concept, concept, balance, period_type,
+                   period_start, period_end, period_instant,
+                   value, source, llm_query
             FROM filing_metrics
             WHERE ticker = :ticker
               AND fiscal_year = :fiscal_year
@@ -1773,7 +2046,29 @@ class FilingMetricRepository:
               AND ({where_synonyms})
               AND (standard_concept IS NULL OR standard_concept NOT LIKE '%Text Block')
               AND numeric_value IS NOT NULL
-            ORDER BY is_dimensioned ASC, original_label ASC
+            ORDER BY CASE LOWER(original_label)
+                       WHEN 'net sales'               THEN 0
+                       WHEN 'total net sales'          THEN 0
+                       WHEN 'revenue'                  THEN 0
+                       WHEN 'net revenue'               THEN 0
+                       WHEN 'revenues'                 THEN 0
+                       WHEN 'total revenue'             THEN 0
+                       WHEN 'operating income'          THEN 1
+                       WHEN 'operating income (loss)'   THEN 1
+                       WHEN 'net income'                THEN 2
+                       WHEN 'net income (loss)'         THEN 2
+                       WHEN 'net earnings'              THEN 2
+                       WHEN 'total assets'              THEN 3
+                       WHEN 'cash and cash equivalents' THEN 3
+                       WHEN 'ebitda'                    THEN 4
+                       WHEN 'free cash flow'            THEN 4
+                       WHEN 'long-term debt'            THEN 5
+                       WHEN 'total debt'                THEN 5
+                       WHEN 'net debt'                  THEN 6
+                       ELSE 10
+                     END ASC,
+                     is_dimensioned ASC,
+                     CHAR_LENGTH(original_label) ASC, original_label ASC
             LIMIT :limit
         """
 
@@ -1792,8 +2087,12 @@ class FilingMetricRepository:
                 concept=row["concept"],
                 balance=row["balance"],
                 period_type=row["period_type"],
+                period_start=str(row["period_start"]) if row.get("period_start") else None,
+                period_end=str(row["period_end"]) if row.get("period_end") else None,
+                period_instant=str(row["period_instant"]) if row.get("period_instant") else None,
                 value=row["value"],
                 source=row.get("source"),
+                calculation_note=row.get("llm_query") if row.get("source") == "calculated" else None,
             )
             for row in results
         ]

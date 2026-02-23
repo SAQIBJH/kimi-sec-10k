@@ -64,6 +64,10 @@ class LocalStorageManager:
                                 # Load sort order
                                 st.session_state[key] = value
                                 loaded_count += 1
+                            elif key in ('conversion_mode', 'target_currency', 'units'):
+                                # Load currency conversion and units preferences
+                                st.session_state[key] = value
+                                loaded_count += 1
                             elif isinstance(value, dict):
                                 # Load tab filters (tab_name is the key like "base", "compare_retailers")
                                 tab_name = key
@@ -148,6 +152,14 @@ class LocalStorageManager:
             sort_order_key = f"sort_order_{page}"
             if sort_order_key in st.session_state:
                 page_data[sort_order_key] = st.session_state[sort_order_key]
+            
+            # Save currency conversion and units preferences
+            if 'conversion_mode' in st.session_state:
+                page_data['conversion_mode'] = st.session_state['conversion_mode']
+            if 'target_currency' in st.session_state:
+                page_data['target_currency'] = st.session_state['target_currency']
+            if 'units' in st.session_state:
+                page_data['units'] = st.session_state['units']
             
             # Look for all filters_<page>_<tab> keys in session state
             filter_prefix = f"filters_{page}_"

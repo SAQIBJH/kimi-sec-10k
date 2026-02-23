@@ -304,8 +304,12 @@ class FilingMetricResult:
     concept: Optional[str] = None
     balance: Optional[str] = None
     period_type: Optional[str] = None
+    period_start: Optional[str] = None    # "2023-01-29"  (duration start)
+    period_end: Optional[str] = None      # "2024-02-03"  (duration end)
+    period_instant: Optional[str] = None  # "2024-02-03"  (instant snapshot)
     value: Optional[str] = None  # raw text value (e.g. "P1Y" duration, text)
     source: Optional[str] = None  # 'xbrl' | 'calculated' | 'llm' | 'edgartools'
+    calculation_note: Optional[str] = None  # raw formula string for calculated metrics
 
     @property
     def formatted_value(self) -> str:
