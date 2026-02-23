@@ -757,6 +757,8 @@ def render_page():
     .block-container {
         padding-left: 110px !important; 
         padding-right: 110px !important; 
+        padding-top: 0 !important; /* Remove default top padding */
+        padding-bottom: 0 !important; /* Remove default bottom padding */
         max-width: 1440px !important;
         margin: 0 auto !important;
     }

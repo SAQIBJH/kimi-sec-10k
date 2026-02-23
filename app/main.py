@@ -23,7 +23,8 @@ init_database()
 # Register all pages with st.navigation()
 pg = st.navigation(
     [
-        st.Page("pages/home.py",            title="Home",             url_path="home",            default=True),
+        st.Page("pages/login.py",            title="Login",             url_path="login",            default=True),
+        st.Page("pages/home.py",            title="Home",             url_path="home"),
         st.Page("pages/market_data.py",     title="Market Data",      url_path="market_data"),
         st.Page("pages/newsroom.py",        title="Newsroom",         url_path="newsroom"),
         st.Page("pages/earnings_calls.py",  title="Earnings Calls",   url_path="earnings_calls"),
