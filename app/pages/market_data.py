@@ -326,6 +326,242 @@ def render_cash_flow(ticker: str, start_date: date, end_date: date, conversion_r
         st.error(f"Error loading cash flow statement: {e}")
 
 
+def render_stock_quote(ticker: str) -> None:
+    """Render Stock Quote and Chart table matching Figma design node-id=20660-223833.
+
+    Layout (Figma):
+    ┌──────────────────────────────────────────────────────┐
+    │  Stock Quote and Chart (Currency: USD)  [bold 16px]  │
+    ├────────────────────────┬─────────────────────────────┤
+    │  Left col (4 sub-cols) │  Right col (chart area)     │
+    │  7 rows × [label|val | label|val]                    │
+    └────────────────────────┴─────────────────────────────┘
+    """
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+    from data.repository import StockQuoteRepository
+
+    quote   = StockQuoteRepository.get_latest_quote(ticker)
+    overview = StockQuoteRepository.get_overview_data(ticker)
+    history  = StockQuoteRepository.get_price_history(ticker, days=365)
+
+    # ── helper formatters ─────────────────────────────────
+    def _fmt_price(v):
+        if v is None:
+            return "-"
+        return f"{v:,.2f}"
+
+    def _fmt_mm(v):
+        if v is None:
+            return "-"
+        return f"{v:,.1f}"
+
+    def _fmt_pct(v):
+        if v is None:
+            return "-"
+        return f"{v:.2f}%"
+
+    def _fmt_change(v):
+        if v is None:
+            return "-"
+        sign = "+" if v > 0 else ""
+        return f"{sign}{v:,.2f}"
+
+    def _fmt_pct_change(v):
+        if v is None:
+            return "-"
+        sign = "+" if v > 0 else ""
+        return f"{sign}{v:.2f}%"
+
+    def _fmt_pe(v):
+        if v is None:
+            return "-"
+        return f"{v:.2f}x"
+
+    # ── extract values ────────────────────────────────────
+    if quote:
+        last       = _fmt_price(quote.get("close"))
+        open_      = _fmt_price(quote.get("open"))
+        prev_close = _fmt_price(quote.get("close"))      # same day prev_close ≈ close
+        change     = _fmt_change(quote.get("change_on_day"))
+        change_pct = _fmt_pct_change(quote.get("change_percent"))
+        day_hl     = f"{_fmt_price(quote.get('high'))} / {_fmt_price(quote.get('low'))}"
+    else:
+        last = open_ = prev_close = change = change_pct = day_hl = "-"
+
+    if overview:
+        market_cap   = _fmt_mm(overview.get("market_cap_mm"))
+        shares_out   = _fmt_mm(overview.get("shares_outstanding_mm"))
+        div_yield    = _fmt_pct(overview.get("dividend_yield"))
+        diluted_eps  = _fmt_price(overview.get("diluted_eps"))
+        pe           = _fmt_pe(overview.get("pe_ratio"))
+        w52h         = _fmt_price(overview.get("week_52_high"))
+        w52l         = _fmt_price(overview.get("week_52_low"))
+        week_52_hl   = f"{w52h} / {w52l}"
+    else:
+        market_cap = shares_out = div_yield = diluted_eps = pe = week_52_hl = "-"
+
+    # Float % and Shares Sold Short — not in DB
+    float_pct  = "-"
+    short_mm   = "-"
+
+    # ── 7 rows (left_label, left_val, right_label, right_val) ──
+    rows = [
+        ("Last (Delayed)",     last,       "Market Cap (mm)",              market_cap),
+        ("Open",               open_,      "Shares Out. (mm)",             shares_out),
+        ("Previous Close",     prev_close, "Float %",                      float_pct),
+        ("Change on Day",      change,     "Shares Sold Short (mm)",       short_mm),
+        ("Change % on Day",    change_pct, "Dividend Yield %",             div_yield),
+        ("Day High/Low",       day_hl,     "Diluted EPS Excl. Extra Items", diluted_eps),
+        ("52 wk High/Low",     week_52_hl, "P/Diluted EPS Before Extra",   pe),
+    ]
+
+    # ── CSS ───────────────────────────────────────────────
+    css = """
+    <style>
+    .sq-header {
+        font-family: 'Roboto', sans-serif;
+        background: #F9F9F9;
+        border: 1px solid #CFCFCF;
+        border-bottom: none;
+        padding: 4px 12px;
+        font-weight: 700;
+        font-size: 16px;
+        color: #000000;
+        height: 32px;
+        display: flex;
+        align-items: center;
+        margin-bottom: 0;
+    }
+    .sq-table-box {
+        border: 4px solid #CBCACA;
+        border-right: 2px solid #CBCACA;
+    }
+    .sq-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-family: 'Roboto', sans-serif;
+    }
+    .sq-table tr {
+        height: 24px;
+    }
+    .sq-table td {
+        height: 24px;
+        padding: 0 12px;
+        vertical-align: middle;
+        font-size: 14px;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    .sq-lbl {
+        background: #F9F9F9;
+        color: #4F4F4F;
+        width: 33%;
+    }
+    .sq-val {
+        background: #FFFFFF;
+        color: #000000;
+        text-align: right;
+        width: 17%;
+        border-right: 1px solid #CFCFCF;
+        vertical-align: bottom;
+        padding-bottom: 2px;
+    }
+    .sq-val:last-child {
+        border-right: none;
+    }
+    </style>
+    """
+    st.html(css)
+
+    # ── Section header ────────────────────────────────────
+    st.html('<div class="sq-header">Stock Quote and Chart (Currency: USD)</div>')
+
+    # ── Body: table left (63%) | chart right (37%) ────────
+    col_tbl, col_chart = st.columns([63, 37])
+
+    with col_tbl:
+        tbl_rows = ""
+        for ll, lv, rl, rv in rows:
+            tbl_rows += (
+                f'<tr>'
+                f'<td class="sq-lbl">{ll}</td>'
+                f'<td class="sq-val">{lv}</td>'
+                f'<td class="sq-lbl">{rl}</td>'
+                f'<td class="sq-val">{rv}</td>'
+                f'</tr>'
+            )
+        st.html(f'<div class="sq-table-box"><table class="sq-table">{tbl_rows}</table></div>')
+
+    with col_chart:
+        if history:
+            dates   = [h["date"] for h in history]
+            closes  = [h["close"] for h in history]
+            volumes = [h.get("volume") or 0 for h in history]
+
+            fig = make_subplots(
+                rows=2, cols=1,
+                row_heights=[0.75, 0.25],
+                shared_xaxes=True,
+                vertical_spacing=0.02,
+            )
+
+            # Price line — red per Figma
+            fig.add_trace(
+                go.Scatter(
+                    x=dates, y=closes,
+                    mode="lines",
+                    line=dict(color="#D62E2F", width=1.5),
+                    name="Price",
+                    showlegend=False,
+                    hovertemplate="%{x}<br>$%{y:,.2f}<extra></extra>",
+                ),
+                row=1, col=1,
+            )
+
+            # Volume bars — gray
+            fig.add_trace(
+                go.Bar(
+                    x=dates, y=volumes,
+                    marker_color="rgba(203,202,202,0.6)",
+                    name="Volume",
+                    showlegend=False,
+                    hovertemplate="%{x}<br>Vol: %{y:,.0f}<extra></extra>",
+                ),
+                row=2, col=1,
+            )
+
+            fig.update_layout(
+                margin=dict(l=35, r=8, t=4, b=20),
+                plot_bgcolor="#FCFCFC",
+                paper_bgcolor="#FCFCFC",
+                height=185,
+                font=dict(family="Roboto", size=9, color="#4F4F4F"),
+                hovermode="x unified",
+            )
+            fig.update_xaxes(showgrid=False, showticklabels=False, row=1, col=1)
+            fig.update_xaxes(
+                showgrid=False, showticklabels=True,
+                tickformat="%b '%y", tickfont=dict(size=8),
+                row=2, col=1,
+            )
+            fig.update_yaxes(
+                showgrid=True, gridcolor="#EFEFEF",
+                tickfont=dict(size=8), tickprefix="$",
+                row=1, col=1,
+            )
+            fig.update_yaxes(showgrid=False, showticklabels=False, row=2, col=1)
+
+            st.plotly_chart(
+                fig,
+                use_container_width=True,
+                config={"displayModeBar": False},
+            )
+        else:
+            st.caption("No price history available")
+
+
 def render_page():
     """Main render function - PIXEL PERFECT FIGMA MATCH."""
     
@@ -346,6 +582,21 @@ def render_page():
     # Save the selected ticker to local storage to persist across sessions
     set_marketdata_company(selected_ticker)
     
+    # Detect ticker change — clear date/sort widget keys so Streamlit doesn't
+    # raise "widget created with default value but also set via Session State API"
+    prev_ticker = st.session_state.get("_prev_ticker_market_data")
+    if prev_ticker != selected_ticker:
+        for _tab in ["income_statement", "balance_sheet", "cash_flow", "key_stats"]:
+            for _prefix in ("start_dt_", "end_dt_", "sort_order_select_"):
+                _key = f"{_prefix}{_tab}"
+                if _key in st.session_state:
+                    del st.session_state[_key]
+            # Also clear tab-specific date range so it re-initialises from min/max
+            _dr_key = f"date_range_market_data_{_tab}"
+            if _dr_key in st.session_state:
+                del st.session_state[_dr_key]
+        st.session_state["_prev_ticker_market_data"] = selected_ticker
+
     # Store the selected ticker in session state for persistence
     st.session_state.selected_ticker_market_data = selected_ticker
 
@@ -1238,36 +1489,12 @@ def render_page():
                 html += '</tbody></table></div></div>'
                 st.html(html)
                 
-                # Capitalization Section
-                if data.get("market_cap"):
-                    st.html('<div style="margin-top: 30px;"></div>')
-                    
-                    cap_html = '<div class="table-container"><div class="table-scroll"><table class="data-table">'
-                    cap_html += f'<thead><tr class="row-grey-separator"><th>Latest Capitalization ({units_label} of USD)</th><th></th></tr></thead><tbody>'
-                    
-                    market_cap = data.get("market_cap", 0) or 0
-                    cash = data.get("cash", 0) or 0
-                    total_debt = data.get("total_debt", 0) or 0
-                    total_equity = data.get("total_equity", 0) or 0
-                    
-                    tev = market_cap - cash + total_debt
-                    total_capital = total_equity + total_debt
-                    
-                    cap_html += f'<tr class="row-bold"><td class="indent-0">Market Capitalization</td><td class="data-cell">{format_value(market_cap, conversion_rate, units_scale)}</td></tr>'
-                    cap_html += f'<tr><td class="indent-0">- Cash & Short Term Investments</td><td class="data-cell">{format_value(cash, conversion_rate, units_scale)}</td></tr>'
-                    cap_html += f'<tr><td class="indent-0">+ Total Debt</td><td class="data-cell">{format_value(total_debt, conversion_rate, units_scale)}</td></tr>'
-                    cap_html += f'<tr class="row-bold"><td class="indent-0">= Total Enterprise Value (TEV)</td><td class="data-cell">{format_value(tev, conversion_rate, units_scale)}</td></tr>'
-                    cap_html += f'<tr><td class="indent-0">Book Value of Common Equity</td><td class="data-cell">{format_value(total_equity, conversion_rate, units_scale)}</td></tr>'
-                    cap_html += f'<tr><td class="indent-0">+ Total Debt</td><td class="data-cell">{format_value(total_debt, conversion_rate, units_scale)}</td></tr>'
-                    cap_html += f'<tr class="row-bold"><td class="indent-0">= Total Capital</td><td class="data-cell">{format_value(total_capital, conversion_rate, units_scale)}</td></tr>'
-                    
-                    cap_html += '</tbody></table></div></div>'
-                    st.html(cap_html)
-                
-
             else:
                 st.info("No key stats data available for the selected date range")
-                
+
+            # ── Stock Quote and Chart table (always shown below key stats) ──
+            render_stock_quote(selected_ticker)
+
         except Exception as e:
             st.error(f"Error loading key stats: {e}")
     # company_profile tab is handled above in the table section
