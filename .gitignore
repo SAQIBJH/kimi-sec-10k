@@ -20,3 +20,5 @@ screenshots
 config.toml
 .streamlit
 *.db
+.streamlit/config.toml
+.env
