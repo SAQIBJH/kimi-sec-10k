@@ -295,7 +295,96 @@ def get_earnings_css() -> str:
     .transcript-body::-webkit-scrollbar-thumb:hover {
         background: #999999;
     }
+
+    /* ===== KEYWORD HIGHLIGHT ===== */
+    .transcript-content mark {
+        background: #FFF3CD;
+        padding: 2px 4px;
+        border-radius: 2px;
+        font-weight: 500;
+    }
     
+    /* ===== TRANSCRIPT SEARCH SIDEBAR ===== */
+    .transcript-search-sidebar {
+        background: #FFFFFF;
+        border: 1px solid #E5E5E5;
+        border-radius: 8px;
+        padding: 16px;
+        height: calc(100vh - 340px);
+        min-height: 480px;
+        overflow-y: auto;
+    }
+    .transcript-search-sidebar::-webkit-scrollbar {
+        width: 6px;
+    }
+    .transcript-search-sidebar::-webkit-scrollbar-track {
+        background: #F2F2F2;
+        border-radius: 3px;
+    }
+    .transcript-search-sidebar::-webkit-scrollbar-thumb {
+        background: #CBCACA;
+        border-radius: 3px;
+    }
+
+    .transcript-search-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #F2F2F2;
+    }
+    .transcript-search-title {
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 600;
+        font-size: 16px;
+        color: #2D2A29;
+    }
+
+    .transcript-search-count {
+        font-family: 'Roboto', sans-serif;
+        font-size: 12px;
+        color: #888888;
+        margin: 4px 0 12px 4px;
+    }
+
+    .transcript-search-result-card {
+        background: #FFFFFF;
+        border: 1px solid #E5E5E5;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .transcript-search-result-card:hover {
+        border-color: #CBCACA;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .transcript-search-speaker {
+        font-family: 'Roboto', sans-serif;
+        font-weight: 600;
+        font-size: 13px;
+        color: #D62E2F;
+        margin-bottom: 4px;
+    }
+    .transcript-search-snippet {
+        font-family: 'Roboto', sans-serif;
+        font-size: 12px;
+        color: #6B6B6B;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .transcript-search-placeholder {
+        text-align: center;
+        color: #888;
+        padding: 40px 0;
+        font-family: 'Roboto', sans-serif;
+        font-size: 14px;
+    }
+
     /* =======================================================================
        RESPONSIVE ADJUSTMENTS
        ======================================================================= */
@@ -384,14 +473,30 @@ def parse_transcript(transcript_text: str) -> List[SpeakerSegment]:
     return segments
 
 
-def render_speaker_section(segment: SpeakerSegment) -> str:
-    """Render a single speaker section."""
+def _highlight_keyword(text: str, keyword: str) -> str:
+    """Wrap keyword matches with <mark> tags for highlighting."""
+    if not keyword or not keyword.strip():
+        return text
+    pattern = re.compile(re.escape(keyword.strip()), re.IGNORECASE)
+    return pattern.sub(lambda m: f'<mark>{m.group()}</mark>', text)
+
+
+def render_speaker_section(segment: SpeakerSegment, keyword: str = None, index: int = 0) -> str:
+    """Render a single speaker section with optional keyword highlighting."""
     # Format text with paragraphs
     paragraphs = segment.text.split('\n')
-    paragraphs_html = ''.join([f'<p style="margin: 0 0 12px 0;">{p.strip()}</p>' for p in paragraphs if p.strip()])
+    processed = []
+    for p in paragraphs:
+        p = p.strip()
+        if not p:
+            continue
+        if keyword:
+            p = _highlight_keyword(p, keyword)
+        processed.append(f'<p style="margin: 0 0 12px 0;">{p}</p>')
+    paragraphs_html = ''.join(processed)
     
     return f"""
-    <div class="speaker-section">
+    <div class="speaker-section" id="seg-{index}">
         <div class="speaker-name">{segment.speaker}</div>
         <div class="speaker-text">{paragraphs_html}</div>
     </div>
@@ -403,14 +508,18 @@ def render_transcript_card(
     ticker: str,
     year: str,
     quarter: str,
-    transcript_text: str
+    transcript_text: str,
+    keyword: str = None
 ) -> str:
     """Render the transcript card with header and content."""
     # Parse transcript into speaker segments
     segments = parse_transcript(transcript_text)
     
-    # Render speaker sections
-    speaker_html = ''.join([render_speaker_section(s) for s in segments])
+    # Render speaker sections with optional keyword highlighting
+    speaker_html = ''.join([
+        render_speaker_section(s, keyword=keyword, index=i)
+        for i, s in enumerate(segments)
+    ])
     
     html = f"""
     <div class="transcript-card">
@@ -511,16 +620,6 @@ def render_earnings_calls(active_ticker: str = None):
     if "ec_quarter" not in st.session_state or st.session_state.ec_quarter not in quarter_options:
         st.session_state.ec_quarter = quarter_options[0]
 
-    # available_years = EarningsCallRepository.get_available_years(st.session_state.ec_company)
-    # year_options = [str(y) for y in sorted(available_years, reverse=True)] if available_years else ["2025", "2024"]
-    
-    # if 'ec_year' not in st.session_state:
-    #     st.session_state.ec_year = year_options[0] if year_options else "2025"
-    # available_quarters = EarningsCallRepository.get_available_quarters(st.session_state.ec_company, st.session_state.ec_year)
-    # quarter_options = sorted(available_quarters) if available_quarters else ["Q4", "Q3", "Q2", "Q1"]
-    # if 'ec_quarter' not in st.session_state:
-    #     st.session_state.ec_quarter = quarter_options[0] if quarter_options else "Q4"
-    
     # =======================================================================
     # HEADER WITH TITLE AND FILTERS
     # =======================================================================
@@ -559,43 +658,6 @@ def render_earnings_calls(active_ticker: str = None):
     def on_quarter_change():
         st.session_state.ec_quarter = st.session_state.ec_quarter_select
         save_earnings_calls_state()
-    # Create header row with title on left and filters on right
-    # spacer1,header_col1, header_col2,spacer2 = st.columns([0.1,1, 1,0.1])
-    
-    # with header_col1:
-    #     st.markdown('<h1 class="earnings-title">Earnings Calls</h1>', unsafe_allow_html=True)
-    
-    # with header_col2:
-    #     # Filter row with proper labels
-    #     filter_col1, filter_col2, filter_col3 = st.columns([1.5, 0.5, 0.5])
-    #     # def on_company_change():
-    #     #     st.query_params["ticker"] = st.session_state.ec_company_select
-
-    #     with filter_col1:
-    #         company = st.selectbox(
-    #             "Select a company and date range to view transcripts.",
-    #             options=[opt[0] for opt in company_options],
-    #             format_func=lambda x: next((opt[1].split('(')[0].strip() for opt in company_options if opt[0] == x), x),
-    #             index=[opt[0] for opt in company_options].index(st.session_state.ec_company) if st.session_state.ec_company in [opt[0] for opt in company_options] else 0,
-    #             key="ec_company_select",
-    #             on_change=on_company_change
-    #         )
-        
-    #     with filter_col2:
-    #         year = st.selectbox(
-    #             "Year",
-    #             options=year_options,
-    #             index=year_options.index(st.session_state.ec_year) if st.session_state.ec_year in year_options else 0,
-    #             key="ec_year_select"
-    #         )
-        
-    #     with filter_col3:
-    #         quarter = st.selectbox(
-    #             "Quarter",
-    #             options=quarter_options,
-    #             index=quarter_options.index(st.session_state.ec_quarter) if st.session_state.ec_quarter in quarter_options else 0,
-    #             key="ec_quarter_select"
-    #         )
 
     spacer1, header_col1, header_col2, spacer2 = st.columns([0.1, 1, 1, 0.1])
 
@@ -641,7 +703,7 @@ def render_earnings_calls(active_ticker: str = None):
     save_earnings_calls_state()
     
     # =======================================================================
-    # FETCH AND DISPLAY TRANSCRIPT
+    # FETCH TRANSCRIPT DATA
     # =======================================================================
     
     # Fetch transcript data
@@ -654,24 +716,86 @@ def render_earnings_calls(active_ticker: str = None):
     # Get company display name
     company_display = next((opt[1] for opt in company_options if opt[0] == company), company)
     company_name = company_display.split('(')[0].strip() if '(' in company_display else company_display
-    
-    # Render transcript card or empty state
+
+    # =======================================================================
+    # TWO-COLUMN LAYOUT: Search (Left) + Transcript (Right)
+    # =======================================================================
+    left_col, right_col = st.columns([0.3, 0.7])
+
+    # ── Parse transcript for search ──
+    transcript_text = None
+    segments = []
     if earnings_calls and len(earnings_calls) > 0:
         transcript = earnings_calls[0]
-        if transcript.transcript_text:
+        transcript_text = transcript.transcript_text
+        if transcript_text:
+            segments = parse_transcript(transcript_text)
+
+    # ── LEFT COLUMN: Search Input + Results Panel ──
+    with left_col:
+        search_term = st.text_input(
+            "Search Transcript",
+            placeholder="eg., revenue, AWS, guidance...",
+            value=st.session_state.get('ec_search', ''),
+            key="ec_search_input",
+        )
+        st.session_state.ec_search = search_term
+        active_keyword = search_term.strip() if search_term and search_term.strip() else None
+
+        search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
+
+        with st.container(border=True):
+            st.markdown(f'<div class="transcript-search-header">{search_icon}<span class="transcript-search-title">Search Transcript</span></div>', unsafe_allow_html=True)
+
+            if active_keyword and segments:
+                # Find matching segments
+                matches = []
+                for i, seg in enumerate(segments):
+                    if active_keyword.lower() in seg.text.lower():
+                        # Extract snippet around first occurrence
+                        idx = seg.text.lower().find(active_keyword.lower())
+                        start = max(0, idx - 40)
+                        end = min(len(seg.text), idx + len(active_keyword) + 40)
+                        snippet = seg.text[start:end]
+                        if start > 0:
+                            snippet = '...' + snippet
+                        if end < len(seg.text):
+                            snippet = snippet + '...'
+                        matches.append({'speaker': seg.speaker, 'snippet': snippet, 'index': i})
+
+                if matches:
+                    st.markdown(f'<div class="transcript-search-count">Found {len(matches)} match{"es" if len(matches) != 1 else ""} for "<b>{active_keyword}</b>"</div>', unsafe_allow_html=True)
+                    for m in matches[:30]:
+                        highlighted_snippet = _highlight_keyword(m['snippet'], active_keyword)
+                        card_html = f'''
+                        <div class="transcript-search-result-card">
+                            <div class="transcript-search-speaker">{m['speaker']}</div>
+                            <div class="transcript-search-snippet">{highlighted_snippet}</div>
+                        </div>
+                        '''
+                        st.markdown(card_html, unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="transcript-search-placeholder">No matches found for "<b>{active_keyword}</b>"</div>', unsafe_allow_html=True)
+            elif active_keyword and not segments:
+                st.markdown('<div class="transcript-search-placeholder">No transcript loaded to search</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="transcript-search-placeholder">Type a keyword above to search within the transcript</div>', unsafe_allow_html=True)
+
+    # ── RIGHT COLUMN: Transcript Content ──
+    with right_col:
+        if transcript_text:
             card_html = render_transcript_card(
                 company_name=company_name,
                 ticker=company,
                 year=year,
                 quarter=quarter,
-                transcript_text=transcript.transcript_text
+                transcript_text=transcript_text,
+                keyword=active_keyword
             )
         else:
             card_html = render_empty_state()
-    else:
-        card_html = render_empty_state()
-    
-    st.markdown(card_html, unsafe_allow_html=True)
+        
+        st.markdown(card_html, unsafe_allow_html=True)
     
     # Close containers
     st.markdown('</div>', unsafe_allow_html=True)  # content-wrapper

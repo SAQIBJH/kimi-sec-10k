@@ -266,6 +266,7 @@ class NewsRepository:
         date_to: Optional[date] = None,
         sector: Optional[str] = None,
         company_ticker: Optional[str] = None,
+        keyword: Optional[str] = None,
         limit: int = 100,
         offset: int = 0
     ) -> List[NewsArticle]:
@@ -277,6 +278,7 @@ class NewsRepository:
             date_to: End date filter  
             sector: Filter by company sector (primary_industry_coresight)
             company_ticker: Filter by specific company ticker
+            keyword: Keyword to search in title and summary
             limit: Maximum number of articles to return
             offset: Offset for pagination
         """
@@ -332,6 +334,11 @@ class NewsRepository:
             )"""
             params['company_ticker'] = company_ticker
         
+        # Keyword search in title and summary
+        if keyword and keyword.strip():
+            query += " AND (LOWER(title) LIKE :keyword OR LOWER(summary) LIKE :keyword)"
+            params['keyword'] = f'%{keyword.strip().lower()}%'
+        
         # Order by publication date (newest first)
         query += " ORDER BY time_published_utc DESC"
         
@@ -377,30 +384,104 @@ class NewsRepository:
         return articles
     
     @staticmethod
-    def get_sectors() -> List[str]:
-        """Get distinct sectors (primary_industry_coresight) from companies table."""
+    def get_news_date_range() -> Dict[str, Any]:
+        """Get min and max time_published_utc from news table."""
         query = """
-            SELECT DISTINCT primary_industry_coresight as sector
-            FROM coreiq_companies
-            WHERE primary_industry_coresight IS NOT NULL
-              AND primary_industry_coresight != ''
-            ORDER BY primary_industry_coresight
+            SELECT 
+                MIN(DATE(time_published_utc)) as min_date,
+                MAX(DATE(time_published_utc)) as max_date
+            FROM coreiq_av_market_news_sentiment
+            WHERE time_published_utc IS NOT NULL
         """
         results = db_manager.execute_query(query)
+        if results and results[0]['min_date']:
+            return {
+                'min_date': results[0]['min_date'],
+                'max_date': results[0]['max_date']
+            }
+        return {'min_date': date.today() - timedelta(days=30), 'max_date': date.today()}
+
+    @staticmethod
+    def get_news_tickers(
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None
+    ) -> List[str]:
+        """Get distinct tickers from news articles within a date range."""
+        query = """
+            SELECT DISTINCT
+                JSON_UNQUOTE(JSON_EXTRACT(ts.val, '$.ticker')) as ticker
+            FROM coreiq_av_market_news_sentiment n,
+                 JSON_TABLE(n.ticker_sentiment_json, '$[*]' COLUMNS (val JSON PATH '$')) ts
+            WHERE 1=1
+        """
+        params = {}
+        if date_from:
+            query += " AND DATE(n.time_published_utc) >= :date_from"
+            params['date_from'] = date_from
+        if date_to:
+            query += " AND DATE(n.time_published_utc) <= :date_to"
+            params['date_to'] = date_to
+        
+        results = db_manager.execute_query(query, params)
+        return [row['ticker'] for row in results if row['ticker']]
+
+    @staticmethod
+    def get_sectors(
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None
+    ) -> List[str]:
+        """Get distinct sectors for companies that appear in news articles within date range."""
+        # First get tickers from news within date range
+        news_tickers = NewsRepository.get_news_tickers(date_from=date_from, date_to=date_to)
+        if not news_tickers:
+            return []
+        
+        # Build parameterized IN clause
+        placeholders = ', '.join([f':t{i}' for i in range(len(news_tickers))])
+        params = {f't{i}': t for i, t in enumerate(news_tickers)}
+        
+        query = f"""
+            SELECT DISTINCT c.primary_industry_coresight as sector
+            FROM coreiq_companies c
+            WHERE c.primary_industry_coresight IS NOT NULL
+              AND c.primary_industry_coresight != ''
+              AND c.ticker IN ({placeholders})
+            ORDER BY c.primary_industry_coresight
+        """
+        results = db_manager.execute_query(query, params)
         return [row['sector'] for row in results if row['sector']]
     
     @staticmethod
-    def get_companies() -> List[Dict[str, str]]:
-        """Get companies with ticker and name for dropdown."""
-        query = """
-            SELECT 
-                ticker,
-                COALESCE(name_coresight, name) as display_name
-            FROM coreiq_companies
-            WHERE ticker IS NOT NULL
-            ORDER BY display_name
+    def get_companies(
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        sector: Optional[str] = None
+    ) -> List[Dict[str, str]]:
+        """Get companies that appear in news articles within date range, filtered by sector."""
+        # First get tickers from news within date range
+        news_tickers = NewsRepository.get_news_tickers(date_from=date_from, date_to=date_to)
+        if not news_tickers:
+            return []
+        
+        # Build parameterized IN clause
+        placeholders = ', '.join([f':t{i}' for i in range(len(news_tickers))])
+        params = {f't{i}': t for i, t in enumerate(news_tickers)}
+        
+        query = f"""
+            SELECT DISTINCT
+                c.ticker,
+                COALESCE(c.name_coresight, c.name) as display_name
+            FROM coreiq_companies c
+            WHERE c.ticker IN ({placeholders})
         """
-        results = db_manager.execute_query(query)
+        
+        if sector:
+            query += " AND c.primary_industry_coresight = :sector"
+            params['sector'] = sector
+        
+        query += " ORDER BY display_name"
+        
+        results = db_manager.execute_query(query, params)
         return [
             {'ticker': row['ticker'], 'name': row['display_name']}
             for row in results
@@ -550,7 +631,7 @@ class EarningsCallRepository:
     
     @staticmethod
     def get_companies_with_earnings() -> List[Dict[str, str]]:
-        """Get only companies that have earnings call transcripts.
+        """Get only companies that have earnings call transcripts (with actual transcript text).
         
         Returns:
             List of dicts with 'ticker' and 'name' keys.
@@ -561,7 +642,8 @@ class EarningsCallRepository:
                 COALESCE(c.name_coresight, c.name) as display_name
             FROM coreiq_companies c
             INNER JOIN coreiq_av_earnings_call_transcripts e ON c.ticker = e.ticker
-            WHERE e.ticker IS NOT NULL
+            WHERE e.has_transcript = 1
+              AND e.transcript_text IS NOT NULL
             ORDER BY display_name
         """
         results = db_manager.execute_query(query)
@@ -571,10 +653,27 @@ class EarningsCallRepository:
         ]
     
     @staticmethod
+    def _parse_quarter_param(quarter) -> Optional[int]:
+        """Convert quarter param (int, str like 'Q1', or 'Q1') to integer 1-4."""
+        if quarter is None:
+            return None
+        if isinstance(quarter, int):
+            return quarter
+        # Handle string like "Q1", "Q2", etc.
+        q_str = str(quarter).strip().upper()
+        if q_str.startswith('Q') and len(q_str) == 2 and q_str[1].isdigit():
+            return int(q_str[1])
+        # Try direct int parse
+        try:
+            return int(q_str)
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
     def get_earnings_calls(
         ticker: Optional[str] = None,
         year: Optional[int] = None,
-        quarter: Optional[int] = None,
+        quarter=None,
         has_transcript_only: bool = True,
         limit: int = 100
     ) -> List[EarningsCall]:
@@ -583,7 +682,7 @@ class EarningsCallRepository:
         Args:
             ticker: Filter by company ticker
             year: Filter by year
-            quarter: Filter by quarter (1-4)
+            quarter: Filter by quarter — accepts int (1-4) or str ('Q1'-'Q4')
             has_transcript_only: Only return calls with transcripts
             limit: Maximum number of results
             
@@ -613,12 +712,14 @@ class EarningsCallRepository:
             params['ticker'] = ticker
         
         if year:
+            # Handle string year from selectbox
+            params['year'] = int(year) if isinstance(year, str) else year
             query += " AND year = :year"
-            params['year'] = year
         
-        if quarter:
+        q_int = EarningsCallRepository._parse_quarter_param(quarter)
+        if q_int:
             query += " AND q = :quarter"
-            params['quarter'] = quarter
+            params['quarter'] = q_int
         
         if has_transcript_only:
             query += " AND has_transcript = 1"
@@ -688,11 +789,11 @@ class EarningsCallRepository:
         )
     
     @staticmethod
-    def get_available_years(ticker: Optional[str] = None) -> List[int]:
-        """Get distinct years available for earnings calls.
+    def get_available_years(ticker: str) -> List[int]:
+        """Get distinct years that have transcripts for a given company.
         
         Args:
-            ticker: Optional ticker to filter by
+            ticker: Company ticker (required)
             
         Returns:
             List of years (descending order)
@@ -701,48 +802,36 @@ class EarningsCallRepository:
             SELECT DISTINCT year 
             FROM coreiq_av_earnings_call_transcripts
             WHERE year IS NOT NULL
+              AND has_transcript = 1
+              AND ticker = :ticker
+            ORDER BY year DESC
         """
-        params = {}
-        
-        if ticker:
-            query += " AND ticker = :ticker"
-            params['ticker'] = ticker
-        
-        query += " ORDER BY year DESC"
-        
-        results = db_manager.execute_query(query, params)
+        results = db_manager.execute_query(query, {'ticker': ticker})
         return [row['year'] for row in results]
     
     @staticmethod
-    def get_available_quarters(ticker: Optional[str] = None, year: Optional[int] = None) -> List[int]:
-        """Get distinct quarters available.
+    def get_available_quarters(ticker: str, year) -> List[str]:
+        """Get distinct quarters that have transcripts for a company+year.
         
         Args:
-            ticker: Optional ticker to filter by
-            year: Optional year to filter by
+            ticker: Company ticker (required)
+            year: Year to filter by (required, accepts str or int)
             
         Returns:
-            List of quarters (1-4)
+            List of quarter strings like ['Q1', 'Q2', 'Q3', 'Q4'] (ascending)
         """
+        year_int = int(year) if isinstance(year, str) else year
         query = """
             SELECT DISTINCT q 
             FROM coreiq_av_earnings_call_transcripts
             WHERE q IS NOT NULL
+              AND has_transcript = 1
+              AND ticker = :ticker
+              AND year = :year
+            ORDER BY q
         """
-        params = {}
-        
-        if ticker:
-            query += " AND ticker = :ticker"
-            params['ticker'] = ticker
-        
-        if year:
-            query += " AND year = :year"
-            params['year'] = year
-        
-        query += " ORDER BY q"
-        
-        results = db_manager.execute_query(query, params)
-        return [row['q'] for row in results]
+        results = db_manager.execute_query(query, {'ticker': ticker, 'year': year_int})
+        return [f"Q{row['q']}" for row in results]
 
 
 class BalanceSheetRepository:
