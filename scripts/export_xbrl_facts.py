@@ -25,8 +25,8 @@ from edgar import Company, set_identity
 class Config:
     """Configuration for the export process"""
     # Companies to process
-    TICKERS: List[str] = field(default_factory=lambda: ["AAPL"])
-    
+    TICKERS: List[str] = field(default_factory=lambda: ["AAPL", "AMZN", "M"])
+
     # Years to process
     YEARS: List[int] = field(default_factory=lambda: [2022, 2023, 2024, 2025])
     
@@ -291,29 +291,32 @@ def remove_duplicates(facts: List[Dict]) -> List[Dict]:
 
 def step_2_filter_dedupe(facts_df: pd.DataFrame, year: int) -> Tuple[List[Dict], int]:
     """
-    Step 2: Filter and deduplicate facts
-    Returns: (filtered_facts, actual_fiscal_year)
+    Step 2: Deduplicate facts (no date filter — keep all periods).
+
+    Keeping all periods is intentional: a 10-K contains comparative data for
+    3 income statement years and 2 balance sheet dates.  Filtering to a single
+    year discards prior-period comparatives that the UI needs to show correct
+    period labels (e.g. Jan '23 → Feb '24 inside a FY2025 filing).
+
+    Returns: (unique_facts, fiscal_year_from_dei)
     """
-    log("Step 2: Filtering and deduplicating")
-    
+    log("Step 2: Deduplicating (no date filter — all periods kept)")
+
     facts_list = json.loads(facts_df.to_json(orient="records", date_format='iso'))
-    
-    # Determine fiscal year
+
+    # Determine fiscal year from DEI tag (used for output folder naming only)
     fiscal_year = year
     fy_facts = facts_df[facts_df['concept'] == 'dei:DocumentFiscalYearFocus']
     if len(fy_facts) > 0:
         fiscal_year = int(fy_facts.iloc[0]['value'])
-    log(f"  Fiscal year: {fiscal_year}")
-    
-    # Filter by fiscal year
-    filtered = filter_by_fiscal_year(facts_list, fiscal_year)
-    log(f"  After year filter: {len(filtered)} facts")
-    
+    log(f"  Fiscal year (from DEI): {fiscal_year}")
+    log(f"  Total facts before dedup: {len(facts_list)}")
+
     # Remove duplicates
-    unique_facts = remove_duplicates(filtered)
-    removed = len(filtered) - len(unique_facts)
-    log(f"  After dedup: {len(unique_facts)} facts (removed {removed})")
-    
+    unique_facts = remove_duplicates(facts_list)
+    removed = len(facts_list) - len(unique_facts)
+    log(f"  After dedup: {len(unique_facts)} facts (removed {removed} duplicates)")
+
     return unique_facts, fiscal_year
 
 # ========== STEP 3: ENRICH ==========

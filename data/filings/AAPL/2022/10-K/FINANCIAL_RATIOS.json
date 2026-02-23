@@ -758,7 +758,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "6.15",
+    "value": "3.31",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -776,7 +776,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "6.11",
+    "value": "3.28",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -794,7 +794,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "3.18",
+    "value": "3.08",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",
@@ -812,7 +812,7 @@
   {
     "concept": "calculated",
     "context_ref": "calculated",
-    "value": "6.99",
+    "value": "6.78",
     "dimension": "",
     "member": "",
     "dimension_label": "Company Wide",

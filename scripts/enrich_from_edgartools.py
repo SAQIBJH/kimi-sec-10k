@@ -122,7 +122,7 @@ def extract_sections_from_html(html_path: Path) -> dict:
     # Fallback: if no sections found, extract full doc text
     if not sections:
         try:
-            full_text = doc.text
+            full_text = doc.text() if callable(doc.text) else doc.text
             if full_text and len(full_text.strip()) > 1000:
                 truncated = full_text[:MAX_SECTION_CHARS]
                 sections["full_text"] = truncated

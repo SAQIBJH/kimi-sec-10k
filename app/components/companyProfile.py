@@ -283,10 +283,21 @@ def render_info_table(company: CompanyOverview) -> str:
     #     ("Year Founded", "1858", "Activity Logs/Tasks:", "No"),
     # ]
     # data_items = company_to_label_value(company)
+    HIDDEN_FIELDS = {"Company Description", "Fetched At Utc", "Cik", "Address", "Analyst Target Price"}
+
+    LABEL_MAP = {
+        "Eps":           "EPS",
+        "Pe Ratio":      "P/E Ratio",
+        "Ebitda":        "EBITDA",
+        "Revenue Ttm":   "Revenue (TTM)",
+        "Week 52 High":  "52-Week High",
+        "Week 52 Low":   "52-Week Low",
+    }
+
     data_items = list(company_to_label_value(company).items())
     data_items = [
-    (k, v) for k, v in data_items
-    if v not in (None, "", "N/A") and k != "Company Description" and k != "Fetched At Utc"  # Always include business description even if empty
+        (LABEL_MAP.get(k, k), v) for k, v in data_items
+        if v not in (None, "", "N/A") and k not in HIDDEN_FIELDS
     ]
     def format_website(value):
         if not value or value == "N/A":
@@ -297,9 +308,11 @@ def render_info_table(company: CompanyOverview) -> str:
     # 👉 move Official Site to first position if exists
     # Move Official Site to first position and format as anchor tag
 
+    MARKET_CAP_FIELDS = {"Market Capitalization", "Revenue (TTM)", "EBITDA", "Shares Outstanding"}
+
     formatted_items = []
     for k, v in data_items:
-        if k == "Market Capitalization" or k == "Revenue Ttm" or k == "Ebitda" or k == "Shares Outstanding":
+        if k in MARKET_CAP_FIELDS:
             v = format_market_cap(v)
         formatted_items.append((k, v))
 
