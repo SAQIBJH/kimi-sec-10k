@@ -16,3 +16,7 @@ wireframes
 screenshots
 
 # Ignore the .env file which contains sensitive information such as database credentials and API keys.
+*.env
+config.toml
+.streamlit
+*.db
