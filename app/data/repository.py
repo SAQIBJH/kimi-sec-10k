@@ -2036,7 +2036,9 @@ class FilingMetricRepository:
         sql = f"""
             SELECT original_label, numeric_value, unit_ref, fiscal_year,
                    is_dimensioned, dimension_label, statement_type, ixbrl_id,
-                   standard_concept, concept, balance, period_type, value, source, llm_query
+                   standard_concept, concept, balance, period_type,
+                   period_start, period_end, period_instant,
+                   value, source, llm_query
             FROM filing_metrics
             WHERE ticker = :ticker
               AND fiscal_year = :fiscal_year
@@ -2085,6 +2087,9 @@ class FilingMetricRepository:
                 concept=row["concept"],
                 balance=row["balance"],
                 period_type=row["period_type"],
+                period_start=str(row["period_start"]) if row.get("period_start") else None,
+                period_end=str(row["period_end"]) if row.get("period_end") else None,
+                period_instant=str(row["period_instant"]) if row.get("period_instant") else None,
                 value=row["value"],
                 source=row.get("source"),
                 calculation_note=row.get("llm_query") if row.get("source") == "calculated" else None,
