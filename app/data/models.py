@@ -74,7 +74,8 @@ class FiscalPeriod:
     """Fiscal period for column headers."""
     date: date
     label: str
-    
+    is_estimated: bool = False  # True for analyst-estimate / forecast columns
+
     @classmethod
     def from_date(cls, dt: date) -> "FiscalPeriod":
         """Create from date: '12 Months\nJan-29-2021'"""

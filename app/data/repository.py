@@ -1644,7 +1644,86 @@ class KeyStatsRepository:
         # 10. Same Store Sales Growth % (not available in most data, will show NA or -)
         same_store_vals = [None] * len(results)
         line_items.append({"label": "Same Store Sales Growth %", "values": same_store_vals, "is_bold": True, "indent": 0, "has_grey_sep": True})
-        
+
+        # --- Append Next Fiscal Year Estimate column (E) ---
+        # Only show estimate if end_date equals the maximum available date in the income statement
+        max_date_query = """
+            SELECT MAX(fiscal_date_ending) AS max_date
+            FROM coreiq_av_financials_income_statement
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+        """
+        max_date_results = db_manager.execute_query(max_date_query, {"ticker": ticker})
+        max_available_date = max_date_results[0]["max_date"] if max_date_results else None
+        if max_available_date and hasattr(max_available_date, "date"):
+            max_available_date = max_available_date.date()
+
+        estimates = []
+        if max_available_date and end_date >= max_available_date:
+            estimates = KeyStatsRepository.get_estimated_data(ticker, end_date)
+
+        if estimates and line_items:
+            # Last actual revenue (millions) and EPS — used for growth calc of first E column
+            last_actual_rev_mm = None
+            for row in reversed(results):
+                if row["total_revenue"] is not None:
+                    last_actual_rev_mm = to_millions(safe_float_val(row["total_revenue"]))
+                    break
+
+            last_actual_eps = None
+            for eps in reversed(eps_vals):
+                if eps is not None:
+                    last_actual_eps = eps
+                    break
+
+            prev_est_rev_mm = last_actual_rev_mm
+            prev_est_eps = last_actual_eps
+
+            for est in estimates:
+                est_date = est["estimate_date"]
+                est_period = FiscalPeriod(
+                    date=est_date,
+                    label=f"12 Months\n{est_date.strftime('%b-%d-%Y')}",
+                    is_estimated=True,
+                )
+                periods.append(est_period)
+
+                est_rev_mm = est["rev_avg"] / 1_000_000 if est["rev_avg"] is not None else None
+                est_eps = est["eps_avg"]
+
+                # Growth vs previous period (actual or prior estimate)
+                if est_rev_mm is not None and prev_est_rev_mm is not None and prev_est_rev_mm != 0:
+                    rev_growth_est = ((est_rev_mm - prev_est_rev_mm) / abs(prev_est_rev_mm)) * 100
+                else:
+                    rev_growth_est = None
+
+                if est_eps is not None and prev_est_eps is not None and prev_est_eps != 0:
+                    eps_growth_est = ((est_eps - prev_est_eps) / abs(prev_est_eps)) * 100
+                else:
+                    eps_growth_est = None
+
+                # Append one value per line item for this E column
+                seen_revenue = False
+                seen_eps = False
+                for item in line_items:
+                    lbl = item["label"]
+                    is_bold_item = item.get("is_bold", False)
+                    if lbl == "Total Revenue" and is_bold_item:
+                        item["values"].append(est_rev_mm)
+                        seen_revenue = True
+                    elif lbl == "Growth Over Prior Year" and seen_revenue and not seen_eps:
+                        item["values"].append(rev_growth_est)
+                    elif lbl == "Diluted EPS Excl. Extra Items" and is_bold_item:
+                        item["values"].append(est_eps)
+                        seen_eps = True
+                    elif lbl == "Growth Over Prior Year" and seen_eps:
+                        item["values"].append(eps_growth_est)
+                    else:
+                        item["values"].append(None)
+
+                prev_est_rev_mm = est_rev_mm
+                prev_est_eps = est_eps
+
         return {
             "periods": periods,
             "line_items": line_items,
@@ -1658,6 +1737,36 @@ class KeyStatsRepository:
             "latest_pe": overview.get('pe_ratio')
         }
     
+    @staticmethod
+    def get_estimated_data(ticker: str, end_date: date) -> List[Dict[str, Any]]:
+        """Fetch ALL annual analyst estimates whose estimate_date > end_date.
+
+        Only fiscal-year horizons (not quarterly) — returns list, may be empty.
+        Each dict: estimate_date (date), rev_avg (float|None in USD), eps_avg (float|None).
+        """
+        query = """
+            SELECT estimate_date, eps_est_avg, rev_est_avg
+            FROM coreiq_av_financials_earnings_estimates
+            WHERE ticker = :ticker
+              AND estimate_date > :end_date
+              AND horizon IN ('historical fiscal year', 'next fiscal year')
+            ORDER BY estimate_date ASC
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker, "end_date": end_date})
+        estimates = []
+        for row in results:
+            if row["eps_est_avg"] is None and row["rev_est_avg"] is None:
+                continue
+            est_date = row["estimate_date"]
+            if hasattr(est_date, "date"):
+                est_date = est_date.date()
+            estimates.append({
+                "estimate_date": est_date,
+                "eps_avg": float(row["eps_est_avg"]) if row["eps_est_avg"] is not None else None,
+                "rev_avg": float(row["rev_est_avg"]) if row["rev_est_avg"] is not None else None,
+            })
+        return estimates
+
     @staticmethod
     def get_reported_currency(ticker: str, fiscal_date: date) -> str:
         """Get the reported currency for a specific fiscal period."""
