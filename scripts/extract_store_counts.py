@@ -462,12 +462,13 @@ def insert_store_count_to_db(
 
     conn.execute(text("""
         INSERT INTO filing_metrics
-            (ticker, fiscal_year, doc_type, concept, original_label, standard_concept,
+            (ticker, company_name, fiscal_year, doc_type, concept, original_label, standard_concept,
              numeric_value, value, unit_ref, is_dimensioned,
              dimension, member, dimension_label,
              statement_type, source, llm_query, period_type, fiscal_period)
         VALUES
-            (:ticker, :fy, :dt, :concept, :label, :concept,
+            (:ticker, (SELECT MIN(COALESCE(name_coresight, name)) FROM coreiq_companies WHERE ticker = :ticker),
+             :fy, :dt, :concept, :label, :concept,
              :value, :value_str, 'count', 0,
              :store_type, :as_of_date, :dim_label,
              'Store Count', 'store_count', :note, 'instant', 'FY')

@@ -154,48 +154,50 @@ class FilingDocument:
 from data.repository import FilingMetricRepository
 
 def _load_companies_from_db():
-    """Get (ticker, display_name) for companies that have data in filing_metrics."""
+    """Get (ticker, display_label) for companies that have data in filing_metrics.
+    Display label uses the format: 'Company Name (TICKER)'.
+    """
     try:
-        repo = FilingMetricRepository()
-        with repo.engine.connect() as conn:
-            from sqlalchemy import text
-            rows = conn.execute(text("""
-                SELECT DISTINCT fm.ticker
-                FROM filing_metrics fm
-                ORDER BY fm.ticker
-            """)).fetchall()
-            tickers = [row[0] for row in rows if row[0]]
-            return [(t, COMPANY_NAMES.get(t, t)) for t in tickers]
+        from core.database import db_manager
+        rows = db_manager.execute_query("""
+            SELECT fm.ticker, MIN(fm.company_name) AS company_name
+            FROM filing_metrics fm
+            WHERE fm.ticker IS NOT NULL AND fm.ticker != ''
+            GROUP BY fm.ticker
+            ORDER BY fm.ticker
+        """)
+        results = []
+        for row in rows:
+            ticker = row["ticker"]
+            name = row["company_name"] or COMPANY_NAMES.get(ticker, ticker)
+            display = f"{name} ({ticker})"
+            results.append((ticker, display))
+        return results
     except Exception as e:
         logger.warning(f"[DB] Failed to load companies: {e}")
-        # Fallback to folder scan
-        return [(t, COMPANY_NAMES.get(t, t)) for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc.")]
+        return [(t, f"{COMPANY_NAMES.get(t, t)} ({t})") for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc. (AAPL)")]
 
 def _get_available_years_from_db(ticker: str):
     """Get available fiscal years for a ticker from filing_metrics DB."""
     try:
-        repo = FilingMetricRepository()
-        with repo.engine.connect() as conn:
-            from sqlalchemy import text
-            rows = conn.execute(text("""
-                SELECT DISTINCT fiscal_year FROM filing_metrics
-                WHERE ticker = :ticker ORDER BY fiscal_year DESC
-            """), {"ticker": ticker}).fetchall()
-            return [str(row[0]) for row in rows if row[0]]
+        from core.database import db_manager
+        rows = db_manager.execute_query("""
+            SELECT DISTINCT fiscal_year FROM filing_metrics
+            WHERE ticker = :ticker ORDER BY fiscal_year DESC
+        """, {"ticker": ticker})
+        return [str(row["fiscal_year"]) for row in rows if row["fiscal_year"]]
     except Exception:
         return sorted(FILINGS_DATA.get(ticker, {}).keys(), reverse=True)
 
 def _get_available_doc_types_from_db(ticker: str):
     """Get available doc types for a ticker from filing_metrics DB."""
     try:
-        repo = FilingMetricRepository()
-        with repo.engine.connect() as conn:
-            from sqlalchemy import text
-            rows = conn.execute(text("""
-                SELECT DISTINCT doc_type FROM filing_metrics
-                WHERE ticker = :ticker ORDER BY doc_type
-            """), {"ticker": ticker}).fetchall()
-            return [row[0] for row in rows if row[0]]
+        from core.database import db_manager
+        rows = db_manager.execute_query("""
+            SELECT DISTINCT doc_type FROM filing_metrics
+            WHERE ticker = :ticker ORDER BY doc_type
+        """, {"ticker": ticker})
+        return [row["doc_type"] for row in rows if row["doc_type"]]
     except Exception:
         company_data = FILINGS_DATA.get(ticker, {})
         return sorted(set(dt for yd in company_data.values() for dt in yd.keys())) if company_data else ["10-K"]
