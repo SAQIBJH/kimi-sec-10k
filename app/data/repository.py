@@ -2278,6 +2278,18 @@ class FilingMetricRepository:
         "macy's":                    ["macys", "macy's first"],
         "bloomingdale":              ["bloomingdale's", "bloomingdales"],
         "net sales":                 ["total net sales", "total revenue", "revenue"],
+
+        # Store Counts (extracted by extract_store_counts.py, source='store_count')
+        "store":                     ["store count", "number of stores", "store locations"],
+        "stores":                    ["store count", "number of stores", "store locations"],
+        "store count":               ["store", "stores", "number of stores", "store locations"],
+        "number of stores":          ["store count", "stores", "store locations"],
+        "store locations":           ["store count", "stores", "number of stores"],
+        "locations":                 ["store count", "store locations", "number of stores"],
+        "warehouse":                 ["store count", "warehouses", "membership warehouses"],
+        "warehouses":                ["store count", "warehouse", "membership warehouses"],
+        "supermarket":               ["store count", "supermarkets"],
+        "supermarkets":              ["store count", "supermarket"],
     }
 
     @staticmethod
