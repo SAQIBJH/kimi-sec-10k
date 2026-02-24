@@ -1,21 +1,64 @@
-# Core Dependencies
+# ═══════════════════════════════════════════════════════════════════════════════
+# Research Portal - Python Dependencies
+# ═══════════════════════════════════════════════════════════════════════════════
+# Last updated: 2026-02-24
+# Critical: All packages below are REQUIRED for production deployment
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Core Framework (REQUIRED)
+# ───────────────────────────────────────────────────────────────────────────────
 streamlit>=1.54.0
-plotly>=6.5.0
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Data Processing (REQUIRED)
+# ───────────────────────────────────────────────────────────────────────────────
 pandas>=2.3.0
 numpy>=2.4.0
 
-# Database
+# ───────────────────────────────────────────────────────────────────────────────
+# Visualization (REQUIRED)
+# ───────────────────────────────────────────────────────────────────────────────
+plotly>=6.5.0
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Database (REQUIRED)
+# ───────────────────────────────────────────────────────────────────────────────
 sqlalchemy>=2.0.46
 pymysql>=1.1.0
-cryptography>=46.0.0  # For MySQL SSL
+cryptography>=46.0.0  # Required for MySQL SSL connections
 
-# Utilities
+# ───────────────────────────────────────────────────────────────────────────────
+# SEC Filing Processing (REQUIRED)
+# Used by: scripts/export_xbrl_facts.py, scripts/enrich_from_edgartools.py
+# ───────────────────────────────────────────────────────────────────────────────
+edgartools>=3.0.0
+requests>=2.31.0
+
+# ───────────────────────────────────────────────────────────────────────────────
+# LLM Integration (REQUIRED)
+# Used by: app/core/llm_extractor.py
+# ───────────────────────────────────────────────────────────────────────────────
+openai>=1.0.0
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Machine Learning / Search (REQUIRED)
+# Used by: app/core/search_engine.py (TranscriptSearchEngine - TF-IDF)
+# ───────────────────────────────────────────────────────────────────────────────
+scikit-learn>=1.3.0
+
+# ───────────────────────────────────────────────────────────────────────────────
+# Utilities (REQUIRED)
+# ───────────────────────────────────────────────────────────────────────────────
 python-dotenv>=1.2.0
 streamlit-local-storage>=0.0.25  # Browser localStorage persistence
+attrs>=23.0.0  # Used by: app/components/companyProfile.py
 
-# Currency Conversion
-forex-python>=1.8
-
-# Optional Enhancements
-# streamlit-aggrid>=0.3.4  # Advanced data grids
-# streamlit-option-menu>=0.3.6  # Enhanced navigation
+# ═══════════════════════════════════════════════════════════════════════════════
+# Standard Library Modules Used (No installation required):
+#   - argparse, contextlib, dataclasses, datetime, decimal, enum, functools
+#   - html, json, logging, os, pathlib, random, re, socket, sys, threading
+#   - time, traceback, typing
+# ═══════════════════════════════════════════════════════════════════════════════
+# NOTE: forex-python REMOVED - not used in code. Forex rates fetched from DB.
+# ═══════════════════════════════════════════════════════════════════════════════

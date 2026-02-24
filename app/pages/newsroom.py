@@ -6,6 +6,7 @@ Financial news feed with filtering and sentiment analysis.
 import streamlit as st
 from datetime import date, datetime, timedelta
 from typing import List, Optional
+import re
 
 from components.styles import hide_sidebar, set_page_layout
 hide_sidebar()
@@ -73,7 +74,21 @@ def calculate_relative_time(published_time: datetime) -> str:
         return ''
 
 
-def render_news_card(article: NewsArticle, company_map: dict):
+def _highlight_keyword(text: str, keyword: str) -> str:
+    """Wrap keyword matches with <mark> tags — highlights each word individually for multi-word queries."""
+    if not keyword or not keyword.strip():
+        return text
+    # Split into individual words and highlight each
+    words = keyword.strip().split()
+    result = text
+    for word in words:
+        if word.strip():
+            pattern = re.compile(re.escape(word.strip()), re.IGNORECASE)
+            result = pattern.sub(lambda m: f'<mark>{m.group()}</mark>', result)
+    return result
+
+
+def render_news_card(article: NewsArticle, company_map: dict, keyword: str = None):
     """
     Render a single news article card using custom HTML/CSS.
     Matches Figma wireframe exactly.
@@ -99,6 +114,9 @@ def render_news_card(article: NewsArticle, company_map: dict):
         tagged_companies_html = "<span class='tagged-label'>Tagged Companies: </span>" + " | ".join(companies_parts)
     
     # Build the card HTML - Title is a link but styled as black text without underline
+    display_title = _highlight_keyword(article.title, keyword) if keyword else article.title
+    display_summary = _highlight_keyword(article.summary, keyword) if keyword else article.summary
+    
     card_html = f"""
     <div class="news-card">
         <div class="news-header">
@@ -107,8 +125,8 @@ def render_news_card(article: NewsArticle, company_map: dict):
                 {formatted_date} <span class="relative-time">{relative_time}</span>
             </div>
         </div>
-        <a href="{article.url}" target="_blank" class="news-title-link">{article.title}</a>
-        <div class="news-summary">{article.summary}</div>
+        <a href="{article.url}" target="_blank" class="news-title-link">{display_title}</a>
+        <div class="news-summary">{display_summary}</div>
         {f'<div class="tagged-companies">{tagged_companies_html}</div>' if tagged_companies_html else ''}
     </div>
     <div class="divider"></div>
@@ -123,6 +141,15 @@ def get_news_css() -> str:
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Montserrat:wght@400;500;600;700&display=swap');
     
+    /* Keyword highlight — brand red theme */
+    mark {
+        background: rgba(214, 46, 47, 0.15);
+        color: #D62E2F;
+        padding: 2px 4px;
+        border-radius: 2px;
+        font-weight: 600;
+    }
+
     .news-container {
         max-width: 1238px;
         margin: 0 auto;
@@ -249,6 +276,108 @@ def get_news_css() -> str:
         color: #323232;
         margin-bottom: 16px;
     }
+
+    /* ===== NEWS SEARCH SIDEBAR ===== */
+    .news-search-sidebar {
+        background: #FFFFFF;
+        border: 1px solid #E5E5E5;
+        border-radius: 8px;
+        padding: 16px;
+        height: calc(100vh - 340px);
+        min-height: 480px;
+        overflow-y: auto;
+    }
+
+    .news-search-sidebar::-webkit-scrollbar {
+        width: 6px;
+    }
+    .news-search-sidebar::-webkit-scrollbar-track {
+        background: #F2F2F2;
+        border-radius: 3px;
+    }
+    .news-search-sidebar::-webkit-scrollbar-thumb {
+        background: #CBCACA;
+        border-radius: 3px;
+    }
+
+    .news-search-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 16px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #F2F2F2;
+    }
+
+    .news-search-title {
+        font-family: 'Montserrat', sans-serif;
+        font-weight: 600;
+        font-size: 16px;
+        color: #2D2A29;
+    }
+
+    .news-search-count {
+        font-family: 'Roboto', sans-serif;
+        font-size: 12px;
+        color: #888888;
+        margin: 4px 0 12px 4px;
+    }
+
+    .news-search-result-card {
+        background: #FFFFFF;
+        border: 1px solid #E5E5E5;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .news-search-result-card:hover {
+        border-color: #CBCACA;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .news-search-result-title {
+        font-family: 'Roboto', sans-serif;
+        font-weight: 500;
+        font-size: 13px;
+        color: #2D2A29;
+        margin-bottom: 4px;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .news-search-result-snippet {
+        font-family: 'Roboto', sans-serif;
+        font-size: 12px;
+        color: #6B6B6B;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .news-search-result-meta {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-family: 'Roboto', sans-serif;
+        font-size: 11px;
+        color: #888888;
+        margin-top: 6px;
+    }
+    .news-search-result-meta-dot {
+        width: 3px;
+        height: 3px;
+        background: #888888;
+        border-radius: 50%;
+    }
+    .news-search-placeholder {
+        text-align: center;
+        color: #888;
+        padding: 40px 0;
+        font-family: 'Roboto', sans-serif;
+        font-size: 14px;
+    }
     </style>
     """
 
@@ -263,121 +392,152 @@ def render_page():
     </div>
     """, unsafe_allow_html=True)
     
-    # Initialize session state for filters
+    # Get date bounds from news table
+    date_bounds = NewsRepository.get_news_date_range()
+    news_min_date = date_bounds['min_date']
+    news_max_date = date_bounds['max_date']
+
+    # Initialize session state for filters within valid bounds
     if 'date_from' not in st.session_state:
-        st.session_state.date_from = date.today() - timedelta(days=7)
+        st.session_state.date_from = max(news_min_date, news_max_date - timedelta(days=7))
     if 'date_to' not in st.session_state:
-        st.session_state.date_to = date.today()
+        st.session_state.date_to = news_max_date
     
-    # Get filter options
-    sectors = ['All'] + NewsRepository.get_sectors()
-    companies = [{'ticker': 'All', 'name': 'All Companies'}] + NewsRepository.get_companies()
-    
-    # Filters row at the top
-    st.markdown("""
-    <style>
-    .filter-container {
-        background: #f8f9fa;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 24px;
-    }
-    .filter-title {
-        font-family: 'Montserrat', sans-serif;
-        font-weight: 600;
-        font-size: 16px;
-        color: #323232;
-        margin-bottom: 12px;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    with st.container():
-        # Date range filter
-        col1, col2, col3,col4,col5 = st.columns([0.5, 0.5, 1,1,0.5])
-        
-        with col1:
-            st.markdown("**From**")
-            date_from = st.date_input(
-                "From date",
-                value=st.session_state.date_from,
-                max_value=date.today(),
-                label_visibility="collapsed"
-            )
-        
-        with col2:
-            st.markdown("**To**")
-            date_to = st.date_input(
-                "To date",
-                value=st.session_state.date_to,
-                max_value=date.today(),
-                label_visibility="collapsed"
-            )
-        
-        with col3:
-            st.markdown("**Sector**")
-            selected_sector = st.selectbox(
-                "Sector",
-                options=sectors,
-                index=0,
-                label_visibility="collapsed"
-            )
-        
-        # Company filter row
-        # col4, col5 = st.columns([3, 1])
-        
-        with col4:
-            st.markdown("**Company**")
-            company_options = [f"{c['name']} ({c['ticker']})" for c in companies]
-            company_tickers = [c['ticker'] for c in companies]
-            selected_company_idx = st.selectbox(
-                "Select company",
-                options=range(len(company_options)),
-                format_func=lambda i: company_options[i],
-                index=0,
-                label_visibility="collapsed"
-            )
-            selected_company = company_tickers[selected_company_idx]
-        
-        with col5:
-            st.markdown("&nbsp;")
-            if st.button("Apply Filters", type="primary", use_container_width=True):
-                st.session_state.date_from = date_from
-                st.session_state.date_to = date_to
-                st.rerun()
-    
-    # Prepare filters for query
+    # Render custom CSS
+    st.markdown(get_news_css(), unsafe_allow_html=True)
+
+    # =======================================================================
+    # FILTER ROW: Search + Cascading Filters in one line
+    # =======================================================================
+    search_col, col1, col2, col3, col4 = st.columns([1.2, 0.5, 0.5, 1, 1])
+
+    with search_col:
+        search_term = st.text_input(
+            "Search",
+            placeholder="eg., inflation, earnings, retail...",
+            value=st.session_state.get('news_search', ''),
+            key="news_search_input",
+        )
+        st.session_state.news_search = search_term
+
+    with col1:
+        date_from = st.date_input(
+            "From",
+            value=st.session_state.date_from,
+            min_value=news_min_date,
+            max_value=news_max_date,
+        )
+        st.session_state.date_from = date_from
+
+    with col2:
+        date_to = st.date_input(
+            "To",
+            value=st.session_state.date_to,
+            min_value=news_min_date,
+            max_value=news_max_date,
+        )
+        st.session_state.date_to = date_to
+
+    # Cascading: sectors based on selected date range
+    sectors = ['All'] + NewsRepository.get_sectors(date_from=date_from, date_to=date_to)
+
+    with col3:
+        selected_sector = st.selectbox(
+            "Sector",
+            options=sectors,
+            index=0,
+        )
+
+    # Cascading: companies based on selected date range + sector
     query_sector = None if selected_sector == 'All' else selected_sector
+    companies = [{'ticker': 'All', 'name': 'All Companies'}] + NewsRepository.get_companies(
+        date_from=date_from,
+        date_to=date_to,
+        sector=query_sector
+    )
+
+    with col4:
+        company_options_list = [f"{c['name']} ({c['ticker']})" if c['ticker'] != 'All' else c['name'] for c in companies]
+        company_tickers = [c['ticker'] for c in companies]
+        selected_company_idx = st.selectbox(
+            "Company",
+            options=range(len(company_options_list)),
+            format_func=lambda i: company_options_list[i],
+            index=0,
+        )
+        selected_company = company_tickers[selected_company_idx]
+
+    # Prepare filters for query
     query_company = None if selected_company == 'All' else selected_company
-    
-    # Fetch articles
+
+    # Fetch articles (with keyword filter if provided)
+    active_keyword = search_term.strip() if search_term and search_term.strip() else None
     try:
         articles = NewsRepository.get_articles(
             date_from=date_from,
             date_to=date_to,
             sector=query_sector,
             company_ticker=query_company,
+            keyword=active_keyword,
             limit=50
         )
     except Exception as e:
         st.error(f"Error fetching news: {e}")
         articles = []
-    
+
     # Get company name mapping
     company_map = get_company_name_map()
-    
-    # Render articles
-    if articles:
-        # Render custom CSS first
-        st.markdown(get_news_css(), unsafe_allow_html=True)
-        
-        # Render each article card
-        for article in articles:
-            card_html = render_news_card(article, company_map)
-            st.markdown(card_html, unsafe_allow_html=True)
-        
-    else:
-        st.info("No news articles found for the selected filters.")
+
+    # =======================================================================
+    # TWO-COLUMN LAYOUT: Search Results (Left) + News Cards (Right)
+    # =======================================================================
+    left_col, right_col = st.columns([0.3, 0.7])
+
+    # ── LEFT COLUMN: Search Results Panel ──
+    with left_col:
+        search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
+
+        with st.container(border=True):
+            st.markdown(f'<div class="news-search-header">{search_icon}<span class="news-search-title">Search News</span></div>', unsafe_allow_html=True)
+
+            if active_keyword:
+                if articles:
+                    st.markdown(f'<div class="news-search-count">Found {len(articles)} article{"s" if len(articles) != 1 else ""} matching "<b>{active_keyword}</b>"</div>', unsafe_allow_html=True)
+                    for article in articles[:20]:
+                        # Truncate title and summary for compact display
+                        title_short = (article.title[:80] + '...') if len(article.title) > 80 else article.title
+                        summary_short = (article.summary[:100] + '...') if article.summary and len(article.summary) > 100 else (article.summary or '')
+                        # Highlight keywords in left panel snippets
+                        title_short = _highlight_keyword(title_short, active_keyword)
+                        summary_short = _highlight_keyword(summary_short, active_keyword)
+                        source = article.source_domain or article.source or ''
+                        pub_date = article.time_published.strftime('%b %d, %Y') if article.time_published else ''
+
+                        card_html = f'''
+                        <div class="news-search-result-card">
+                            <div class="news-search-result-title">{title_short}</div>
+                            <div class="news-search-result-snippet">{summary_short}</div>
+                            <div class="news-search-result-meta">
+                                <span>{source}</span>
+                                <span class="news-search-result-meta-dot"></span>
+                                <span>{pub_date}</span>
+                            </div>
+                        </div>
+                        '''
+                        st.markdown(card_html, unsafe_allow_html=True)
+                else:
+                    st.markdown(f'<div class="news-search-placeholder">No articles found matching "<b>{active_keyword}</b>"</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="news-search-placeholder">Type a keyword above to search across news headlines and summaries</div>', unsafe_allow_html=True)
+
+    # ── RIGHT COLUMN: News Cards ──
+    with right_col:
+        if articles:
+            for article in articles:
+                card_html = render_news_card(article, company_map, keyword=active_keyword)
+                st.markdown(card_html, unsafe_allow_html=True)
+        else:
+            st.info("No news articles found for the selected filters.")
 
 
 def main():

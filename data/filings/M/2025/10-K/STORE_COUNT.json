@@ -1,0 +1,12 @@
+{
+  "ticker": "M",
+  "fiscal_year": 2025,
+  "store_count": 680,
+  "store_type": "stores",
+  "as_of_date": null,
+  "source_sentence": "As of February 1, 2025, the Company operated 680 store locations in 43 states, the District of Columbia, Puerto Rico and Guam. The Company's operations ar",
+  "extraction_method": "edgartools+regex_only",
+  "confidence": 0.7,
+  "section": "part_i_item_1",
+  "notes": "Not LLM-verified"
+}

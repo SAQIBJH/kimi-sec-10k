@@ -74,7 +74,8 @@ class FiscalPeriod:
     """Fiscal period for column headers."""
     date: date
     label: str
-    
+    is_estimated: bool = False  # True for analyst-estimate / forecast columns
+
     @classmethod
     def from_date(cls, dt: date) -> "FiscalPeriod":
         """Create from date: '12 Months\nJan-29-2021'"""
@@ -310,6 +311,7 @@ class FilingMetricResult:
     value: Optional[str] = None  # raw text value (e.g. "P1Y" duration, text)
     source: Optional[str] = None  # 'xbrl' | 'calculated' | 'llm' | 'edgartools'
     calculation_note: Optional[str] = None  # raw formula string for calculated metrics
+    dimension: Optional[str] = None  # XBRL axis (e.g. 'srt:StatementGeographicalAxis')
 
     @property
     def formatted_value(self) -> str:
@@ -367,3 +369,17 @@ class FilingMetricResult:
         if self.is_dimensioned and self.dimension_label:
             return f"{self.original_label} [{self.dimension_label}]"
         return self.original_label
+
+    @property
+    def display_statement_type(self) -> str:
+        """Human-readable statement type, inferring segment category from dimension axis."""
+        d = self.dimension or ""
+        if "StatementGeographicalAxis" in d:
+            return "Geographic Segments"
+        if "StatementBusinessSegmentsAxis" in d:
+            return "Business Segments"
+        if "ProductOrServiceAxis" in d:
+            return "Product Segments"
+        if "ConsolidationItemsAxis" in d and self.is_dimensioned:
+            return "Business Segments"
+        return self.statement_type or "Financial Metric"

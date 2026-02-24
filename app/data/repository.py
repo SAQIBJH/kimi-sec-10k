@@ -266,6 +266,7 @@ class NewsRepository:
         date_to: Optional[date] = None,
         sector: Optional[str] = None,
         company_ticker: Optional[str] = None,
+        keyword: Optional[str] = None,
         limit: int = 100,
         offset: int = 0
     ) -> List[NewsArticle]:
@@ -277,30 +278,57 @@ class NewsRepository:
             date_to: End date filter  
             sector: Filter by company sector (primary_industry_coresight)
             company_ticker: Filter by specific company ticker
+            keyword: Keyword to search in title and summary
             limit: Maximum number of articles to return
             offset: Offset for pagination
         """
         # Build base query
-        query = """
-            SELECT 
-                id,
-                title,
-                summary,
-                url,
-                source_name as source,
-                source_domain,
-                time_published_utc as time_published,
-                time_published_raw,
-                overall_sentiment_score,
-                overall_sentiment_label,
-                banner_image,
-                ticker_sentiment_json,
-                topics_json,
-                category_within_source,
-                raw_json
-            FROM coreiq_av_market_news_sentiment
-            WHERE 1=1
-        """
+        has_keyword = keyword and keyword.strip()
+        
+        if has_keyword:
+            clean_keyword = keyword.strip()
+            query = """
+                SELECT 
+                    id,
+                    title,
+                    summary,
+                    url,
+                    source_name as source,
+                    source_domain,
+                    time_published_utc as time_published,
+                    time_published_raw,
+                    overall_sentiment_score,
+                    overall_sentiment_label,
+                    banner_image,
+                    ticker_sentiment_json,
+                    topics_json,
+                    category_within_source,
+                    raw_json,
+                    MATCH(title, summary) AGAINST(:keyword_rel IN NATURAL LANGUAGE MODE) as relevance
+                FROM coreiq_av_market_news_sentiment
+                WHERE 1=1
+            """
+        else:
+            query = """
+                SELECT 
+                    id,
+                    title,
+                    summary,
+                    url,
+                    source_name as source,
+                    source_domain,
+                    time_published_utc as time_published,
+                    time_published_raw,
+                    overall_sentiment_score,
+                    overall_sentiment_label,
+                    banner_image,
+                    ticker_sentiment_json,
+                    topics_json,
+                    category_within_source,
+                    raw_json
+                FROM coreiq_av_market_news_sentiment
+                WHERE 1=1
+            """
         params = {}
         
         # Add date filters
@@ -332,15 +360,83 @@ class NewsRepository:
             )"""
             params['company_ticker'] = company_ticker
         
-        # Order by publication date (newest first)
-        query += " ORDER BY time_published_utc DESC"
+        # FULLTEXT keyword search in title and summary (with LIKE fallback)
+        if has_keyword:
+            query += " AND MATCH(title, summary) AGAINST(:keyword IN NATURAL LANGUAGE MODE)"
+            params['keyword'] = clean_keyword
+            params['keyword_rel'] = clean_keyword
+        
+        # Order by relevance when searching, else by date
+        if has_keyword:
+            query += " ORDER BY relevance DESC"
+        else:
+            query += " ORDER BY time_published_utc DESC"
         
         # Add limit and offset
         query += " LIMIT :limit OFFSET :offset"
         params['limit'] = limit
         params['offset'] = offset
         
-        results = db_manager.execute_query(query, params)
+        # Execute with FULLTEXT; fallback to LIKE if 0 results or FULLTEXT not available
+        try:
+            results = db_manager.execute_query(query, params)
+        except Exception:
+            results = []
+        
+        if not results and has_keyword:
+            # Fallback: rebuild with LIKE for each word (ensures keyword match is never lost)
+            like_query = """
+                SELECT 
+                    id, title, summary, url,
+                    source_name as source, source_domain,
+                    time_published_utc as time_published,
+                    time_published_raw,
+                    overall_sentiment_score, overall_sentiment_label,
+                    banner_image, ticker_sentiment_json,
+                    topics_json, category_within_source, raw_json
+                FROM coreiq_av_market_news_sentiment
+                WHERE 1=1
+            """
+            like_params = {}
+            if date_from:
+                like_query += " AND DATE(time_published_utc) >= :date_from"
+                like_params['date_from'] = date_from
+            if date_to:
+                like_query += " AND DATE(time_published_utc) <= :date_to"
+                like_params['date_to'] = date_to
+            if sector:
+                like_query += """ AND EXISTS (
+                    SELECT 1 FROM coreiq_companies c 
+                    WHERE c.primary_industry_coresight = :sector
+                    AND (
+                        JSON_CONTAINS(ticker_sentiment_json, JSON_OBJECT('ticker', c.ticker))
+                        OR ticker_sentiment_json LIKE CONCAT('%"ticker": "', c.ticker, '"%')
+                    )
+                )"""
+                like_params['sector'] = sector
+            if company_ticker:
+                like_query += """ AND (
+                    JSON_CONTAINS(ticker_sentiment_json, JSON_OBJECT('ticker', :company_ticker))
+                    OR ticker_sentiment_json LIKE CONCAT('%"ticker": "', :company_ticker, '"%')
+                )"""
+                like_params['company_ticker'] = company_ticker
+            
+            # LIKE match: search each word individually with OR
+            words = clean_keyword.split()
+            like_clauses = []
+            for i, word in enumerate(words):
+                key = f'kw_{i}'
+                like_clauses.append(f"(LOWER(title) LIKE :{key} OR LOWER(summary) LIKE :{key})")
+                like_params[key] = f'%{word.lower()}%'
+            if like_clauses:
+                like_query += " AND (" + " OR ".join(like_clauses) + ")"
+            
+            like_query += " ORDER BY time_published_utc DESC"
+            like_query += " LIMIT :limit OFFSET :offset"
+            like_params['limit'] = limit
+            like_params['offset'] = offset
+            
+            results = db_manager.execute_query(like_query, like_params)
         
         articles = []
         for row in results:
@@ -377,30 +473,104 @@ class NewsRepository:
         return articles
     
     @staticmethod
-    def get_sectors() -> List[str]:
-        """Get distinct sectors (primary_industry_coresight) from companies table."""
+    def get_news_date_range() -> Dict[str, Any]:
+        """Get min and max time_published_utc from news table."""
         query = """
-            SELECT DISTINCT primary_industry_coresight as sector
-            FROM coreiq_companies
-            WHERE primary_industry_coresight IS NOT NULL
-              AND primary_industry_coresight != ''
-            ORDER BY primary_industry_coresight
+            SELECT 
+                MIN(DATE(time_published_utc)) as min_date,
+                MAX(DATE(time_published_utc)) as max_date
+            FROM coreiq_av_market_news_sentiment
+            WHERE time_published_utc IS NOT NULL
         """
         results = db_manager.execute_query(query)
+        if results and results[0]['min_date']:
+            return {
+                'min_date': results[0]['min_date'],
+                'max_date': results[0]['max_date']
+            }
+        return {'min_date': date.today() - timedelta(days=30), 'max_date': date.today()}
+
+    @staticmethod
+    def get_news_tickers(
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None
+    ) -> List[str]:
+        """Get distinct tickers from news articles within a date range."""
+        query = """
+            SELECT DISTINCT
+                JSON_UNQUOTE(JSON_EXTRACT(ts.val, '$.ticker')) as ticker
+            FROM coreiq_av_market_news_sentiment n,
+                 JSON_TABLE(n.ticker_sentiment_json, '$[*]' COLUMNS (val JSON PATH '$')) ts
+            WHERE 1=1
+        """
+        params = {}
+        if date_from:
+            query += " AND DATE(n.time_published_utc) >= :date_from"
+            params['date_from'] = date_from
+        if date_to:
+            query += " AND DATE(n.time_published_utc) <= :date_to"
+            params['date_to'] = date_to
+        
+        results = db_manager.execute_query(query, params)
+        return [row['ticker'] for row in results if row['ticker']]
+
+    @staticmethod
+    def get_sectors(
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None
+    ) -> List[str]:
+        """Get distinct sectors for companies that appear in news articles within date range."""
+        # First get tickers from news within date range
+        news_tickers = NewsRepository.get_news_tickers(date_from=date_from, date_to=date_to)
+        if not news_tickers:
+            return []
+        
+        # Build parameterized IN clause
+        placeholders = ', '.join([f':t{i}' for i in range(len(news_tickers))])
+        params = {f't{i}': t for i, t in enumerate(news_tickers)}
+        
+        query = f"""
+            SELECT DISTINCT c.primary_industry_coresight as sector
+            FROM coreiq_companies c
+            WHERE c.primary_industry_coresight IS NOT NULL
+              AND c.primary_industry_coresight != ''
+              AND c.ticker IN ({placeholders})
+            ORDER BY c.primary_industry_coresight
+        """
+        results = db_manager.execute_query(query, params)
         return [row['sector'] for row in results if row['sector']]
     
     @staticmethod
-    def get_companies() -> List[Dict[str, str]]:
-        """Get companies with ticker and name for dropdown."""
-        query = """
-            SELECT 
-                ticker,
-                COALESCE(name_coresight, name) as display_name
-            FROM coreiq_companies
-            WHERE ticker IS NOT NULL
-            ORDER BY display_name
+    def get_companies(
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        sector: Optional[str] = None
+    ) -> List[Dict[str, str]]:
+        """Get companies that appear in news articles within date range, filtered by sector."""
+        # First get tickers from news within date range
+        news_tickers = NewsRepository.get_news_tickers(date_from=date_from, date_to=date_to)
+        if not news_tickers:
+            return []
+        
+        # Build parameterized IN clause
+        placeholders = ', '.join([f':t{i}' for i in range(len(news_tickers))])
+        params = {f't{i}': t for i, t in enumerate(news_tickers)}
+        
+        query = f"""
+            SELECT DISTINCT
+                c.ticker,
+                COALESCE(c.name_coresight, c.name) as display_name
+            FROM coreiq_companies c
+            WHERE c.ticker IN ({placeholders})
         """
-        results = db_manager.execute_query(query)
+        
+        if sector:
+            query += " AND c.primary_industry_coresight = :sector"
+            params['sector'] = sector
+        
+        query += " ORDER BY display_name"
+        
+        results = db_manager.execute_query(query, params)
         return [
             {'ticker': row['ticker'], 'name': row['display_name']}
             for row in results
@@ -550,7 +720,7 @@ class EarningsCallRepository:
     
     @staticmethod
     def get_companies_with_earnings() -> List[Dict[str, str]]:
-        """Get only companies that have earnings call transcripts.
+        """Get only companies that have earnings call transcripts (with actual transcript text).
         
         Returns:
             List of dicts with 'ticker' and 'name' keys.
@@ -561,7 +731,8 @@ class EarningsCallRepository:
                 COALESCE(c.name_coresight, c.name) as display_name
             FROM coreiq_companies c
             INNER JOIN coreiq_av_earnings_call_transcripts e ON c.ticker = e.ticker
-            WHERE e.ticker IS NOT NULL
+            WHERE e.has_transcript = 1
+              AND e.transcript_text IS NOT NULL
             ORDER BY display_name
         """
         results = db_manager.execute_query(query)
@@ -571,10 +742,27 @@ class EarningsCallRepository:
         ]
     
     @staticmethod
+    def _parse_quarter_param(quarter) -> Optional[int]:
+        """Convert quarter param (int, str like 'Q1', or 'Q1') to integer 1-4."""
+        if quarter is None:
+            return None
+        if isinstance(quarter, int):
+            return quarter
+        # Handle string like "Q1", "Q2", etc.
+        q_str = str(quarter).strip().upper()
+        if q_str.startswith('Q') and len(q_str) == 2 and q_str[1].isdigit():
+            return int(q_str[1])
+        # Try direct int parse
+        try:
+            return int(q_str)
+        except (ValueError, TypeError):
+            return None
+
+    @staticmethod
     def get_earnings_calls(
         ticker: Optional[str] = None,
         year: Optional[int] = None,
-        quarter: Optional[int] = None,
+        quarter=None,
         has_transcript_only: bool = True,
         limit: int = 100
     ) -> List[EarningsCall]:
@@ -583,7 +771,7 @@ class EarningsCallRepository:
         Args:
             ticker: Filter by company ticker
             year: Filter by year
-            quarter: Filter by quarter (1-4)
+            quarter: Filter by quarter — accepts int (1-4) or str ('Q1'-'Q4')
             has_transcript_only: Only return calls with transcripts
             limit: Maximum number of results
             
@@ -613,12 +801,14 @@ class EarningsCallRepository:
             params['ticker'] = ticker
         
         if year:
+            # Handle string year from selectbox
+            params['year'] = int(year) if isinstance(year, str) else year
             query += " AND year = :year"
-            params['year'] = year
         
-        if quarter:
+        q_int = EarningsCallRepository._parse_quarter_param(quarter)
+        if q_int:
             query += " AND q = :quarter"
-            params['quarter'] = quarter
+            params['quarter'] = q_int
         
         if has_transcript_only:
             query += " AND has_transcript = 1"
@@ -688,11 +878,11 @@ class EarningsCallRepository:
         )
     
     @staticmethod
-    def get_available_years(ticker: Optional[str] = None) -> List[int]:
-        """Get distinct years available for earnings calls.
+    def get_available_years(ticker: str) -> List[int]:
+        """Get distinct years that have transcripts for a given company.
         
         Args:
-            ticker: Optional ticker to filter by
+            ticker: Company ticker (required)
             
         Returns:
             List of years (descending order)
@@ -701,48 +891,36 @@ class EarningsCallRepository:
             SELECT DISTINCT year 
             FROM coreiq_av_earnings_call_transcripts
             WHERE year IS NOT NULL
+              AND has_transcript = 1
+              AND ticker = :ticker
+            ORDER BY year DESC
         """
-        params = {}
-        
-        if ticker:
-            query += " AND ticker = :ticker"
-            params['ticker'] = ticker
-        
-        query += " ORDER BY year DESC"
-        
-        results = db_manager.execute_query(query, params)
+        results = db_manager.execute_query(query, {'ticker': ticker})
         return [row['year'] for row in results]
     
     @staticmethod
-    def get_available_quarters(ticker: Optional[str] = None, year: Optional[int] = None) -> List[int]:
-        """Get distinct quarters available.
+    def get_available_quarters(ticker: str, year) -> List[str]:
+        """Get distinct quarters that have transcripts for a company+year.
         
         Args:
-            ticker: Optional ticker to filter by
-            year: Optional year to filter by
+            ticker: Company ticker (required)
+            year: Year to filter by (required, accepts str or int)
             
         Returns:
-            List of quarters (1-4)
+            List of quarter strings like ['Q1', 'Q2', 'Q3', 'Q4'] (ascending)
         """
+        year_int = int(year) if isinstance(year, str) else year
         query = """
             SELECT DISTINCT q 
             FROM coreiq_av_earnings_call_transcripts
             WHERE q IS NOT NULL
+              AND has_transcript = 1
+              AND ticker = :ticker
+              AND year = :year
+            ORDER BY q
         """
-        params = {}
-        
-        if ticker:
-            query += " AND ticker = :ticker"
-            params['ticker'] = ticker
-        
-        if year:
-            query += " AND year = :year"
-            params['year'] = year
-        
-        query += " ORDER BY q"
-        
-        results = db_manager.execute_query(query, params)
-        return [row['q'] for row in results]
+        results = db_manager.execute_query(query, {'ticker': ticker, 'year': year_int})
+        return [f"Q{row['q']}" for row in results]
 
 
 class BalanceSheetRepository:
@@ -1466,7 +1644,86 @@ class KeyStatsRepository:
         # 10. Same Store Sales Growth % (not available in most data, will show NA or -)
         same_store_vals = [None] * len(results)
         line_items.append({"label": "Same Store Sales Growth %", "values": same_store_vals, "is_bold": True, "indent": 0, "has_grey_sep": True})
-        
+
+        # --- Append Next Fiscal Year Estimate column (E) ---
+        # Only show estimate if end_date equals the maximum available date in the income statement
+        max_date_query = """
+            SELECT MAX(fiscal_date_ending) AS max_date
+            FROM coreiq_av_financials_income_statement
+            WHERE ticker = :ticker
+              AND report_type = 'annual'
+        """
+        max_date_results = db_manager.execute_query(max_date_query, {"ticker": ticker})
+        max_available_date = max_date_results[0]["max_date"] if max_date_results else None
+        if max_available_date and hasattr(max_available_date, "date"):
+            max_available_date = max_available_date.date()
+
+        estimates = []
+        if max_available_date and end_date >= max_available_date:
+            estimates = KeyStatsRepository.get_estimated_data(ticker, end_date)
+
+        if estimates and line_items:
+            # Last actual revenue (millions) and EPS — used for growth calc of first E column
+            last_actual_rev_mm = None
+            for row in reversed(results):
+                if row["total_revenue"] is not None:
+                    last_actual_rev_mm = to_millions(safe_float_val(row["total_revenue"]))
+                    break
+
+            last_actual_eps = None
+            for eps in reversed(eps_vals):
+                if eps is not None:
+                    last_actual_eps = eps
+                    break
+
+            prev_est_rev_mm = last_actual_rev_mm
+            prev_est_eps = last_actual_eps
+
+            for est in estimates:
+                est_date = est["estimate_date"]
+                est_period = FiscalPeriod(
+                    date=est_date,
+                    label=f"12 Months\n{est_date.strftime('%b-%d-%Y')}",
+                    is_estimated=True,
+                )
+                periods.append(est_period)
+
+                est_rev_mm = est["rev_avg"] / 1_000_000 if est["rev_avg"] is not None else None
+                est_eps = est["eps_avg"]
+
+                # Growth vs previous period (actual or prior estimate)
+                if est_rev_mm is not None and prev_est_rev_mm is not None and prev_est_rev_mm != 0:
+                    rev_growth_est = ((est_rev_mm - prev_est_rev_mm) / abs(prev_est_rev_mm)) * 100
+                else:
+                    rev_growth_est = None
+
+                if est_eps is not None and prev_est_eps is not None and prev_est_eps != 0:
+                    eps_growth_est = ((est_eps - prev_est_eps) / abs(prev_est_eps)) * 100
+                else:
+                    eps_growth_est = None
+
+                # Append one value per line item for this E column
+                seen_revenue = False
+                seen_eps = False
+                for item in line_items:
+                    lbl = item["label"]
+                    is_bold_item = item.get("is_bold", False)
+                    if lbl == "Total Revenue" and is_bold_item:
+                        item["values"].append(est_rev_mm)
+                        seen_revenue = True
+                    elif lbl == "Growth Over Prior Year" and seen_revenue and not seen_eps:
+                        item["values"].append(rev_growth_est)
+                    elif lbl == "Diluted EPS Excl. Extra Items" and is_bold_item:
+                        item["values"].append(est_eps)
+                        seen_eps = True
+                    elif lbl == "Growth Over Prior Year" and seen_eps:
+                        item["values"].append(eps_growth_est)
+                    else:
+                        item["values"].append(None)
+
+                prev_est_rev_mm = est_rev_mm
+                prev_est_eps = est_eps
+
         return {
             "periods": periods,
             "line_items": line_items,
@@ -1480,6 +1737,36 @@ class KeyStatsRepository:
             "latest_pe": overview.get('pe_ratio')
         }
     
+    @staticmethod
+    def get_estimated_data(ticker: str, end_date: date) -> List[Dict[str, Any]]:
+        """Fetch ALL annual analyst estimates whose estimate_date > end_date.
+
+        Only fiscal-year horizons (not quarterly) — returns list, may be empty.
+        Each dict: estimate_date (date), rev_avg (float|None in USD), eps_avg (float|None).
+        """
+        query = """
+            SELECT estimate_date, eps_est_avg, rev_est_avg
+            FROM coreiq_av_financials_earnings_estimates
+            WHERE ticker = :ticker
+              AND estimate_date > :end_date
+              AND horizon IN ('historical fiscal year', 'next fiscal year')
+            ORDER BY estimate_date ASC
+        """
+        results = db_manager.execute_query(query, {"ticker": ticker, "end_date": end_date})
+        estimates = []
+        for row in results:
+            if row["eps_est_avg"] is None and row["rev_est_avg"] is None:
+                continue
+            est_date = row["estimate_date"]
+            if hasattr(est_date, "date"):
+                est_date = est_date.date()
+            estimates.append({
+                "estimate_date": est_date,
+                "eps_avg": float(row["eps_est_avg"]) if row["eps_est_avg"] is not None else None,
+                "rev_avg": float(row["rev_est_avg"]) if row["rev_est_avg"] is not None else None,
+            })
+        return estimates
+
     @staticmethod
     def get_reported_currency(ticker: str, fiscal_date: date) -> str:
         """Get the reported currency for a specific fiscal period."""
@@ -1991,6 +2278,18 @@ class FilingMetricRepository:
         "macy's":                    ["macys", "macy's first"],
         "bloomingdale":              ["bloomingdale's", "bloomingdales"],
         "net sales":                 ["total net sales", "total revenue", "revenue"],
+
+        # Store Counts (extracted by extract_store_counts.py, source='store_count')
+        "store":                     ["store count", "number of stores", "store locations"],
+        "stores":                    ["store count", "number of stores", "store locations"],
+        "store count":               ["store", "stores", "number of stores", "store locations"],
+        "number of stores":          ["store count", "stores", "store locations"],
+        "store locations":           ["store count", "stores", "number of stores"],
+        "locations":                 ["store count", "store locations", "number of stores"],
+        "warehouse":                 ["store count", "warehouses", "membership warehouses"],
+        "warehouses":                ["store count", "warehouse", "membership warehouses"],
+        "supermarket":               ["store count", "supermarkets"],
+        "supermarkets":              ["store count", "supermarket"],
     }
 
     @staticmethod
@@ -2038,7 +2337,7 @@ class FilingMetricRepository:
                    is_dimensioned, dimension_label, statement_type, ixbrl_id,
                    standard_concept, concept, balance, period_type,
                    period_start, period_end, period_instant,
-                   value, source, llm_query
+                   value, source, llm_query, dimension
             FROM filing_metrics
             WHERE ticker = :ticker
               AND fiscal_year = :fiscal_year
@@ -2093,6 +2392,7 @@ class FilingMetricRepository:
                 value=row["value"],
                 source=row.get("source"),
                 calculation_note=row.get("llm_query") if row.get("source") == "calculated" else None,
+                dimension=row.get("dimension"),
             )
             for row in results
         ]

@@ -139,11 +139,12 @@ def load_financial_ratios(conn, ticker, year, doc_type, path):
 def process(conn, ticker, year, doc_type, doc_dir):
     total = 0
     print(f"\n  [{ticker} {year} {doc_type}]")
-    bs = doc_dir / "BUSINESS_SEGMENTS.json"
-    gs = doc_dir / "GEOGRAPHIC_SEGMENTS.json"
+    # NOTE: Business Segments and Geographic Segments are intentionally skipped.
+    # All segment data (with ixbrl_id / html_location) is already loaded from
+    # FINAL_FACTS_FILTERED.json in Step 2 (load_filings_to_db.py).
+    # Loading them again from separate JSON files would create duplicate rows
+    # WITHOUT ixbrl_id, breaking the "View in Document" feature.
     fr = doc_dir / "FINANCIAL_RATIOS.json"
-    if bs.exists(): total += load_segments(conn, ticker, year, doc_type, bs, "Business Segments")
-    if gs.exists(): total += load_segments(conn, ticker, year, doc_type, gs, "Geographic Segments")
     if fr.exists(): total += load_financial_ratios(conn, ticker, year, doc_type, fr)
     if total == 0:
         print("    (nothing to load)")

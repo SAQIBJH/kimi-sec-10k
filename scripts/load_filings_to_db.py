@@ -98,6 +98,11 @@ def load_filing(conn, ticker: str, year: str, doc_type: str, json_path: str):
         print(f"  SKIP {ticker}/{year}/{doc_type} — empty JSON")
         return 0
 
+    # Skip calculated entries — they are appended to the JSON by calculate_derived_metrics.py
+    # and will be re-inserted by that script with source='calculated'. Loading them here
+    # would create duplicates with source='xbrl' (DB default) and no ixbrl_id.
+    records = [r for r in records if r.get("source") != "calculated"]
+
     year_int = int(year)
     rows = [record_to_row(r, ticker, year_int, doc_type) for r in records]
 

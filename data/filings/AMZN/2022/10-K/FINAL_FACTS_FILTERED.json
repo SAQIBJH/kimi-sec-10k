@@ -90267,10 +90267,10 @@
   {
     "concept": "CapIQ_GrossMarginPct",
     "context_ref": null,
-    "value": "40.99",
+    "value": "0.0",
     "unit_ref": "percent",
     "decimals": "-6",
-    "numeric_value": 40.99,
+    "numeric_value": 0.0,
     "period_type": "duration",
     "period_start": null,
     "period_end": null,
@@ -90297,7 +90297,7 @@
     "html_location": null,
     "source": "calculated",
     "llm_query": null,
-    "calculation_note": "Gross margin (114,986,000,000) / Net sales (280,522,000,000) \u00d7 100"
+    "calculation_note": "Gross margin (41) / Net sales (280,522,000,000) \u00d7 100"
   },
   {
     "concept": "CapIQ_OperatingMarginPct",

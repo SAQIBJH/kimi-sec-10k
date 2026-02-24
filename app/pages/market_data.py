@@ -1447,8 +1447,37 @@ def render_page():
             
             if data["periods"] and data["line_items"]:
                 # Build table HTML - SAME STRUCTURE AS INCOME STATEMENT
-                html = '<div class="table-container"><div class="table-scroll"><table class="data-table"><thead>'
-                
+                # Inject CSS for A/E badges and estimated column
+                est_css = """
+                <style>
+                .actual-badge {
+                    font-size: 9px; font-weight: 700; color: #888888;
+                    vertical-align: super; margin-left: 1px; letter-spacing: 0;
+                }
+                .estimate-badge {
+                    font-size: 9px; font-weight: 700; color: #0066CC;
+                    vertical-align: super; margin-left: 1px; letter-spacing: 0;
+                }
+                th.est-col {
+                    background: rgba(0, 102, 204, 0.04) !important;
+                    border-left: 2px solid rgba(0, 102, 204, 0.18) !important;
+                }
+                td.est-cell {
+                    background: rgba(0, 102, 204, 0.03);
+                    border-left: 2px solid rgba(0, 102, 204, 0.18);
+                    color: #0066CC;
+                    font-style: italic;
+                }
+                td.est-cell-dash {
+                    background: rgba(0, 102, 204, 0.03);
+                    border-left: 2px solid rgba(0, 102, 204, 0.18);
+                    color: #AAAAAA;
+                    font-style: italic;
+                }
+                </style>
+                """
+                html = est_css + '<div class="table-container"><div class="table-scroll"><table class="data-table"><thead>'
+
                 # Header row - with grey separator
                 html += f'<tr class="row-grey-separator"><th>For Fiscal Period Ending<span class="header-subtext">{units_label} of USD, except per share items.</span></th>'
                 for period in data["periods"]:
@@ -1459,10 +1488,23 @@ def render_page():
                     else:
                         period_text = ""
                         date_text = period.label
-                    
-                    html += f'<th class="data-col"><span class="period-label">{period_text}</span><span class="period-date">{date_text}</span></th>'
+
+                    if period.is_estimated:
+                        html += (
+                            f'<th class="data-col est-col">'
+                            f'<span class="period-label">{period_text}</span>'
+                            f'<span class="period-date">{date_text}'
+                            f'<sup class="estimate-badge">E</sup></span></th>'
+                        )
+                    else:
+                        html += (
+                            f'<th class="data-col">'
+                            f'<span class="period-label">{period_text}</span>'
+                            f'<span class="period-date">{date_text}'
+                            f'<sup class="actual-badge">A</sup></span></th>'
+                        )
                 html += '</tr></thead><tbody>'
-                
+
                 # Data rows with currency conversion applied
                 for i, item in enumerate(data["line_items"]):
                     label = item["label"]
@@ -1496,8 +1538,13 @@ def render_page():
                     
                     # Data columns with converted values
                     for col_idx, val in enumerate(values):
-                        # Determine per-column rate for historical mode
-                        if historical_rate_map and col_idx < len(data["periods"]):
+                        col_is_estimated = (
+                            col_idx < len(data["periods"])
+                            and data["periods"][col_idx].is_estimated
+                        )
+
+                        # Determine per-column rate (estimated col uses current rate, not historical)
+                        if not col_is_estimated and historical_rate_map and col_idx < len(data["periods"]):
                             period_date = data["periods"][col_idx].date
                             col_rate = historical_rate_map.get(period_date, conversion_rate)
                         else:
@@ -1506,19 +1553,18 @@ def render_page():
                         if is_text:
                             formatted = str(val) if val is not None else "-"
                         elif is_percent:
-                            if val is not None:
-                                formatted = f"{val:.2f}%"
-                            else:
-                                formatted = "-"
+                            formatted = f"{val:.2f}%" if val is not None else "-"
                         elif label == "Diluted EPS Excl. Extra Items":
-                            if val is not None:
-                                formatted = f"{val:.2f}"
-                            else:
-                                formatted = "-"
+                            formatted = f"{val:.2f}" if val is not None else "-"
                         else:
                             formatted = format_value(val, col_rate, units_scale)
-                        html += f'<td class="data-cell">{formatted}</td>'
-                    
+
+                        if col_is_estimated:
+                            cell_class = "data-cell est-cell" if val is not None else "data-cell est-cell-dash"
+                        else:
+                            cell_class = "data-cell"
+                        html += f'<td class="{cell_class}">{formatted}</td>'
+
                     html += '</tr>'
                 
                 html += '</tbody></table></div></div>'
