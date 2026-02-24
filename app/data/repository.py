@@ -2338,13 +2338,27 @@ class FilingMetricRepository:
                    standard_concept, concept, balance, period_type,
                    period_start, period_end, period_instant,
                    value, source, llm_query, dimension
-            FROM filing_metrics
-            WHERE ticker = :ticker
-              AND fiscal_year = :fiscal_year
-              AND doc_type = :doc_type
-              AND ({where_synonyms})
-              AND (standard_concept IS NULL OR standard_concept NOT LIKE '%Text Block')
-              AND numeric_value IS NOT NULL
+            FROM (
+                SELECT original_label, numeric_value, unit_ref, fiscal_year,
+                       is_dimensioned, dimension_label, statement_type, ixbrl_id,
+                       standard_concept, concept, balance, period_type,
+                       period_start, period_end, period_instant,
+                       value, source, llm_query, dimension,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY original_label,
+                                        COALESCE(dimension, ''),
+                                        COALESCE(dimension_label, '')
+                           ORDER BY COALESCE(period_end, period_instant) DESC
+                       ) AS rn
+                FROM filing_metrics
+                WHERE ticker = :ticker
+                  AND fiscal_year = :fiscal_year
+                  AND doc_type = :doc_type
+                  AND ({where_synonyms})
+                  AND (standard_concept IS NULL OR standard_concept NOT LIKE '%Text Block')
+                  AND numeric_value IS NOT NULL
+            ) deduped
+            WHERE rn = 1
             ORDER BY CASE LOWER(original_label)
                        WHEN 'net sales'               THEN 0
                        WHEN 'total net sales'          THEN 0
@@ -2367,6 +2381,7 @@ class FilingMetricRepository:
                        ELSE 10
                      END ASC,
                      is_dimensioned ASC,
+                     dimension_label ASC,
                      CHAR_LENGTH(original_label) ASC, original_label ASC
             LIMIT :limit
         """

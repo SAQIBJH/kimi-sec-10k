@@ -140,11 +140,12 @@ def get_earnings_css() -> str:
         width: 90%;
         background: #FFFFFF;
         border: 1px solid #E5E5E5;
-        border-radius: 8px;
+        border-radius: 12px;
         overflow: hidden;
         margin-top: 32px;
         margin-left: auto;
         margin-right: auto;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
     }
     
     /* Card Header */
@@ -316,11 +317,12 @@ def get_earnings_css() -> str:
     .transcript-search-sidebar {
         background: #FFFFFF;
         border: 1px solid #E5E5E5;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 16px;
         height: calc(100vh - 340px);
         min-height: 480px;
         overflow-y: auto;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
     }
     .transcript-search-sidebar::-webkit-scrollbar {
         width: 6px;
@@ -359,11 +361,12 @@ def get_earnings_css() -> str:
     .transcript-search-result-card {
         background: #FFFFFF;
         border: 1px solid #E5E5E5;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 12px;
         margin-bottom: 10px;
         cursor: pointer;
         transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
     }
     .transcript-search-result-card:hover {
         border-color: #CBCACA;
