@@ -817,7 +817,7 @@ def main():
                     fiscal_year=int(year),
                     doc_type=doc_type_dir,
                     query=search_term,
-                    limit=20,
+                    limit=50,
                 )
             except Exception as e:
                 logger.error(f"[SEARCH] DB search error: {e}", exc_info=True)
