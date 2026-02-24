@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "ieffb4ca72d6b4c96b291807b962bcd0a_D20220101-20221231",
+    "value": "388000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "mdlz:LatinAmericaSegmentMember",
+    "dimension_label": "LatinAmerica",
+    "segment_name": "LatinAmerica",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "i965956cea2b64c2284cf9882d46cf91c_D20220101-20221231",
+    "value": "929000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "mdlz:AsiaMiddleEastAndAfricaSegmentMember",
+    "dimension_label": "AsiaMiddleEastAndAfrica",
+    "segment_name": "AsiaMiddleEastAndAfrica",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "i7aae7af43ae3484687682ddbe7a28b6f_D20220101-20221231",
+    "value": "1481000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "mdlz:EuropeSegmentMember",
+    "dimension_label": "Europe",
+    "segment_name": "Europe",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "i6fd79aa1f98743fb911e3b11c588a571_D20220101-20221231",
+    "value": "1769000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "mdlz:NorthAmericaSegmentMember",
+    "dimension_label": "North America",
+    "segment_name": "North America",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  }
+]

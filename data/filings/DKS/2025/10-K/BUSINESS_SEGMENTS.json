@@ -1,0 +1,16 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-181",
+    "value": "12984399000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "dks:ReportableSegmentMember",
+    "dimension_label": "Reportable",
+    "segment_name": "Reportable",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

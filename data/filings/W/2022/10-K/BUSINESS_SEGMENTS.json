@@ -1,0 +1,30 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i1cbf2794794349b2a727fcff8615dbec_D20210101-20211231",
+    "value": "11249000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "w:USSegmentMember",
+    "dimension_label": "US",
+    "segment_name": "US",
+    "metric_type": "Revenue",
+    "original_label": "Net revenue",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "ib7822c5a1bc3435e9d35963d2963cc21_D20210101-20211231",
+    "value": "2459000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "w:InternationalSegmentMember",
+    "dimension_label": "International",
+    "segment_name": "International",
+    "metric_type": "Revenue",
+    "original_label": "Net revenue",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-6"
+  }
+]

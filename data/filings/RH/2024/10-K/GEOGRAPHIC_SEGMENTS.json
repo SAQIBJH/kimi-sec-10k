@@ -1,0 +1,16 @@
+[
+  {
+    "concept": "us-gaap:NoncurrentAssets",
+    "context_ref": "As_Of_2_3_2024_srt_StatementGeographicalAxis_rh_AllOtherCountriesMember_G5tZrwjCMUWAypV7Zl7EFQ",
+    "value": "313134000",
+    "dimension": "srt:StatementGeographicalAxis",
+    "member": "rh:AllOtherCountriesMember",
+    "dimension_label": "Other Countries",
+    "segment_name": "Other Countries",
+    "metric_type": "Assets",
+    "original_label": "Total",
+    "standard_concept": "NoncurrentAssets",
+    "unit": "Unit_Standard_USD_Uxh1ohR10ESiwaR7qilegQ",
+    "decimals": "-3"
+  }
+]

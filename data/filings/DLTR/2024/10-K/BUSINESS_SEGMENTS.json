@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-138",
+    "value": "15405700000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "DollarTree",
+    "segment_name": "DollarTree",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-5"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-138",
+    "value": "2536000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "DollarTree",
+    "segment_name": "DollarTree",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income (loss)",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-5"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-141",
+    "value": "12912500000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "FamilyDollar",
+    "segment_name": "FamilyDollar",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-5"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-141",
+    "value": "127500000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "FamilyDollar",
+    "segment_name": "FamilyDollar",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income (loss)",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-5"
+  }
+]

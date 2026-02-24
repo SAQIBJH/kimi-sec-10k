@@ -9,6 +9,8 @@ from typing import List, Optional, Tuple
 from dataclasses import dataclass
 
 from components.styles import hide_sidebar, set_page_layout
+from core.auth_manager import require_auth
+require_auth()
 hide_sidebar()
 
 from components.styles import render_styles, COLORS, TYPOGRAPHY, SPACING

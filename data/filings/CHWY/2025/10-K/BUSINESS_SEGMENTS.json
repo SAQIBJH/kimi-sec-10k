@@ -1,0 +1,16 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-144",
+    "value": "11147720000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "chwy:ReportableSegmentMember",
+    "dimension_label": "Reportable",
+    "segment_name": "Reportable",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

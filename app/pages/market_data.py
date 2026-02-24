@@ -12,6 +12,8 @@ from components.navigation import render_header, render_coresight_footer
 from components.toolbar import render_tabs
 from components.companyProfile import render_company_profile_content, get_company_css
 from components.navigation import render_company_header
+from core.auth_manager import require_auth
+require_auth()
 
 hide_sidebar()
 from data.repository import CompanyOverviewRepository, CompanyRepository, IncomeStatementRepository, BalanceSheetRepository, KeyStatsRepository,ForexRepository
@@ -439,7 +441,7 @@ def render_stock_quote(ticker: str) -> None:
         border: 1px solid #CBCACA;
         border-top: none;
         border-radius: 0 0 12px 12px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.10), 0 1px 4px rgba(0, 0, 0, 0.06);
         overflow: hidden;
     }
     .sq-table {
@@ -930,7 +932,7 @@ def render_page():
         overflow: hidden;
         background: var(--white);
         margin-bottom: 30px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.10), 0 1px 4px rgba(0, 0, 0, 0.06);
     }
     
     .table-scroll {

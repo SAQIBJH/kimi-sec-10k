@@ -1,0 +1,44 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-230",
+    "value": "6817454000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "Americas",
+    "segment_name": "Americas",
+    "metric_type": "Revenue",
+    "original_label": "Net revenue",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-233",
+    "value": "576503000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "ChinaMainlands",
+    "segment_name": "ChinaMainlands",
+    "metric_type": "Revenue",
+    "original_label": "Net revenue",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-236",
+    "value": "716561000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "OtherCountry",
+    "segment_name": "OtherCountry",
+    "metric_type": "Revenue",
+    "original_label": "Net revenue",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-199",
+    "value": "652943000",
+    "dimension": "srt:StatementGeographicalAxis",
+    "member": "srt:NorthAmericaMember",
+    "dimension_label": "CrocsBrand",
+    "segment_name": "CrocsBrand",
+    "metric_type": "Revenue",
+    "original_label": "Revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-226",
+    "value": "566937000",
+    "dimension": "us-gaap:ContractWithCustomerSalesChannelAxis",
+    "member": "crox:SalesChannelThroughIntermediaryWholesaleMember",
+    "dimension_label": "HEYDUDEBrand",
+    "segment_name": "HEYDUDEBrand",
+    "metric_type": "Revenue",
+    "original_label": "Revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-278",
+    "value": "1079330000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "CrocsBrand",
+    "segment_name": "CrocsBrand",
+    "metric_type": "Operating Income",
+    "original_label": "Income from operations",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-281",
+    "value": "212386000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "HEYDUDEBrand",
+    "segment_name": "HEYDUDEBrand",
+    "metric_type": "Operating Income",
+    "original_label": "Income from operations",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

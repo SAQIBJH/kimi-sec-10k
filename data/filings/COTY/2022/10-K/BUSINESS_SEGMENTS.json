@@ -1,0 +1,72 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i3f4bd503466d4a1fa2f063b271738d12_D20210701-20220630",
+    "value": "3267900000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "Prestige",
+    "segment_name": "Prestige",
+    "metric_type": "Revenue",
+    "original_label": "Net revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-5"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "i3f4bd503466d4a1fa2f063b271738d12_D20210701-20220630",
+    "value": "367200000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "Prestige",
+    "segment_name": "Prestige",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income (loss)",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-5"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i5e2aac3cf9344c5a8cb7d2b0eca02bbd_D20210701-20220630",
+    "value": "2036500000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "ConsumerBeauty",
+    "segment_name": "ConsumerBeauty",
+    "metric_type": "Revenue",
+    "original_label": "Net revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-5"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "i5e2aac3cf9344c5a8cb7d2b0eca02bbd_D20210701-20220630",
+    "value": "9500000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "ConsumerBeauty",
+    "segment_name": "ConsumerBeauty",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income (loss)",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-5"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "ifd22889aa7c94f37b62425a68e8b5c23_D20210701-20220630",
+    "value": "-135800000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "Corporate",
+    "segment_name": "Corporate",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income (loss)",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-5"
+  }
+]

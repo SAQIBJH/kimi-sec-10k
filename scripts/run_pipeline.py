@@ -4,8 +4,8 @@
   SEC Filing Data Pipeline — Unified Runner
 ═══════════════════════════════════════════════════════════════════════
 
-Runs the full 6-step SEC filing pipeline in the correct order for any
-company and any year.  Instead of running 6 separate scripts, just run:
+Runs the full 7-step SEC filing pipeline in the correct order for any
+company and any year.  Instead of running 7 separate scripts, just run:
 
     python scripts/run_pipeline.py AAPL 2024
     python scripts/run_pipeline.py AMZN 2025
@@ -20,10 +20,11 @@ Steps executed in order:
   Step 4: Cache 10-K section text            (enrich_from_edgartools.py)
   Step 5: Calculate derived metrics          (calculate_derived_metrics.py)
   Step 6: Extract store counts               (extract_store_counts.py)
+  Step 7: Extract credit ratings             (extract_credit_ratings.py)
 
 You can also run individual steps:
     python scripts/run_pipeline.py AAPL 2024 --step 1      # only Step 1
-    python scripts/run_pipeline.py AAPL 2024 --from-step 3  # steps 3-6 only
+    python scripts/run_pipeline.py AAPL 2024 --from-step 3  # steps 3-7 only
     python scripts/run_pipeline.py AAPL 2024 --skip-step 4  # skip Step 4
 
 ═══════════════════════════════════════════════════════════════════════
@@ -62,7 +63,7 @@ def banner(text: str, char: str = "═", width: int = 60):
 def step_header(step_num: int, title: str, ticker: str, year: int):
     """Print a step header."""
     print(f"\n{'─' * 60}")
-    print(f"  Step {step_num}/6: {title}")
+    print(f"  Step {step_num}/7: {title}")
     print(f"  Ticker: {ticker}  |  Year: {year}")
     print(f"{'─' * 60}")
 
@@ -306,6 +307,49 @@ def run_step_6(ticker: str, year: int, form: str, force: bool = False):
 
 
 # ══════════════════════════════════════════════════════════════════════
+#  STEP 7: Extract Credit Ratings (EdgarTools → Regex → LLM → DB)
+# ══════════════════════════════════════════════════════════════════════
+
+def run_step_7(ticker: str, year: int, form: str, force: bool = False):
+    """
+    Extract credit ratings from 10-K sections.
+    Uses EdgarTools section text → enhanced regex → LLM verification.
+    Inserts into filing_metrics with source='credit_rating'.
+    """
+    step_header(7, "Extract Credit Ratings", ticker, year)
+    start = time.time()
+
+    from scripts.extract_credit_ratings import process_filing, get_engine, insert_credit_rating_to_db
+
+    result = process_filing(ticker, year, form, use_llm=True, force=force)
+
+    if result and result.get("ratings"):
+        # Insert into DB
+        engine = get_engine()
+        try:
+            with engine.begin() as conn:
+                insert_credit_rating_to_db(
+                    conn=conn,
+                    ticker=ticker,
+                    fiscal_year=year,
+                    doc_type=form,
+                    ratings=result["ratings"],
+                    investment_grade=result.get("investment_grade"),
+                    confidence=result["confidence"],
+                    extraction_method=result["extraction_method"],
+                    notes=result.get("notes", ""),
+                )
+                n = len(result["ratings"])
+                print(f"    💾 Saved {n} rating(s) to DB (source='credit_rating')")
+        except Exception as db_err:
+            print(f"    ⚠️  DB insert failed: {db_err}")
+            print(f"    (CREDIT_RATING.json was still saved locally)")
+
+    print(f"\n  ✅ Step 7 completed in {elapsed(start)}")
+    return True
+
+
+# ══════════════════════════════════════════════════════════════════════
 #  MAIN PIPELINE RUNNER
 # ══════════════════════════════════════════════════════════════════════
 
@@ -316,6 +360,7 @@ STEPS = {
     4: ("Cache Section Text",       run_step_4),
     5: ("Calculate Derived Metrics", run_step_5),
     6: ("Extract Store Counts",     run_step_6),
+    7: ("Extract Credit Ratings",   run_step_7),
 }
 
 
@@ -337,7 +382,7 @@ def run_pipeline(
     if only_step:
         steps_to_run = [only_step]
     else:
-        steps_to_run = [s for s in range(from_step, 7) if s not in skip_steps]
+        steps_to_run = [s for s in range(from_step, 8) if s not in skip_steps]
 
     banner(f"SEC Filing Pipeline — {ticker}", "═")
     print(f"  Years: {', '.join(map(str, years))}")
@@ -357,7 +402,7 @@ def run_pipeline(
             try:
                 if step_num == 1:
                     ok = step_fn(ticker, year, form, skip_existing=skip_existing)
-                elif step_num in (4, 6):
+                elif step_num in (4, 6, 7):
                     ok = step_fn(ticker, year, form, force=force_cache)
                 else:
                     ok = step_fn(ticker, year, form)
@@ -407,6 +452,7 @@ def run_pipeline(
     print(f"         ├── FINANCIAL_RATIOS.json")
     print(f"         ├── SECTION_CACHE.json")
     print(f"         ├── STORE_COUNT.json")
+    print(f"         ├── CREDIT_RATING.json")
     print(f"         └── filing.html")
 
     if failed == 0:

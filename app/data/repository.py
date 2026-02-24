@@ -2290,6 +2290,17 @@ class FilingMetricRepository:
         "warehouses":                ["store count", "warehouse", "membership warehouses"],
         "supermarket":               ["store count", "supermarkets"],
         "supermarkets":              ["store count", "supermarket"],
+
+        # Credit Ratings (extracted by extract_credit_ratings.py, source='credit_rating')
+        "credit rating":             ["credit ratings", "debt rating", "bond rating", "s&p rating"],
+        "credit ratings":            ["credit rating", "debt rating", "bond rating"],
+        "debt rating":               ["credit rating", "bond rating", "credit ratings"],
+        "bond rating":               ["credit rating", "debt rating", "credit ratings"],
+        "investment grade":          ["credit rating", "bbb", "baa"],
+        "s&p rating":                ["credit rating", "credit ratings", "debt rating"],
+        "moody's rating":            ["credit rating", "credit ratings", "debt rating"],
+        "fitch rating":              ["credit rating", "credit ratings"],
+        "rating":                    ["credit rating", "credit ratings", "debt rating"],
     }
 
     @staticmethod
@@ -2408,6 +2419,7 @@ class FilingMetricRepository:
                 source=row.get("source"),
                 calculation_note=row.get("llm_query") if row.get("source") == "calculated" else None,
                 dimension=row.get("dimension"),
+                llm_query=row.get("llm_query") if row.get("source") in ("store_count", "credit_rating") else None,
             )
             for row in results
         ]

@@ -1,0 +1,30 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-204",
+    "value": "7429000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "bbwi:ReportableSegmentMember",
+    "dimension_label": "Reportable",
+    "segment_name": "Reportable",
+    "metric_type": "Revenue",
+    "original_label": "Net Sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-204",
+    "value": "1285000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "bbwi:ReportableSegmentMember",
+    "dimension_label": "Reportable",
+    "segment_name": "Reportable",
+    "metric_type": "Operating Income",
+    "original_label": "Operating Income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  }
+]

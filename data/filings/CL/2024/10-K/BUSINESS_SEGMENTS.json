@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-420",
+    "value": "3925000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "OralPersonalAndHomeCare",
+    "segment_name": "OralPersonalAndHomeCare",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-420",
+    "value": "892000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "OralPersonalAndHomeCare",
+    "segment_name": "OralPersonalAndHomeCare",
+    "metric_type": "Operating Income",
+    "original_label": "Operating profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-438",
+    "value": "4290000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "PetNutrition",
+    "segment_name": "PetNutrition",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-438",
+    "value": "806000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "PetNutrition",
+    "segment_name": "PetNutrition",
+    "metric_type": "Operating Income",
+    "original_label": "Operating profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  }
+]

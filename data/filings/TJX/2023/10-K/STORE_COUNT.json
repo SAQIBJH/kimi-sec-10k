@@ -1,0 +1,12 @@
+{
+  "ticker": "TJX",
+  "fiscal_year": 2023,
+  "store_count": 2482,
+  "store_type": "stores",
+  "as_of_date": null,
+  "source_sentence": "States (“Marmaxx”) are collectively the largest off-price retailer in the United States with a total of 2,482 stores. We founded T.J. Maxx in 1976 and acquired Marshalls in 1995. Both chains sell family apparel (incl",
+  "extraction_method": "edgartools+regex_only",
+  "confidence": 0.7,
+  "section": "part_i_item_1",
+  "notes": "Not LLM-verified"
+}

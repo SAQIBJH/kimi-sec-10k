@@ -1,0 +1,30 @@
+[
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "Duration_2_2_2020_To_1_30_2021_srt_ConsolidationItemsAxis_us-gaap_OperatingSegmentsMember_us-gaap_StatementBusinessSegmentsAxis_rh_WaterworksSegmentMember_NrMs4pLMwUWqN0aro05zMw",
+    "value": "4019000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "Waterworks",
+    "segment_name": "Waterworks",
+    "metric_type": "Operating Income",
+    "original_label": "Income from operations",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "Unit_Standard_USD_ksuY3MjRH0ClfOA1j4zJYg",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "Duration_2_2_2020_To_1_30_2021_srt_ConsolidationItemsAxis_us-gaap_OperatingSegmentsMember_us-gaap_StatementBusinessSegmentsAxis_rh_RHSegmentMember_o1MHXsOOeE6WPL8v6UxTHQ",
+    "value": "616523000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "RH",
+    "segment_name": "RH",
+    "metric_type": "Operating Income",
+    "original_label": "Income from operations",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "Unit_Standard_USD_ksuY3MjRH0ClfOA1j4zJYg",
+    "decimals": "-3"
+  }
+]

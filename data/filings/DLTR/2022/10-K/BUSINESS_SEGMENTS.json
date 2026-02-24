@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "ifeaad2d9ead748ce832877fcee9b4e71_D20200202-20210130",
+    "value": "13265000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "DollarTree",
+    "segment_name": "DollarTree",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-5"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "ifeaad2d9ead748ce832877fcee9b4e71_D20200202-20210130",
+    "value": "1598000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "DollarTree",
+    "segment_name": "DollarTree",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-5"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i80428d0f4794448e92c9fd1126ad58a6_D20200202-20210130",
+    "value": "12243400000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "FamilyDollar",
+    "segment_name": "FamilyDollar",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-5"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "i80428d0f4794448e92c9fd1126ad58a6_D20200202-20210130",
+    "value": "655600000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "FamilyDollar",
+    "segment_name": "FamilyDollar",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-5"
+  }
+]

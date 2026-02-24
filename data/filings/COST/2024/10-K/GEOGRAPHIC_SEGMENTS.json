@@ -1,0 +1,16 @@
+[
+  {
+    "concept": "us-gaap:Assets",
+    "context_ref": "c-89",
+    "value": "48816000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "United States",
+    "segment_name": "United States",
+    "metric_type": "Assets",
+    "original_label": "Total assets",
+    "standard_concept": "Assets",
+    "unit": "usd",
+    "decimals": "-6"
+  }
+]

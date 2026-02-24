@@ -5,6 +5,7 @@ SEC filing documents viewer with metric search and document display.
 Matches Figma design with Streamlit native components + custom styling.
 """
 import os
+import json
 import logging
 import streamlit as st
 from typing import List, Dict, Optional
@@ -13,6 +14,8 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 from components.styles import hide_sidebar, set_page_layout
+from core.auth_manager import require_auth
+require_auth()
 hide_sidebar()
 
 from components.styles import render_styles
@@ -23,17 +26,27 @@ from components.navigation import render_header, render_coresight_footer
 # =============================================================================
 FILINGS_BASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "filings")
 
-# Map of ticker -> company name (extend as companies are added)
-COMPANY_NAMES = {
-    "AAPL": "Apple Inc.",
-    "AMZN": "Amazon.com Inc.",
-    "GOOGL": "Alphabet Inc.",
-    "MSFT": "Microsoft Corp.",
-    "META": "Meta Platforms Inc.",
-    "TSLA": "Tesla Inc.",
-    "NVDA": "NVIDIA Corp.",
-    "M": "Macy's Inc.",
-}
+# ── DB-based company names (replaces hardcoded dict) ─────────────────────────
+def _load_company_names_from_db():
+    """Load ticker→display_name map from coreiq_companies for all DB companies."""
+    try:
+        from data.repository import FilingMetricRepository
+        repo = FilingMetricRepository()
+        with repo.engine.connect() as conn:
+            from sqlalchemy import text
+            rows = conn.execute(text("""
+                SELECT c.ticker, COALESCE(c.name_coresight, c.name) AS display_name
+                FROM coreiq_companies c
+                WHERE c.ticker IS NOT NULL AND c.ticker != ''
+                ORDER BY c.ticker
+            """)).fetchall()
+            return {row[0].strip(): row[1] for row in rows if row[0].strip()}
+    except Exception as e:
+        logger.warning(f"[DB] Failed to load company names: {e}")
+        return {"AAPL": "Apple Inc.", "AMZN": "Amazon.com Inc.", "M": "Macy's Inc."}
+
+COMPANY_NAMES = _load_company_names_from_db()
+logger.info(f"[INIT] Loaded {len(COMPANY_NAMES)} company names from DB")
 
 # Map directory names to display names for document types
 # Map directory names to display names (handles both old "10K" and new "10-K" folders)
@@ -137,18 +150,61 @@ class FilingDocument:
 # MOCK DATA (Replace with database calls)
 # =============================================================================
 
-# Dynamic companies list from scanned filings
-COMPANIES = [(t, COMPANY_NAMES.get(t, t)) for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc.")]
-
-# DB Search via repository
+# ── DB-based company/year/doctype lists (replaces folder scan) ────────────────
 from data.repository import FilingMetricRepository
 
-# Dynamic document types from scanned filings (collect all unique types)
-_all_doc_types = set()
-for _years in FILINGS_DATA.values():
-    for _docs in _years.values():
-        _all_doc_types.update(_docs.keys())
-DOCUMENT_TYPES = sorted(_all_doc_types) if _all_doc_types else ["10-K"]
+def _load_companies_from_db():
+    """Get (ticker, display_name) for companies that have data in filing_metrics."""
+    try:
+        repo = FilingMetricRepository()
+        with repo.engine.connect() as conn:
+            from sqlalchemy import text
+            rows = conn.execute(text("""
+                SELECT DISTINCT fm.ticker
+                FROM filing_metrics fm
+                ORDER BY fm.ticker
+            """)).fetchall()
+            tickers = [row[0] for row in rows if row[0]]
+            return [(t, COMPANY_NAMES.get(t, t)) for t in tickers]
+    except Exception as e:
+        logger.warning(f"[DB] Failed to load companies: {e}")
+        # Fallback to folder scan
+        return [(t, COMPANY_NAMES.get(t, t)) for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc.")]
+
+def _get_available_years_from_db(ticker: str):
+    """Get available fiscal years for a ticker from filing_metrics DB."""
+    try:
+        repo = FilingMetricRepository()
+        with repo.engine.connect() as conn:
+            from sqlalchemy import text
+            rows = conn.execute(text("""
+                SELECT DISTINCT fiscal_year FROM filing_metrics
+                WHERE ticker = :ticker ORDER BY fiscal_year DESC
+            """), {"ticker": ticker}).fetchall()
+            return [str(row[0]) for row in rows if row[0]]
+    except Exception:
+        return sorted(FILINGS_DATA.get(ticker, {}).keys(), reverse=True)
+
+def _get_available_doc_types_from_db(ticker: str):
+    """Get available doc types for a ticker from filing_metrics DB."""
+    try:
+        repo = FilingMetricRepository()
+        with repo.engine.connect() as conn:
+            from sqlalchemy import text
+            rows = conn.execute(text("""
+                SELECT DISTINCT doc_type FROM filing_metrics
+                WHERE ticker = :ticker ORDER BY doc_type
+            """), {"ticker": ticker}).fetchall()
+            return [row[0] for row in rows if row[0]]
+    except Exception:
+        company_data = FILINGS_DATA.get(ticker, {})
+        return sorted(set(dt for yd in company_data.values() for dt in yd.keys())) if company_data else ["10-K"]
+
+COMPANIES = _load_companies_from_db()
+logger.info(f"[INIT] DB companies with data: {len(COMPANIES)}")
+
+# Fallback doc types list (used only if DB query fails)
+DOCUMENT_TYPES = ["10-K"]
 
 
 # =============================================================================
@@ -636,18 +692,91 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
         <script>
         (function() {{
             let attempts = 0;
+            const factId = '{highlight_fact_id}';
+            const isTextSearch = factId.startsWith('TEXT:');
+            const searchText = isTextSearch ? factId.substring(5) : '';
+
+            function highlightElement(el) {{
+                el.style.backgroundColor = '#FDF5F5';
+                el.style.boxShadow = '0 0 10px rgba(214, 46, 47, 0.3)';
+                el.style.border = '2px solid #D62E2F';
+                el.style.borderRadius = '4px';
+                el.style.padding = '4px';
+                el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+            }}
+
+            function findAndHighlightText(text) {{
+                /*
+                 * Robust text search for non-XBRL metrics.
+                 *
+                 * WHY NOT TreeWalker: SEC filings wrap numbers in iXBRL <span> tags,
+                 * e.g. "operated <span>680</span> store locations".
+                 * TreeWalker visits individual text nodes, so it never sees the full
+                 * sentence in one node.
+                 *
+                 * FIX: Use element.textContent (concatenates ALL child text) to find
+                 * the DEEPEST element containing the search text, then highlight it
+                 * exactly like getElementById does for XBRL.
+                 */
+                /*
+                 * Normalize ALL whitespace including non-breaking spaces (U+00A0 / &#160;)
+                 * SEC filings heavily use &#160; which becomes U+00A0 in textContent
+                 * but search text has regular U+0020 spaces — must normalize both.
+                 */
+                const WS = /[\u00A0\s]+/g;
+                const normalizedSearch = text.replace(WS, ' ').trim();
+
+
+                /* Try full text first, then progressively shorter prefixes */
+                const searchVariants = [
+                    normalizedSearch,
+                    normalizedSearch.substring(0, 80),
+                    normalizedSearch.substring(0, 50),
+                    normalizedSearch.substring(0, 30),
+                ];
+
+                for (const searchStr of searchVariants) {{
+                    if (searchStr.length < 15) continue;
+
+                    const allElements = document.body.querySelectorAll('p, td, li, div, span, section, article');
+                    let bestMatch = null;
+                    let bestSize = Infinity;
+
+                    for (const el of allElements) {{
+                        const elText = (el.textContent || '').replace(WS, ' ');
+                        if (elText.includes(searchStr)) {{
+                            /* Prefer the smallest (most specific) element */
+                            if (elText.length < bestSize) {{
+                                bestSize = elText.length;
+                                bestMatch = el;
+                            }}
+                        }}
+                    }}
+
+                    if (bestMatch) {{
+                        highlightElement(bestMatch);
+                        return true;
+                    }}
+                }}
+                return false;
+            }}
+
             function tryScroll() {{
-                const el = document.getElementById('{highlight_fact_id}');
-                if (el) {{
-                    el.style.backgroundColor = '#FDF5F5';
-                    el.style.boxShadow = '0 0 10px rgba(214, 46, 47, 0.3)';
-                    el.style.border = '2px solid #D62E2F';
-                    el.style.borderRadius = '4px';
-                    el.style.padding = '4px';
-                    el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
-                }} else if (attempts < 30) {{
-                    attempts++;
-                    setTimeout(tryScroll, 300);
+                if (isTextSearch) {{
+                    /* Text-search fallback for non-XBRL (store_count, credit_rating) */
+                    if (!findAndHighlightText(searchText) && attempts < 30) {{
+                        attempts++;
+                        setTimeout(tryScroll, 300);
+                    }}
+                }} else {{
+                    /* Standard getElementById for XBRL */
+                    const el = document.getElementById(factId);
+                    if (el) {{
+                        highlightElement(el);
+                    }} else if (attempts < 30) {{
+                        attempts++;
+                        setTimeout(tryScroll, 300);
+                    }}
                 }}
             }}
             if (document.readyState === 'loading') {{
@@ -693,8 +822,8 @@ def main():
         st.session_state.cf_doc_type = DOCUMENT_TYPES[0] if DOCUMENT_TYPES else "10-K"
     if 'cf_year' not in st.session_state:
         # Default to the latest available year for this company
-        company_years = sorted(FILINGS_DATA.get(st.session_state.cf_company, {}).keys(), reverse=True)
-        st.session_state.cf_year = company_years[0] if company_years else "2024"
+        company_years = _get_available_years_from_db(st.session_state.cf_company)
+        st.session_state.cf_year = company_years[0] if company_years else "2025"
     if 'cf_quarter' not in st.session_state:
         st.session_state.cf_quarter = "Q1"
     if 'cf_highlight_fact_id' not in st.session_state:
@@ -729,11 +858,9 @@ def main():
 
     with header_col2:
         # Dynamic filter values based on selected company
-        company_data = FILINGS_DATA.get(st.session_state.cf_company, {})
-        available_years = sorted(company_data.keys(), reverse=True) if company_data else ["2024"]
-        available_doc_types = sorted(set(
-            dt for year_docs in company_data.values() for dt in year_docs.keys()
-        )) if company_data else DOCUMENT_TYPES
+        # DB-based filter values (no folder dependency)
+        available_years = _get_available_years_from_db(st.session_state.cf_company) or ["2025"]
+        available_doc_types = _get_available_doc_types_from_db(st.session_state.cf_company) or DOCUMENT_TYPES
 
         # Hide quarter filter for annual filings (10-K, DEF 14A, S-1)
         show_quarter = st.session_state.cf_doc_type not in ANNUAL_DOC_TYPES
@@ -916,10 +1043,24 @@ def main():
                     else:
                         period_meta = str(metric.fiscal_year)
                     st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div><div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.display_statement_type}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{period_meta}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
-                    if metric.ixbrl_id:
-                        btn_key = f"view_{i}_{metric.original_label.replace(' ', '_')}_{metric.ixbrl_id}"
+                    # Enable "View in Document" for ixbrl_id OR text-searchable sources
+                    source_sentence = None
+                    if not metric.ixbrl_id and metric.source in ('store_count', 'credit_rating') and getattr(metric, 'llm_query', None):
+                        try:
+                            detail = json.loads(getattr(metric, 'llm_query', '{}'))
+                            source_sentence = detail.get('source_sentence', '')
+                        except Exception:
+                            source_sentence = None
+                    
+                    view_id = metric.ixbrl_id  # Normal XBRL ID
+                    if not view_id and source_sentence:
+                        # Use TEXT: prefix for text-search fallback
+                        view_id = f"TEXT:{source_sentence[:120]}"
+                    
+                    if view_id:
+                        btn_key = f"view_{i}_{metric.original_label.replace(' ', '_')}_{hash(view_id) % 10000}"
                         if st.button(f"View in Document", key=btn_key, use_container_width=True):
-                            st.session_state.cf_highlight_fact_id = metric.ixbrl_id
+                            st.session_state.cf_highlight_fact_id = view_id
                             st.session_state.cf_view_metric = metric.display_label
                             st.rerun()
             elif search_term.strip():

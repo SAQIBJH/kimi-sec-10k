@@ -1,0 +1,30 @@
+[
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "Duration_1_31_2021_To_1_29_2022_us-gaap_StatementBusinessSegmentsAxis_bby_InternationalSegmentMember",
+    "value": "244000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "bby:InternationalSegmentMember",
+    "dimension_label": "International",
+    "segment_name": "International",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "Unit1",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "Duration_1_31_2021_To_1_29_2022_us-gaap_StatementBusinessSegmentsAxis_bby_DomesticSegmentMember",
+    "value": "2795000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "bby:DomesticSegmentMember",
+    "dimension_label": "Domestic",
+    "segment_name": "Domestic",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "Unit1",
+    "decimals": "-6"
+  }
+]

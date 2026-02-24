@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "ie8336634dc224954bfbcfd7a1d0598c7_D20210131-20220129",
+    "value": "3812847000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "Marmaxx",
+    "segment_name": "Marmaxx",
+    "metric_type": "Operating Income",
+    "original_label": "Segment profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "ib2fed1c52018457e857d794a1cd2d5ca_D20210131-20220129",
+    "value": "907391000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "HomeGoods",
+    "segment_name": "HomeGoods",
+    "metric_type": "Operating Income",
+    "original_label": "Segment profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "i315f9bd225f94003a6dac42fa77068d3_D20210131-20220129",
+    "value": "484585000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "TjxCanada",
+    "segment_name": "TjxCanada",
+    "metric_type": "Operating Income",
+    "original_label": "Segment profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "ie0e30d92033b4a7da4281f036042a4f8_D20210131-20220129",
+    "value": "161199000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "TJXInternational",
+    "segment_name": "TJXInternational",
+    "metric_type": "Operating Income",
+    "original_label": "Segment profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

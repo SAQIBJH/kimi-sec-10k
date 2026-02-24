@@ -1,0 +1,44 @@
+[
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-313",
+    "value": "2534000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "NorthAmericaNA",
+    "segment_name": "NorthAmericaNA",
+    "metric_type": "Operating Income",
+    "original_label": "Operating Profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-314",
+    "value": "787000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "InternationalPersonalCareIPC",
+    "segment_name": "InternationalPersonalCareIPC",
+    "metric_type": "Operating Income",
+    "original_label": "Operating Profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-315",
+    "value": "377000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "InternationalFamilyCareAndProfessionalIFP",
+    "segment_name": "InternationalFamilyCareAndProfessionalIFP",
+    "metric_type": "Operating Income",
+    "original_label": "Operating Profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  }
+]
