@@ -4,8 +4,8 @@
   SEC Filing Data Pipeline — Unified Runner
 ═══════════════════════════════════════════════════════════════════════
 
-Runs the full 5-step SEC filing pipeline in the correct order for any
-company and any year.  Instead of running 5 separate scripts, just run:
+Runs the full 6-step SEC filing pipeline in the correct order for any
+company and any year.  Instead of running 6 separate scripts, just run:
 
     python scripts/run_pipeline.py AAPL 2024
     python scripts/run_pipeline.py AMZN 2025
@@ -19,10 +19,11 @@ Steps executed in order:
   Step 3: Load segments & ratios into DB     (load_supplementary_json.py)
   Step 4: Cache 10-K section text            (enrich_from_edgartools.py)
   Step 5: Calculate derived metrics          (calculate_derived_metrics.py)
+  Step 6: Extract store counts               (extract_store_counts.py)
 
 You can also run individual steps:
     python scripts/run_pipeline.py AAPL 2024 --step 1      # only Step 1
-    python scripts/run_pipeline.py AAPL 2024 --from-step 3  # steps 3-5 only
+    python scripts/run_pipeline.py AAPL 2024 --from-step 3  # steps 3-6 only
     python scripts/run_pipeline.py AAPL 2024 --skip-step 4  # skip Step 4
 
 ═══════════════════════════════════════════════════════════════════════
@@ -61,7 +62,7 @@ def banner(text: str, char: str = "═", width: int = 60):
 def step_header(step_num: int, title: str, ticker: str, year: int):
     """Print a step header."""
     print(f"\n{'─' * 60}")
-    print(f"  Step {step_num}/5: {title}")
+    print(f"  Step {step_num}/6: {title}")
     print(f"  Ticker: {ticker}  |  Year: {year}")
     print(f"{'─' * 60}")
 
@@ -263,6 +264,48 @@ def run_step_5(ticker: str, year: int, form: str):
 
 
 # ══════════════════════════════════════════════════════════════════════
+#  STEP 6: Extract Store Counts (EdgarTools → Regex → LLM → DB)
+# ══════════════════════════════════════════════════════════════════════
+
+def run_step_6(ticker: str, year: int, form: str, force: bool = False):
+    """
+    Extract store/location counts from 10-K sections.
+    Uses EdgarTools section text → enhanced regex → LLM verification.
+    Inserts into filing_metrics with source='store_count'.
+    """
+    step_header(6, "Extract Store Counts", ticker, year)
+    start = time.time()
+
+    from scripts.extract_store_counts import process_filing, get_engine
+
+    result = process_filing(ticker, year, form, use_llm=True, force=force)
+
+    if result and result.get("store_count") is not None:
+        # Insert into DB
+        from scripts.extract_store_counts import insert_store_count_to_db
+        engine = get_engine()
+        with engine.begin() as conn:
+            insert_store_count_to_db(
+                conn=conn,
+                ticker=ticker,
+                fiscal_year=year,
+                doc_type=form,
+                store_count=result["store_count"],
+                store_type=result["store_type"],
+                as_of_date=result.get("as_of_date"),
+                source_sentence=result.get("source_sentence", ""),
+                extraction_method=result["extraction_method"],
+                confidence=result["confidence"],
+                section_source=result.get("section", ""),
+                notes=result.get("notes", ""),
+            )
+            print(f"    💾 Saved to DB (filing_metrics, source='store_count')")
+
+    print(f"\n  ✅ Step 6 completed in {elapsed(start)}")
+    return True
+
+
+# ══════════════════════════════════════════════════════════════════════
 #  MAIN PIPELINE RUNNER
 # ══════════════════════════════════════════════════════════════════════
 
@@ -272,6 +315,7 @@ STEPS = {
     3: ("Load Segments & Ratios",   run_step_3),
     4: ("Cache Section Text",       run_step_4),
     5: ("Calculate Derived Metrics", run_step_5),
+    6: ("Extract Store Counts",     run_step_6),
 }
 
 
@@ -293,7 +337,7 @@ def run_pipeline(
     if only_step:
         steps_to_run = [only_step]
     else:
-        steps_to_run = [s for s in range(from_step, 6) if s not in skip_steps]
+        steps_to_run = [s for s in range(from_step, 7) if s not in skip_steps]
 
     banner(f"SEC Filing Pipeline — {ticker}", "═")
     print(f"  Years: {', '.join(map(str, years))}")
@@ -313,7 +357,7 @@ def run_pipeline(
             try:
                 if step_num == 1:
                     ok = step_fn(ticker, year, form, skip_existing=skip_existing)
-                elif step_num == 4:
+                elif step_num in (4, 6):
                     ok = step_fn(ticker, year, form, force=force_cache)
                 else:
                     ok = step_fn(ticker, year, form)
@@ -362,6 +406,7 @@ def run_pipeline(
     print(f"         ├── GEOGRAPHIC_SEGMENTS.json")
     print(f"         ├── FINANCIAL_RATIOS.json")
     print(f"         ├── SECTION_CACHE.json")
+    print(f"         ├── STORE_COUNT.json")
     print(f"         └── filing.html")
 
     if failed == 0:
@@ -395,18 +440,19 @@ Steps:
   3  Load Segments & Financial Ratios into MySQL
   4  Cache 10-K Section Text (for LLM fallback)
   5  Calculate Derived Metrics (EBITDA, margins, etc.)
+  6  Extract Store Counts (EdgarTools + Regex + LLM)
         """,
     )
 
     parser.add_argument("ticker", help="Company ticker symbol (e.g. AAPL, AMZN, M)")
     parser.add_argument("years", nargs="+", type=int, help="Fiscal year(s) to process (e.g. 2024 or 2022 2023 2024)")
     parser.add_argument("--form", default="10-K", help="Filing form type (default: 10-K)")
-    parser.add_argument("--step", type=int, choices=[1, 2, 3, 4, 5],
+    parser.add_argument("--step", type=int, choices=[1, 2, 3, 4, 5, 6],
                         help="Run ONLY this step")
-    parser.add_argument("--from-step", type=int, choices=[1, 2, 3, 4, 5], default=1,
+    parser.add_argument("--from-step", type=int, choices=[1, 2, 3, 4, 5, 6], default=1,
                         help="Start from this step (run this and all subsequent)")
     parser.add_argument("--skip-step", type=int, action="append", default=[],
-                        choices=[1, 2, 3, 4, 5],
+                        choices=[1, 2, 3, 4, 5, 6],
                         help="Skip this step (can specify multiple times)")
     parser.add_argument("--skip-existing", action="store_true",
                         help="Skip Step 1 if FINAL_FACTS_FILTERED.json already exists")

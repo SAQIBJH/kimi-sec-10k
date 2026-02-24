@@ -34,10 +34,12 @@ sys.path.insert(0, str(PROJECT_ROOT))
 # part_ii_item_8 = Financial Statements & Notes (primary financial data)
 # part_ii_item_7 = MD&A (management discussion with key metric commentary)
 # part_i_item_1  = Business Description (segment definitions, employee count)
+# part_i_item_2  = Properties (store counts, lease info)
 TARGET_SECTIONS = [
     "part_ii_item_8",
     "part_ii_item_7",
     "part_i_item_1",
+    "part_i_item_2",
     "part_ii_item_7a",
 ]
 
