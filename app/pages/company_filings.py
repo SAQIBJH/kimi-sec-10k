@@ -651,35 +651,56 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
             }}
 
             function findAndHighlightText(text) {{
-                /* TreeWalker text search — finds the source sentence in the DOM */
-                const walker = document.createTreeWalker(
-                    document.body, NodeFilter.SHOW_TEXT, null, false
-                );
-                while (walker.nextNode()) {{
-                    const node = walker.currentNode;
-                    const idx = node.textContent.indexOf(text);
-                    if (idx !== -1) {{
-                        try {{
-                            const range = document.createRange();
-                            range.setStart(node, idx);
-                            range.setEnd(node, Math.min(idx + text.length, node.textContent.length));
-                            const mark = document.createElement('mark');
-                            mark.style.backgroundColor = '#FDF5F5';
-                            mark.style.boxShadow = '0 0 10px rgba(214, 46, 47, 0.3)';
-                            mark.style.border = '2px solid #D62E2F';
-                            mark.style.borderRadius = '4px';
-                            mark.style.padding = '2px 4px';
-                            range.surroundContents(mark);
-                            mark.scrollIntoView({{behavior: 'smooth', block: 'center'}});
-                            return true;
-                        }} catch(e) {{
-                            /* surroundContents can fail if range crosses elements */
-                            node.parentElement.style.backgroundColor = '#FDF5F5';
-                            node.parentElement.style.border = '2px solid #D62E2F';
-                            node.parentElement.style.borderRadius = '4px';
-                            node.parentElement.scrollIntoView({{behavior: 'smooth', block: 'center'}});
-                            return true;
+                /*
+                 * Robust text search for non-XBRL metrics.
+                 *
+                 * WHY NOT TreeWalker: SEC filings wrap numbers in iXBRL <span> tags,
+                 * e.g. "operated <span>680</span> store locations".
+                 * TreeWalker visits individual text nodes, so it never sees the full
+                 * sentence in one node.
+                 *
+                 * FIX: Use element.textContent (concatenates ALL child text) to find
+                 * the DEEPEST element containing the search text, then highlight it
+                 * exactly like getElementById does for XBRL.
+                 */
+                /*
+                 * Normalize ALL whitespace including non-breaking spaces (U+00A0 / &#160;)
+                 * SEC filings heavily use &#160; which becomes U+00A0 in textContent
+                 * but search text has regular U+0020 spaces — must normalize both.
+                 */
+                const WS = /[\u00A0\s]+/g;
+                const normalizedSearch = text.replace(WS, ' ').trim();
+
+
+                /* Try full text first, then progressively shorter prefixes */
+                const searchVariants = [
+                    normalizedSearch,
+                    normalizedSearch.substring(0, 80),
+                    normalizedSearch.substring(0, 50),
+                    normalizedSearch.substring(0, 30),
+                ];
+
+                for (const searchStr of searchVariants) {{
+                    if (searchStr.length < 15) continue;
+
+                    const allElements = document.body.querySelectorAll('p, td, li, div, span, section, article');
+                    let bestMatch = null;
+                    let bestSize = Infinity;
+
+                    for (const el of allElements) {{
+                        const elText = (el.textContent || '').replace(WS, ' ');
+                        if (elText.includes(searchStr)) {{
+                            /* Prefer the smallest (most specific) element */
+                            if (elText.length < bestSize) {{
+                                bestSize = elText.length;
+                                bestMatch = el;
+                            }}
                         }}
+                    }}
+
+                    if (bestMatch) {{
+                        highlightElement(bestMatch);
+                        return true;
                     }}
                 }}
                 return false;

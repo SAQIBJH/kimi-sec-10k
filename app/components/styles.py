@@ -113,6 +113,8 @@ SHADOWS = {
     "shadow_md": "0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)",
     "shadow_lg": "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
     "shadow_xl": "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
+    # Coresight card shadow — matches main website
+    "shadow_card": "0 2px 16px rgba(0, 0, 0, 0.10), 0 1px 4px rgba(0, 0, 0, 0.06)",
 }
 
 # ============================================================================
@@ -220,9 +222,44 @@ def get_global_css() -> str:
         box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
     }}
     
-    /* DataFrame Styling */
+    /* ── Card / Chart Shadows (Coresight website style) ── */
+
+    /* Plotly charts */
+    [data-testid="stPlotlyChart"] {{
+        border-radius: {BORDER_RADIUS["rounded_xl"]} !important;
+        box-shadow: {SHADOWS["shadow_card"]} !important;
+        overflow: hidden;
+        background: #fff;
+    }}
+
+    /* Metric / KPI cards */
+    [data-testid="metric-container"] {{
+        border-radius: {BORDER_RADIUS["rounded_xl"]} !important;
+        box-shadow: {SHADOWS["shadow_card"]} !important;
+        background: #fff !important;
+        padding: 16px 20px !important;
+    }}
+
+    /* st.container(border=True) */
+    [data-testid="stVerticalBlockBorderWrapper"] {{
+        border-radius: {BORDER_RADIUS["rounded_xl"]} !important;
+        box-shadow: {SHADOWS["shadow_card"]} !important;
+        border: none !important;
+        background: #fff;
+        overflow: hidden;
+    }}
+
+    /* DataFrames */
     .stDataFrame {{
-        border-radius: {BORDER_RADIUS["rounded_lg"]};
+        border-radius: {BORDER_RADIUS["rounded_xl"]};
+        box-shadow: {SHADOWS["shadow_card"]};
+        overflow: hidden;
+    }}
+
+    /* HTML tables injected via st.markdown (table-container class) */
+    .table-container {{
+        border-radius: {BORDER_RADIUS["rounded_xl"]} !important;
+        box-shadow: {SHADOWS["shadow_card"]} !important;
         overflow: hidden;
     }}
     
