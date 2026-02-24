@@ -410,6 +410,7 @@ def hide_sidebar():
     .block-container {
         padding-top: 0 !important;
         margin-top: 0 !important;
+        padding-bottom: 0 !important;
     }
 
     
