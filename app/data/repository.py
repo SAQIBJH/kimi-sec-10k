@@ -2325,7 +2325,7 @@ class FilingMetricRepository:
                    is_dimensioned, dimension_label, statement_type, ixbrl_id,
                    standard_concept, concept, balance, period_type,
                    period_start, period_end, period_instant,
-                   value, source, llm_query
+                   value, source, llm_query, dimension
             FROM filing_metrics
             WHERE ticker = :ticker
               AND fiscal_year = :fiscal_year
@@ -2380,6 +2380,7 @@ class FilingMetricRepository:
                 value=row["value"],
                 source=row.get("source"),
                 calculation_note=row.get("llm_query") if row.get("source") == "calculated" else None,
+                dimension=row.get("dimension"),
             )
             for row in results
         ]
