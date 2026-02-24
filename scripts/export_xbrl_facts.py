@@ -1329,10 +1329,13 @@ def process_company_year(ticker: str, year: int, config: Config) -> bool:
     if not save_output(facts, ticker, year, config):
         return False
     
-    # Step 6: Extract and Save Segments
-    log("Step 6: Extracting Business & Geographic Segments")
+    # Step 6: Fetch statements (used by Step 7 for financial ratios)
+    # NOTE: Segment JSON generation disabled — all segment data (business &
+    # geographic) is already in FINAL_FACTS_FILTERED.json with ixbrl_id.
+    # Separate JSON files were redundant and are no longer created.
+    log("Step 6: Preparing financial statements data")
     
-    # Fetch statements once for both segments and ratios
+    # Fetch statements once for ratios
     statements = {}
     year_col = None
     try:
@@ -1343,12 +1346,8 @@ def process_company_year(ticker: str, year: int, config: Config) -> bool:
             xbrl = filing_obj.xbrl()
             statements = fetch_financial_statements(filing_obj)
             year_col, _ = get_year_columns(statements, year)
-            
-            business_segments, geographic_segments = extract_segments(xbrl, year, statements, year_col)
-            save_segments(business_segments, geographic_segments, ticker, year, config)
     except Exception as e:
-        log(f"  Error extracting segments: {e}", "WARNING")
-    
+        log(f"  Error fetching statements for ratios: {e}", "WARNING")
     # Step 7: Calculate and Save Financial Ratios
     log("Step 7: Calculating Financial Ratios")
     try:

@@ -424,13 +424,32 @@ def get_filings_css() -> str:
         word-break: break-word;
     }
 
+    .metric-dimension {
+        font-size: 11px;
+        color: #777;
+        font-style: italic;
+        margin: 1px 0 4px 0;
+        line-height: 1.3;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+
     .metric-meta {
         display: flex;
         align-items: center;
+        flex-wrap: nowrap;
         gap: 6px;
         font-family: 'Roboto', sans-serif;
         font-size: 11px;
         color: #888888;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .metric-meta span {
+        white-space: nowrap;
+        flex-shrink: 0;
     }
     
     .metric-meta-dot {
@@ -992,11 +1011,11 @@ def main():
                 try:
                     val = abs(float(m.group(1).replace(",", "")))
                     if val >= 1e12:
-                        return f"(${val/1e12:.1f}T)"
+                        return f"(${val/1e12:.1f} T)"
                     elif val >= 1e9:
-                        return f"(${val/1e9:.1f}B)"
+                        return f"(${val/1e9:.1f} B)"
                     elif val >= 1e6:
-                        return f"(${val/1e6:.0f}M)"
+                        return f"(${val/1e6:.0f} M)"
                     else:
                         return f"(${val:,.0f})"
                 except Exception:
@@ -1031,6 +1050,10 @@ def main():
                     btn_text = "Viewing" if is_viewing else "View"
                     badge_html = _source_badge(metric.source)
                     label_html = f'{metric.display_label}{badge_html}'
+                    # Dimension subtitle: show full_dimension_label on its own line in parens
+                    dim_html = ""
+                    if metric.is_dimensioned and metric.full_dimension_label:
+                        dim_html = f'<div class="metric-dimension">( {metric.full_dimension_label} )</div>'
                     formula_html = ""
                     if metric.source == "calculated" and metric.calculation_note:
                         formula_html = f'<div class="metric-formula">{_format_calc_note(metric.calculation_note)}</div>'
@@ -1042,7 +1065,7 @@ def main():
                         period_meta = _fmt_period_date(metric.period_instant)
                     else:
                         period_meta = str(metric.fiscal_year)
-                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div><div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.display_statement_type}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{period_meta}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div>{dim_html}<div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.display_statement_type}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{period_meta}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
                     # Enable "View in Document" for ixbrl_id OR text-searchable sources
                     source_sentence = None
                     if not metric.ixbrl_id and metric.source in ('store_count', 'credit_rating') and getattr(metric, 'llm_query', None):
