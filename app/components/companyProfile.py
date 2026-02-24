@@ -88,10 +88,11 @@ def get_company_css() -> str:
     /* Info Table Container */
     .info-table-container {
         border: 1px solid #CBCACA;
-        border-radius: 8px;
+        border-radius: 12px;
         overflow: hidden;
         background: #FFFFFF;
         margin-bottom: 32px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
     }
     
     .info-table {

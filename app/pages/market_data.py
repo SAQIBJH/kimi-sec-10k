@@ -421,9 +421,10 @@ def render_stock_quote(ticker: str) -> None:
     <style>
     .sq-header {
         font-family: 'Roboto', sans-serif;
-        background: #F9F9F9;
+        background: #F2F2F2;
         border: 1px solid #CFCFCF;
         border-bottom: none;
+        border-radius: 12px 12px 0 0;
         padding: 4px 12px;
         font-weight: 700;
         font-size: 16px;
@@ -432,10 +433,14 @@ def render_stock_quote(ticker: str) -> None:
         display: flex;
         align-items: center;
         margin-bottom: 0;
+        box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06), -2px 0 6px rgba(0, 0, 0, 0.04), 2px 0 6px rgba(0, 0, 0, 0.04);
     }
     .sq-table-box {
-        border: 4px solid #CBCACA;
-        border-right: 2px solid #CBCACA;
+        border: 1px solid #CBCACA;
+        border-top: none;
+        border-radius: 0 0 12px 12px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
     }
     .sq-table {
         width: 100%;
@@ -536,12 +541,12 @@ def render_stock_quote(ticker: str) -> None:
 
             fig.update_layout(
                 title=dict(
-                    text="Stock Price (USD)",
+                    text="Stock Price",
                     font=dict(size=11, color="#2D2A29", family="Roboto"),
                     x=0.5, xanchor="center",
                     y=0.98, yanchor="top",
                 ),
-                margin=dict(l=50, r=10, t=26, b=6),
+                margin=dict(l=10, r=10, t=26, b=6),
                 plot_bgcolor="#FFFFFF",
                 paper_bgcolor="#FCFCFC",
                 height=215,
@@ -555,22 +560,19 @@ def render_stock_quote(ticker: str) -> None:
                 bargap=0.1,
             )
 
-            # Price row — clean grid, inside tick labels
+            # Price row — no axis labels, subtle grid only
             fig.update_xaxes(showgrid=False, showticklabels=False,
                              showline=False, zeroline=False, row=1, col=1)
             fig.update_yaxes(
                 showgrid=True, gridcolor="#F0F0F0", gridwidth=1,
-                tickfont=dict(size=8, color="#999"), tickprefix="$",
+                showticklabels=False,
                 showline=False, zeroline=False,
-                ticklabelposition="inside",
-                nticks=4,
                 row=1, col=1,
             )
 
-            # Volume row — just dates on x, no y labels
+            # Volume row — no axis labels
             fig.update_xaxes(
-                showgrid=False, showticklabels=True,
-                tickformat="%b '%y", tickfont=dict(size=8, color="#999"),
+                showgrid=False, showticklabels=False,
                 showline=False, zeroline=False, ticks="",
                 row=2, col=1,
             )
@@ -578,14 +580,6 @@ def render_stock_quote(ticker: str) -> None:
                 showgrid=False, showticklabels=False,
                 zeroline=False, showline=False,
                 row=2, col=1,
-            )
-
-            # Subtle "Volume" label bottom-right
-            fig.add_annotation(
-                text="Volume", xref="paper", yref="paper",
-                x=0.99, y=0.02, xanchor="right", yanchor="bottom",
-                font=dict(size=7, color="#BBBBBB"),
-                showarrow=False,
             )
 
             st.plotly_chart(
@@ -930,10 +924,11 @@ def render_page():
     
     .table-container {
         border: var(--border-width) solid var(--border-light);
-        border-radius: 8px;
+        border-radius: 12px;
         overflow: hidden;
         background: var(--white);
         margin-bottom: 30px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
     }
     
     .table-scroll {

@@ -281,11 +281,12 @@ def get_news_css() -> str:
     .news-search-sidebar {
         background: #FFFFFF;
         border: 1px solid #E5E5E5;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 16px;
         height: calc(100vh - 340px);
         min-height: 480px;
         overflow-y: auto;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
     .news-search-sidebar::-webkit-scrollbar {
@@ -326,15 +327,16 @@ def get_news_css() -> str:
     .news-search-result-card {
         background: #FFFFFF;
         border: 1px solid #E5E5E5;
-        border-radius: 8px;
+        border-radius: 12px;
         padding: 12px;
         margin-bottom: 10px;
         cursor: pointer;
         transition: all 0.2s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
     }
     .news-search-result-card:hover {
         border-color: #CBCACA;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.06);
     }
     .news-search-result-title {
         font-family: 'Roboto', sans-serif;
