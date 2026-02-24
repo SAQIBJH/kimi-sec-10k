@@ -1,0 +1,72 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "ia586f44d3482465e8eafdd664d1fd478_D20210201-20220130",
+    "value": "3120687000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "wsm:PotteryBarnSegmentMember",
+    "dimension_label": "PotteryBarn",
+    "segment_name": "PotteryBarn",
+    "metric_type": "Revenue",
+    "original_label": "Net revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i2d675a776a4f4cf995ad490108a51f7d_D20210201-20220130",
+    "value": "2234548000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "wsm:WestElmSegmentMember",
+    "dimension_label": "WestElm",
+    "segment_name": "WestElm",
+    "metric_type": "Revenue",
+    "original_label": "Net revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i8016e8756a654f9b9699113bb0601993_D20210201-20220130",
+    "value": "1345851000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "wsm:WilliamsSonomaSegmentMember",
+    "dimension_label": "WilliamsSonoma",
+    "segment_name": "WilliamsSonoma",
+    "metric_type": "Revenue",
+    "original_label": "Net revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i15576afc19a64b49b9e760c49b39b66b_D20210201-20220130",
+    "value": "1139893000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "wsm:PotteryBarnKidsAndTeenSegmentMember",
+    "dimension_label": "PotteryBarnKidsAndTeen",
+    "segment_name": "PotteryBarnKidsAndTeen",
+    "metric_type": "Revenue",
+    "original_label": "Net revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "ic6d0295bc80b4665b6f3953e319a1327_D20210201-20220130",
+    "value": "404957000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "us-gaap:AllOtherSegmentsMember",
+    "dimension_label": "AllOtherSegments",
+    "segment_name": "AllOtherSegments",
+    "metric_type": "Revenue",
+    "original_label": "Net revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

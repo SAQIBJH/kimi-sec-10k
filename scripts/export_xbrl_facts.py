@@ -20,6 +20,16 @@ from dataclasses import dataclass, field
 import pandas as pd
 from edgar import Company, set_identity
 
+# ── Set edgar cache to project-local dir (avoids ~/.edgar/_tcache permission issues) ──
+try:
+    from edgar import set_cache_directory
+    _PROJ_ROOT = Path(__file__).resolve().parent.parent
+    _CACHE_DIR = _PROJ_ROOT / "data" / ".edgar_cache"
+    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    set_cache_directory(str(_CACHE_DIR))
+except Exception:
+    pass  # fallback to default
+
 # ========== CONFIGURATION ==========
 @dataclass
 class Config:

@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i8fec8e20fa364f548e565be45517e95d_D20210101-20211231",
+    "value": "3694000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "OralPersonalAndHomeCare",
+    "segment_name": "OralPersonalAndHomeCare",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "i8fec8e20fa364f548e565be45517e95d_D20210101-20211231",
+    "value": "754000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "OralPersonalAndHomeCare",
+    "segment_name": "OralPersonalAndHomeCare",
+    "metric_type": "Operating Income",
+    "original_label": "Operating profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i4e6a04a266d24d9795ca5e43e5a26b86_D20210101-20211231",
+    "value": "3311000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "PetNutrition",
+    "segment_name": "PetNutrition",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "i4e6a04a266d24d9795ca5e43e5a26b86_D20210101-20211231",
+    "value": "901000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "PetNutrition",
+    "segment_name": "PetNutrition",
+    "metric_type": "Operating Income",
+    "original_label": "Operating profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  }
+]

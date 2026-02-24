@@ -1,0 +1,16 @@
+[
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "consolidated",
+    "value": "489000000",
+    "dimension": "",
+    "member": "",
+    "dimension_label": "Retail - Department Stores",
+    "segment_name": "Retail - Department Stores",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "USD",
+    "decimals": "-6"
+  }
+]

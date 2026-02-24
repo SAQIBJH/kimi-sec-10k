@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-137",
+    "value": "1890000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "kmb:PersonalCareMember",
+    "dimension_label": "PersonalCare",
+    "segment_name": "PersonalCare",
+    "metric_type": "Operating Income",
+    "original_label": "Operating Profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-138",
+    "value": "976000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "kmb:ConsumerTissueMember",
+    "dimension_label": "ConsumerTissue",
+    "segment_name": "ConsumerTissue",
+    "metric_type": "Operating Income",
+    "original_label": "Operating Profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-139",
+    "value": "665000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "kmb:KCProfessionalMember",
+    "dimension_label": "KCProfessional",
+    "segment_name": "KCProfessional",
+    "metric_type": "Operating Income",
+    "original_label": "Operating Profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-358",
+    "value": "-1118000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "us-gaap:CorporateAndOtherMember",
+    "dimension_label": "CorporateAndOther",
+    "segment_name": "CorporateAndOther",
+    "metric_type": "Operating Income",
+    "original_label": "Operating Profit",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  }
+]

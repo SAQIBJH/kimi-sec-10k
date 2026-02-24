@@ -1,0 +1,16 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-462",
+    "value": "4257971000",
+    "dimension": "srt:StatementGeographicalAxis",
+    "member": "country:US",
+    "dimension_label": "United States",
+    "segment_name": "United States",
+    "metric_type": "Revenue",
+    "original_label": "Revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

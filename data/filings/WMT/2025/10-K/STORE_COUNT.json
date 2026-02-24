@@ -1,0 +1,12 @@
+{
+  "ticker": "WMT",
+  "fiscal_year": 2025,
+  "store_count": 5566,
+  "store_type": "stores",
+  "as_of_date": null,
+  "source_sentence": "Walmart International Segment Walmart International is our second largest segment and operates 5,566 stores across 18 countries outside of the U.S. Walmart International operates through our wholly-owned sub",
+  "extraction_method": "edgartools+regex_only",
+  "confidence": 0.7,
+  "section": "part_i_item_1",
+  "notes": "Not LLM-verified"
+}

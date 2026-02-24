@@ -1,0 +1,44 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-228",
+    "value": "2531351000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "UGGBrand",
+    "segment_name": "UGGBrand",
+    "metric_type": "Revenue",
+    "original_label": "Net sales (Note 2, Note 12, and Note 13)",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-229",
+    "value": "2233090000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "HokaBrand",
+    "segment_name": "HokaBrand",
+    "metric_type": "Revenue",
+    "original_label": "Net sales (Note 2, Note 12, and Note 13)",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-230",
+    "value": "221171000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "OtherBrands",
+    "segment_name": "OtherBrands",
+    "metric_type": "Revenue",
+    "original_label": "Net sales (Note 2, Note 12, and Note 13)",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

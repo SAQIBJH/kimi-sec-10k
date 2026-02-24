@@ -113,7 +113,7 @@ class AuthManager:
         """
         try:
             query = """
-            INSERT INTO user_login_sessions 
+            INSERT INTO market_data_user_sessions 
                 (user_email, user_nicename, user_display_name, token, 
                  login_at, last_activity)
             VALUES 
@@ -121,7 +121,7 @@ class AuthManager:
                  NOW(), NOW())
             """
             
-            db_manager.execute_query(query, {
+            db_manager.execute_insert(query, {
                 "user_email": user_email,
                 "user_nicename": user_nicename,
                 "user_display_name": user_display_name,

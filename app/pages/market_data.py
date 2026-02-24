@@ -12,6 +12,8 @@ from components.navigation import render_header, render_coresight_footer
 from components.toolbar import render_tabs
 from components.companyProfile import render_company_profile_content, get_company_css
 from components.navigation import render_company_header
+from core.auth_manager import require_auth
+require_auth()
 
 hide_sidebar()
 from data.repository import CompanyOverviewRepository, CompanyRepository, IncomeStatementRepository, BalanceSheetRepository, KeyStatsRepository,ForexRepository

@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-245",
+    "value": "4240556000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "fnd:RetailSegmentMember",
+    "dimension_label": "Retail",
+    "segment_name": "Retail",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-245",
+    "value": "241912000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "fnd:RetailSegmentMember",
+    "dimension_label": "Retail",
+    "segment_name": "Retail",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-246",
+    "value": "215214000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "us-gaap:AllOtherSegmentsMember",
+    "dimension_label": "AllOtherSegments",
+    "segment_name": "AllOtherSegments",
+    "metric_type": "Revenue",
+    "original_label": "Net sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-246",
+    "value": "14264000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "us-gaap:AllOtherSegmentsMember",
+    "dimension_label": "AllOtherSegments",
+    "segment_name": "AllOtherSegments",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

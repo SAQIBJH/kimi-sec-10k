@@ -1,0 +1,30 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "Duration_2_4_2024_To_2_1_2025_us-gaap_StatementBusinessSegmentsAxis_us-gaap_ReportableSegmentAggregationBeforeOtherOperatingSegmentMember_9o0nmHUTCUOEzBiRoxTIUA",
+    "value": "143947000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "us-gaap:ReportableSegmentAggregationBeforeOtherOperatingSegmentMember",
+    "dimension_label": "ReportableSegmentAggregationBeforeOtherOperating",
+    "segment_name": "ReportableSegmentAggregationBeforeOtherOperating",
+    "metric_type": "Revenue",
+    "original_label": "Sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "Unit_Standard_USD_fjQXj-G99UW-VZZGT-0ePg",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "Duration_2_4_2024_To_2_1_2025_us-gaap_StatementBusinessSegmentsAxis_us-gaap_AllOtherSegmentsMember_WlPAl63fSkW4FI-C1He4Mg",
+    "value": "3176000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "us-gaap:AllOtherSegmentsMember",
+    "dimension_label": "AllOtherSegments",
+    "segment_name": "AllOtherSegments",
+    "metric_type": "Revenue",
+    "original_label": "Sales",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "Unit_Standard_USD_fjQXj-G99UW-VZZGT-0ePg",
+    "decimals": "-6"
+  }
+]

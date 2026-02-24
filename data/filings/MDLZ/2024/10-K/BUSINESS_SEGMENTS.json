@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-180",
+    "value": "529000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "mdlz:LatinAmericaSegmentMember",
+    "dimension_label": "LatinAmerica",
+    "segment_name": "LatinAmerica",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-181",
+    "value": "1113000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "mdlz:AsiaMiddleEastAndAfricaSegmentMember",
+    "dimension_label": "AsiaMiddleEastAndAfrica",
+    "segment_name": "AsiaMiddleEastAndAfrica",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-182",
+    "value": "1978000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "mdlz:EuropeSegmentMember",
+    "dimension_label": "Europe",
+    "segment_name": "Europe",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "c-183",
+    "value": "2092000000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "mdlz:NorthAmericaSegmentMember",
+    "dimension_label": "North America",
+    "segment_name": "North America",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "usd",
+    "decimals": "-6"
+  }
+]

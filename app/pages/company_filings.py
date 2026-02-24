@@ -14,6 +14,8 @@ from dataclasses import dataclass
 logger = logging.getLogger(__name__)
 
 from components.styles import hide_sidebar, set_page_layout
+from core.auth_manager import require_auth
+require_auth()
 hide_sidebar()
 
 from components.styles import render_styles
@@ -24,17 +26,27 @@ from components.navigation import render_header, render_coresight_footer
 # =============================================================================
 FILINGS_BASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "filings")
 
-# Map of ticker -> company name (extend as companies are added)
-COMPANY_NAMES = {
-    "AAPL": "Apple Inc.",
-    "AMZN": "Amazon.com Inc.",
-    "GOOGL": "Alphabet Inc.",
-    "MSFT": "Microsoft Corp.",
-    "META": "Meta Platforms Inc.",
-    "TSLA": "Tesla Inc.",
-    "NVDA": "NVIDIA Corp.",
-    "M": "Macy's Inc.",
-}
+# ── DB-based company names (replaces hardcoded dict) ─────────────────────────
+def _load_company_names_from_db():
+    """Load ticker→display_name map from coreiq_companies for all DB companies."""
+    try:
+        from data.repository import FilingMetricRepository
+        repo = FilingMetricRepository()
+        with repo.engine.connect() as conn:
+            from sqlalchemy import text
+            rows = conn.execute(text("""
+                SELECT c.ticker, COALESCE(c.name_coresight, c.name) AS display_name
+                FROM coreiq_companies c
+                WHERE c.ticker IS NOT NULL AND c.ticker != ''
+                ORDER BY c.ticker
+            """)).fetchall()
+            return {row[0].strip(): row[1] for row in rows if row[0].strip()}
+    except Exception as e:
+        logger.warning(f"[DB] Failed to load company names: {e}")
+        return {"AAPL": "Apple Inc.", "AMZN": "Amazon.com Inc.", "M": "Macy's Inc."}
+
+COMPANY_NAMES = _load_company_names_from_db()
+logger.info(f"[INIT] Loaded {len(COMPANY_NAMES)} company names from DB")
 
 # Map directory names to display names for document types
 # Map directory names to display names (handles both old "10K" and new "10-K" folders)
@@ -138,18 +150,61 @@ class FilingDocument:
 # MOCK DATA (Replace with database calls)
 # =============================================================================
 
-# Dynamic companies list from scanned filings
-COMPANIES = [(t, COMPANY_NAMES.get(t, t)) for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc.")]
-
-# DB Search via repository
+# ── DB-based company/year/doctype lists (replaces folder scan) ────────────────
 from data.repository import FilingMetricRepository
 
-# Dynamic document types from scanned filings (collect all unique types)
-_all_doc_types = set()
-for _years in FILINGS_DATA.values():
-    for _docs in _years.values():
-        _all_doc_types.update(_docs.keys())
-DOCUMENT_TYPES = sorted(_all_doc_types) if _all_doc_types else ["10-K"]
+def _load_companies_from_db():
+    """Get (ticker, display_name) for companies that have data in filing_metrics."""
+    try:
+        repo = FilingMetricRepository()
+        with repo.engine.connect() as conn:
+            from sqlalchemy import text
+            rows = conn.execute(text("""
+                SELECT DISTINCT fm.ticker
+                FROM filing_metrics fm
+                ORDER BY fm.ticker
+            """)).fetchall()
+            tickers = [row[0] for row in rows if row[0]]
+            return [(t, COMPANY_NAMES.get(t, t)) for t in tickers]
+    except Exception as e:
+        logger.warning(f"[DB] Failed to load companies: {e}")
+        # Fallback to folder scan
+        return [(t, COMPANY_NAMES.get(t, t)) for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc.")]
+
+def _get_available_years_from_db(ticker: str):
+    """Get available fiscal years for a ticker from filing_metrics DB."""
+    try:
+        repo = FilingMetricRepository()
+        with repo.engine.connect() as conn:
+            from sqlalchemy import text
+            rows = conn.execute(text("""
+                SELECT DISTINCT fiscal_year FROM filing_metrics
+                WHERE ticker = :ticker ORDER BY fiscal_year DESC
+            """), {"ticker": ticker}).fetchall()
+            return [str(row[0]) for row in rows if row[0]]
+    except Exception:
+        return sorted(FILINGS_DATA.get(ticker, {}).keys(), reverse=True)
+
+def _get_available_doc_types_from_db(ticker: str):
+    """Get available doc types for a ticker from filing_metrics DB."""
+    try:
+        repo = FilingMetricRepository()
+        with repo.engine.connect() as conn:
+            from sqlalchemy import text
+            rows = conn.execute(text("""
+                SELECT DISTINCT doc_type FROM filing_metrics
+                WHERE ticker = :ticker ORDER BY doc_type
+            """), {"ticker": ticker}).fetchall()
+            return [row[0] for row in rows if row[0]]
+    except Exception:
+        company_data = FILINGS_DATA.get(ticker, {})
+        return sorted(set(dt for yd in company_data.values() for dt in yd.keys())) if company_data else ["10-K"]
+
+COMPANIES = _load_companies_from_db()
+logger.info(f"[INIT] DB companies with data: {len(COMPANIES)}")
+
+# Fallback doc types list (used only if DB query fails)
+DOCUMENT_TYPES = ["10-K"]
 
 
 # =============================================================================
@@ -767,8 +822,8 @@ def main():
         st.session_state.cf_doc_type = DOCUMENT_TYPES[0] if DOCUMENT_TYPES else "10-K"
     if 'cf_year' not in st.session_state:
         # Default to the latest available year for this company
-        company_years = sorted(FILINGS_DATA.get(st.session_state.cf_company, {}).keys(), reverse=True)
-        st.session_state.cf_year = company_years[0] if company_years else "2024"
+        company_years = _get_available_years_from_db(st.session_state.cf_company)
+        st.session_state.cf_year = company_years[0] if company_years else "2025"
     if 'cf_quarter' not in st.session_state:
         st.session_state.cf_quarter = "Q1"
     if 'cf_highlight_fact_id' not in st.session_state:
@@ -803,11 +858,9 @@ def main():
 
     with header_col2:
         # Dynamic filter values based on selected company
-        company_data = FILINGS_DATA.get(st.session_state.cf_company, {})
-        available_years = sorted(company_data.keys(), reverse=True) if company_data else ["2024"]
-        available_doc_types = sorted(set(
-            dt for year_docs in company_data.values() for dt in year_docs.keys()
-        )) if company_data else DOCUMENT_TYPES
+        # DB-based filter values (no folder dependency)
+        available_years = _get_available_years_from_db(st.session_state.cf_company) or ["2025"]
+        available_doc_types = _get_available_doc_types_from_db(st.session_state.cf_company) or DOCUMENT_TYPES
 
         # Hide quarter filter for annual filings (10-K, DEF 14A, S-1)
         show_quarter = st.session_state.cf_doc_type not in ANNUAL_DOC_TYPES

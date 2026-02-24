@@ -1,0 +1,16 @@
+[
+  {
+    "concept": "us-gaap:Revenues",
+    "context_ref": "consolidated",
+    "value": "15940899000",
+    "dimension": "",
+    "member": "",
+    "dimension_label": "Retail - Department Stores",
+    "segment_name": "Retail - Department Stores",
+    "metric_type": "Revenue",
+    "original_label": "Total revenue",
+    "standard_concept": "Revenues",
+    "unit": "USD",
+    "decimals": "-6"
+  }
+]

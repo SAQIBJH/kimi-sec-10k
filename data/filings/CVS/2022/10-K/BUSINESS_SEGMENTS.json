@@ -1,0 +1,44 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i528bf90615b04a4388c9e042e7d52e2d_D20210101-20211231",
+    "value": "85000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:IntersegmentEliminationMember",
+    "dimension_label": "HealthCareBenefits",
+    "segment_name": "HealthCareBenefits",
+    "metric_type": "Revenue",
+    "original_label": "Revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i3b5addf84c5d4652a8c88278ee498b80_D20210101-20211231",
+    "value": "9828000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:IntersegmentEliminationMember",
+    "dimension_label": "PharmacyServices",
+    "segment_name": "PharmacyServices",
+    "metric_type": "Revenue",
+    "original_label": "Revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-6"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "ia8ae9e7058b940a287f7a508f1290213_D20210101-20211231",
+    "value": "34010000000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:IntersegmentEliminationMember",
+    "dimension_label": "RetailLongTermCare",
+    "segment_name": "RetailLongTermCare",
+    "metric_type": "Revenue",
+    "original_label": "Revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-6"
+  }
+]

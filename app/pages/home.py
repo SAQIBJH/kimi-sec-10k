@@ -4,11 +4,12 @@ Homepage - Coresight Research
 import streamlit as st
 from components.styles import hide_sidebar, render_styles
 from components.navigation import render_header, render_coresight_footer
+from core.auth_manager import require_auth
 from data.repository import CompanyRepository
 from utils.local_storage_manager import set_persistent_state, save_market_data_state
-
+require_auth()
 hide_sidebar()
-
+    
 @st.cache_data(ttl=300)
 def _load_companies():
     """Fetch companies from database, returns list of (ticker, name) tuples."""

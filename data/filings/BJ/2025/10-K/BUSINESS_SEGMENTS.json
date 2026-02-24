@@ -1,0 +1,16 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-217",
+    "value": "19968689000",
+    "dimension": "us-gaap:StatementBusinessSegmentsAxis",
+    "member": "bj:RetailOperationsMember",
+    "dimension_label": "RetailOperations",
+    "segment_name": "RetailOperations",
+    "metric_type": "Revenue",
+    "original_label": "Total revenues",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

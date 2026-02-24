@@ -1,0 +1,16 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "i32791a45321c4de69e1d572cb75640cb_D20210101-20211231",
+    "value": "1624542000",
+    "dimension": "srt:ProductOrServiceAxis",
+    "member": "colm:ApparelAccessoriesAndEquipmentMember",
+    "dimension_label": "United States",
+    "segment_name": "United States",
+    "metric_type": "Revenue",
+    "original_label": "Revenue from Contract with Customer, Excluding Assessed Tax",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-3"
+  }
+]

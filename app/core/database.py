@@ -118,6 +118,25 @@ class DatabaseManager:
             result = session.execute(text(query), params or {})
             return result.scalar()
     
+    def execute_insert(
+        self, 
+        query: str, 
+        params: Optional[Dict[str, Any]] = None
+    ) -> int:
+        """
+        Execute an INSERT/UPDATE/DELETE query and return affected rows.
+        
+        Args:
+            query: SQL query string
+            params: Optional query parameters
+            
+        Returns:
+            Number of rows affected
+        """
+        with self.get_session() as session:
+            result = session.execute(text(query), params or {})
+            return result.rowcount
+    
     def health_check(self) -> bool:
         """Check database connectivity."""
         try:

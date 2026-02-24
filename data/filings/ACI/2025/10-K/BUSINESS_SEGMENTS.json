@@ -1,0 +1,16 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "c-453",
+    "value": "78494400000",
+    "dimension": "srt:ProductOrServiceAxis",
+    "member": "aci:RetailSalesMember",
+    "dimension_label": "Reportable",
+    "segment_name": "Reportable",
+    "metric_type": "Revenue",
+    "original_label": "Net sales and other revenue",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "usd",
+    "decimals": "-5"
+  }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "C_02b34c9c-c795-4dc4-89bc-34a6c417d7d0",
+    "value": "2733849000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "AmericanEagleBrand",
+    "segment_name": "AmericanEagleBrand",
+    "metric_type": "Revenue",
+    "original_label": "Total net revenue",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "U_USD",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "C_02b34c9c-c795-4dc4-89bc-34a6c417d7d0",
+    "value": "93029000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "AmericanEagleBrand",
+    "segment_name": "AmericanEagleBrand",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income (loss)",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "U_USD",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax",
+    "context_ref": "C_3bfd0c75-f8ac-46ae-84a5-d02a0d1a7725",
+    "value": "989989000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "AerieBrand",
+    "segment_name": "AerieBrand",
+    "metric_type": "Revenue",
+    "original_label": "Total net revenue",
+    "standard_concept": "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "unit": "U_USD",
+    "decimals": "-3"
+  },
+  {
+    "concept": "us-gaap:OperatingIncomeLoss",
+    "context_ref": "C_3bfd0c75-f8ac-46ae-84a5-d02a0d1a7725",
+    "value": "60298000",
+    "dimension": "srt:ConsolidationItemsAxis",
+    "member": "us-gaap:OperatingSegmentsMember",
+    "dimension_label": "AerieBrand",
+    "segment_name": "AerieBrand",
+    "metric_type": "Operating Income",
+    "original_label": "Operating income (loss)",
+    "standard_concept": "OperatingIncomeLoss",
+    "unit": "U_USD",
+    "decimals": "-3"
+  }
+]
