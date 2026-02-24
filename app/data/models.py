@@ -312,6 +312,7 @@ class FilingMetricResult:
     source: Optional[str] = None  # 'xbrl' | 'calculated' | 'llm' | 'edgartools'
     calculation_note: Optional[str] = None  # raw formula string for calculated metrics
     dimension: Optional[str] = None  # XBRL axis (e.g. 'srt:StatementGeographicalAxis')
+    llm_query: Optional[str] = None  # JSON detail for store_count/credit_rating sources
 
     @property
     def formatted_value(self) -> str:
