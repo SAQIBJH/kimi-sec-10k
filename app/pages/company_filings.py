@@ -992,9 +992,9 @@ def main():
                     st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div><div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.display_statement_type}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{period_meta}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
                     # Enable "View in Document" for ixbrl_id OR text-searchable sources
                     source_sentence = None
-                    if not metric.ixbrl_id and metric.source in ('store_count', 'credit_rating') and metric.llm_query:
+                    if not metric.ixbrl_id and metric.source in ('store_count', 'credit_rating') and getattr(metric, 'llm_query', None):
                         try:
-                            detail = json.loads(metric.llm_query)
+                            detail = json.loads(getattr(metric, 'llm_query', '{}'))
                             source_sentence = detail.get('source_sentence', '')
                         except Exception:
                             source_sentence = None
