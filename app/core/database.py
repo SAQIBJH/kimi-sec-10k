@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 
-from .config import config, DatabaseConfig
+from .config import config
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,12 @@ class DatabaseManager:
         Initialize database connection pool.
         """
         try:
+            ssl_enabled = self._config.ssl_enabled
+            if ssl_enabled:
+                logger.info(f"SSL enabled — using CA: {self._config.ssl_ca}")
+            else:
+                logger.info("SSL disabled — connecting without SSL")
+
             self._engine = create_engine(
                 self._config.connection_string,
                 poolclass=QueuePool,
@@ -67,6 +73,7 @@ class DatabaseManager:
                 pool_timeout=self._config.pool_timeout,
                 pool_recycle=self._config.pool_recycle,
                 echo=config.debug,
+                connect_args=self._config.connect_args,
             )
             self._session_factory = sessionmaker(bind=self._engine)
             logger.info("Database connection pool initialized successfully")

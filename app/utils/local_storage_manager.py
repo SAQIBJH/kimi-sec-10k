@@ -134,13 +134,13 @@ class LocalStorageManager:
                 page_data[ticker_selection_key] = st.session_state[ticker_selection_key]
             
             # Look for all tab-specific date ranges
-            for key in st.session_state.keys():
-                if key.startswith(f'date_range_{page}_'):  # e.g., date_range_market_data_income_statement
+            for key in st.session_state.keys():  # type: ignore
+                if key.startswith(f'date_range_{page}_'):  # type: ignore  # e.g., date_range_market_data_income_statement
                     page_data[key] = st.session_state[key]
             
             # Look for all tab-specific sort orders
-            for key in st.session_state.keys():
-                if key.startswith(f'sort_order_{page}_'):  # e.g., sort_order_market_data_income_statement
+            for key in st.session_state.keys():  # type: ignore
+                if key.startswith(f'sort_order_{page}_'):  # type: ignore  # e.g., sort_order_market_data_income_statement
                     page_data[key] = st.session_state[key]
             
             # Look for general date range state (legacy support)
@@ -164,10 +164,10 @@ class LocalStorageManager:
             # Look for all filters_<page>_<tab> keys in session state
             filter_prefix = f"filters_{page}_"
             
-            for key in st.session_state.keys():
-                if key.startswith(filter_prefix):
+            for key in st.session_state.keys():  # type: ignore
+                if key.startswith(filter_prefix):  # type: ignore
                     # Extract tab name from key (e.g., "filters_market_data_income_statement" -> "income_statement")
-                    tab_name = key[len(filter_prefix):]
+                    tab_name = key[len(filter_prefix):]  # type: ignore
                     
                     # Get the filter data for this tab
                     tab_filters = st.session_state[key]
@@ -228,7 +228,7 @@ class LocalStorageManager:
                         return True
             else:
                 # Clear entire storage
-                self.local_storage.removeItem(self.STORAGE_KEY)
+                self.local_storage.removeItem(self.STORAGE_KEY)  # type: ignore
                 return True
         except Exception as e:
             logging.warning(f"Failed to clear local storage: {e}")

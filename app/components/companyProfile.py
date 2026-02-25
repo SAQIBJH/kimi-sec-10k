@@ -3,7 +3,7 @@ Company Profile Page - Coresight Research
 =========================================
 Company overview page with profile information.
 """
-from attr import asdict
+# from attr import asdict  # Not used - using dataclasses instead
 import streamlit as st
 from typing import Optional
 

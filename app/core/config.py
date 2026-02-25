@@ -29,11 +29,20 @@ class DatabaseConfig:
     max_overflow: int = 10
     pool_timeout: int = 30
     pool_recycle: int = 1800
-    
+    ssl_enabled: bool = False
+    ssl_ca: Optional[str] = None
+
     @property
     def connection_string(self) -> str:
         """Generate MySQL connection string."""
         return f"mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}"
+
+    @property
+    def connect_args(self) -> dict:
+        """Return SSL connect_args for SQLAlchemy if SSL is enabled."""
+        if self.ssl_enabled and self.ssl_ca:
+            return {"ssl": {"ca": self.ssl_ca}}
+        return {}
 
 
 @dataclass
@@ -63,17 +72,38 @@ def load_config() -> AppConfig:
     Falls back to sensible defaults for local development.
     """
     env = Environment(os.getenv("APP_ENV", "local"))
-    
-    # Database configuration
-    db_config = DatabaseConfig(
-        host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "3306")),
-        database=os.getenv("DB_NAME", "secfiling"),
-        user=os.getenv("DB_USER", "root"),
-        password=os.getenv("DB_PASSWORD", "admin"),
-        pool_size=int(os.getenv("DB_POOL_SIZE", "5")),
-        max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "10")),
-    )
+
+    pool_size = int(os.getenv("DB_POOL_SIZE", "5"))
+    max_overflow = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+
+    if env == Environment.STAGING:
+        # Staging: use STG_DB_* vars + SSL if ENABLE_SSL=true
+        ssl_enabled = os.getenv("ENABLE_SSL", "false").lower() == "true"
+        ssl_ca = os.getenv("SSL_CA") if ssl_enabled else None
+        db_config = DatabaseConfig(
+            host=os.getenv("STG_DB_HOST", "localhost"),
+            port=int(os.getenv("STG_DB_PORT", "3306")),
+            database=os.getenv("STG_DB_NAME", "secfiling"),
+            user=os.getenv("STG_DB_USER", "root"),
+            password=os.getenv("STG_DB_PASSWORD", ""),
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            ssl_enabled=ssl_enabled,
+            ssl_ca=ssl_ca,
+        )
+    else:
+        # Local: use DB_* vars, SSL always off
+        db_config = DatabaseConfig(
+            host=os.getenv("DB_HOST", "localhost"),
+            port=int(os.getenv("DB_PORT", "3306")),
+            database=os.getenv("DB_NAME", "secfiling"),
+            user=os.getenv("DB_USER", "root"),
+            password=os.getenv("DB_PASSWORD", "admin"),
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            ssl_enabled=False,
+            ssl_ca=None,
+        )
     
     return AppConfig(
         env=env,

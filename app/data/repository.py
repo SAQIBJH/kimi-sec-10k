@@ -2304,99 +2304,8 @@ class FilingMetricRepository:
     }
 
     @staticmethod
-    def _expand_query(query: str) -> List[str]:
-        """Return list of LIKE patterns: original query + all synonym expansions."""
-        q = query.strip().lower()
-        patterns = [f"%{q}%"]
-        for synonym in FilingMetricRepository.SYNONYM_MAP.get(q, []):
-            patterns.append(f"%{synonym.lower()}%")
-        return patterns
-
-    @staticmethod
-    def search(
-        ticker: str,
-        fiscal_year: int,
-        doc_type: str,
-        query: str,
-        limit: int = 100,
-    ) -> List[FilingMetricResult]:
-        """
-        Search filing metrics by original_label OR standard_concept OR dimension_label.
-        Expands the query with synonyms so e.g. 'Gross Profit' finds 'Gross margin'.
-        """
-        patterns = FilingMetricRepository._expand_query(query)
-
-        # Build dynamic OR clauses — one per pattern, across label + concept + dimension
-        or_clauses = []
-        params: Dict[str, Any] = {
-            "ticker": ticker,
-            "fiscal_year": fiscal_year,
-            "doc_type": doc_type,
-            "limit": limit,
-        }
-        for i, pattern in enumerate(patterns):
-            k = f"q{i}"
-            or_clauses.append(
-                f"(LOWER(original_label) LIKE :{k} OR LOWER(standard_concept) LIKE :{k} OR LOWER(dimension_label) LIKE :{k})"
-            )
-            params[k] = pattern
-
-        where_synonyms = " OR ".join(or_clauses)
-
-        sql = f"""
-            SELECT original_label, numeric_value, unit_ref, fiscal_year,
-                   is_dimensioned, dimension_label, statement_type, ixbrl_id,
-                   standard_concept, concept, balance, period_type,
-                   period_start, period_end, period_instant,
-                   value, source, llm_query, dimension, full_dimension_label
-            FROM (
-                SELECT original_label, numeric_value, unit_ref, fiscal_year,
-                       is_dimensioned, dimension_label, statement_type, ixbrl_id,
-                       standard_concept, concept, balance, period_type,
-                       period_start, period_end, period_instant,
-                       value, source, llm_query, dimension, full_dimension_label,
-                       ROW_NUMBER() OVER (
-                           PARTITION BY original_label,
-                                        COALESCE(dimension, ''),
-                                        COALESCE(dimension_label, '')
-                           ORDER BY COALESCE(period_end, period_instant) DESC
-                       ) AS rn
-                FROM filing_metrics
-                WHERE ticker = :ticker
-                  AND fiscal_year = :fiscal_year
-                  AND doc_type = :doc_type
-                  AND ({where_synonyms})
-                  AND (standard_concept IS NULL OR standard_concept NOT LIKE '%Text Block')
-                  AND numeric_value IS NOT NULL
-            ) deduped
-            WHERE rn = 1
-            ORDER BY CASE LOWER(original_label)
-                       WHEN 'net sales'               THEN 0
-                       WHEN 'total net sales'          THEN 0
-                       WHEN 'revenue'                  THEN 0
-                       WHEN 'net revenue'               THEN 0
-                       WHEN 'revenues'                 THEN 0
-                       WHEN 'total revenue'             THEN 0
-                       WHEN 'operating income'          THEN 1
-                       WHEN 'operating income (loss)'   THEN 1
-                       WHEN 'net income'                THEN 2
-                       WHEN 'net income (loss)'         THEN 2
-                       WHEN 'net earnings'              THEN 2
-                       WHEN 'total assets'              THEN 3
-                       WHEN 'cash and cash equivalents' THEN 3
-                       WHEN 'ebitda'                    THEN 4
-                       WHEN 'free cash flow'            THEN 4
-                       WHEN 'long-term debt'            THEN 5
-                       WHEN 'total debt'                THEN 5
-                       WHEN 'net debt'                  THEN 6
-                       ELSE 10
-                     END ASC,
-                     is_dimensioned ASC,
-                     dimension_label ASC,
-                     CHAR_LENGTH(original_label) ASC, original_label ASC
-        """
-
-        results = db_manager.execute_query(sql, params)
+    def _rows_to_results(rows: list) -> "List[FilingMetricResult]":
+        """Convert raw DB rows to FilingMetricResult objects."""
         return [
             FilingMetricResult(
                 original_label=row["original_label"] or "",
@@ -2421,8 +2330,163 @@ class FilingMetricRepository:
                 dimension=row.get("dimension"),
                 llm_query=row.get("llm_query") if row.get("source") in ("store_count", "credit_rating") else None,
             )
-            for row in results
+            for row in rows
         ]
+
+    @staticmethod
+    def _expand_query(query: str) -> List[str]:
+        """Return list of LIKE patterns: original query + all synonym expansions."""
+        q = query.strip().lower()
+        patterns = [f"%{q}%"]
+        for synonym in FilingMetricRepository.SYNONYM_MAP.get(q, []):
+            patterns.append(f"%{synonym.lower()}%")
+        return patterns
+
+    @staticmethod
+    def _build_fulltext_query(patterns: List[str]) -> str:
+        """
+        Convert LIKE patterns to a MySQL FULLTEXT boolean mode query string.
+        Each '%term%' becomes 'term*' (prefix wildcard for word-boundary matching).
+        Multi-word terms use phrase search "like this"*.
+        Returns empty string if no usable terms (all too short or special-chars only).
+        """
+        terms = []
+        for p in patterns:
+            term = p.strip('%').strip()
+            if len(term) < 3:
+                continue
+            # FULLTEXT boolean mode: phrase-match multi-word, prefix-match single word
+            if ' ' in term:
+                terms.append(f'"{term}"')
+            else:
+                terms.append(f'{term}*')
+        # de-duplicate while preserving order
+        seen: set = set()
+        unique = []
+        for t in terms:
+            if t not in seen:
+                seen.add(t)
+                unique.append(t)
+        return ' '.join(unique)
+
+    # ── Shared ORDER BY / SELECT blocks ──────────────────────────────────────
+    _SELECT_COLS = """original_label, numeric_value, unit_ref, fiscal_year,
+                   is_dimensioned, dimension_label, statement_type, ixbrl_id,
+                   standard_concept, concept, balance, period_type,
+                   period_start, period_end, period_instant,
+                   value, source, llm_query, dimension, full_dimension_label"""
+
+    _ORDER_BY = """ORDER BY CASE LOWER(original_label)
+                       WHEN 'net sales'               THEN 0
+                       WHEN 'total net sales'          THEN 0
+                       WHEN 'revenue'                  THEN 0
+                       WHEN 'net revenue'               THEN 0
+                       WHEN 'revenues'                 THEN 0
+                       WHEN 'total revenue'             THEN 0
+                       WHEN 'operating income'          THEN 1
+                       WHEN 'operating income (loss)'   THEN 1
+                       WHEN 'net income'                THEN 2
+                       WHEN 'net income (loss)'         THEN 2
+                       WHEN 'net earnings'              THEN 2
+                       WHEN 'total assets'              THEN 3
+                       WHEN 'cash and cash equivalents' THEN 3
+                       WHEN 'ebitda'                    THEN 4
+                       WHEN 'free cash flow'            THEN 4
+                       WHEN 'long-term debt'            THEN 5
+                       WHEN 'total debt'                THEN 5
+                       WHEN 'net debt'                  THEN 6
+                       ELSE 10
+                     END ASC,
+                     is_dimensioned ASC,
+                     dimension_label ASC,
+                     CHAR_LENGTH(original_label) ASC, original_label ASC"""
+
+    @staticmethod
+    def search(
+        ticker: str,
+        fiscal_year: int,
+        doc_type: str,
+        query: str,
+        limit: int = 100,
+    ) -> List[FilingMetricResult]:
+        """
+        Search filing metrics by original_label OR standard_concept OR dimension_label.
+        Fast path: FULLTEXT MATCH...AGAINST (uses idx_ft_labels index).
+        Fallback: LIKE scan (used when FULLTEXT returns 0 results or term < 3 chars).
+        """
+        patterns = FilingMetricRepository._expand_query(query)
+        ft_query = FilingMetricRepository._build_fulltext_query(patterns)
+
+        base_params: Dict[str, Any] = {
+            "ticker": ticker,
+            "fiscal_year": fiscal_year,
+            "doc_type": doc_type,
+            "limit": limit,
+        }
+
+        # ── Fast path: FULLTEXT ───────────────────────────────────────────────
+        if ft_query:
+            ft_params = {**base_params, "ft_query": ft_query}
+            ft_sql = f"""
+                SELECT {FilingMetricRepository._SELECT_COLS}
+                FROM (
+                    SELECT {FilingMetricRepository._SELECT_COLS},
+                           ROW_NUMBER() OVER (
+                               PARTITION BY original_label,
+                                            COALESCE(dimension, ''),
+                                            COALESCE(dimension_label, '')
+                               ORDER BY COALESCE(period_end, period_instant) DESC
+                           ) AS rn
+                    FROM filing_metrics
+                    WHERE ticker = :ticker
+                      AND fiscal_year = :fiscal_year
+                      AND doc_type = :doc_type
+                      AND MATCH(original_label, standard_concept, dimension_label)
+                          AGAINST (:ft_query IN BOOLEAN MODE)
+                      AND (standard_concept IS NULL OR standard_concept NOT LIKE '%Text Block')
+                      AND numeric_value IS NOT NULL
+                ) deduped
+                WHERE rn = 1
+                {FilingMetricRepository._ORDER_BY}
+            """
+            results = db_manager.execute_query(ft_sql, ft_params)
+            if results:
+                return FilingMetricRepository._rows_to_results(results)
+
+        # ── Fallback: LIKE scan ───────────────────────────────────────────────
+        or_clauses = []
+        like_params: Dict[str, Any] = {**base_params}
+        for i, pattern in enumerate(patterns):
+            k = f"q{i}"
+            or_clauses.append(
+                f"(LOWER(original_label) LIKE :{k} OR LOWER(standard_concept) LIKE :{k} OR LOWER(dimension_label) LIKE :{k})"
+            )
+            like_params[k] = pattern
+
+        where_synonyms = " OR ".join(or_clauses)
+        like_sql = f"""
+            SELECT {FilingMetricRepository._SELECT_COLS}
+            FROM (
+                SELECT {FilingMetricRepository._SELECT_COLS},
+                       ROW_NUMBER() OVER (
+                           PARTITION BY original_label,
+                                        COALESCE(dimension, ''),
+                                        COALESCE(dimension_label, '')
+                           ORDER BY COALESCE(period_end, period_instant) DESC
+                       ) AS rn
+                FROM filing_metrics
+                WHERE ticker = :ticker
+                  AND fiscal_year = :fiscal_year
+                  AND doc_type = :doc_type
+                  AND ({where_synonyms})
+                  AND (standard_concept IS NULL OR standard_concept NOT LIKE '%Text Block')
+                  AND numeric_value IS NOT NULL
+            ) deduped
+            WHERE rn = 1
+            {FilingMetricRepository._ORDER_BY}
+        """
+        results = db_manager.execute_query(like_sql, like_params)
+        return FilingMetricRepository._rows_to_results(results)
 
     @staticmethod
     def search_with_llm_fallback(
