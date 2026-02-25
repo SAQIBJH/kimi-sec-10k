@@ -2348,13 +2348,13 @@ class FilingMetricRepository:
                    is_dimensioned, dimension_label, statement_type, ixbrl_id,
                    standard_concept, concept, balance, period_type,
                    period_start, period_end, period_instant,
-                   value, source, llm_query, dimension
+                   value, source, llm_query, dimension, full_dimension_label
             FROM (
                 SELECT original_label, numeric_value, unit_ref, fiscal_year,
                        is_dimensioned, dimension_label, statement_type, ixbrl_id,
                        standard_concept, concept, balance, period_type,
                        period_start, period_end, period_instant,
-                       value, source, llm_query, dimension,
+                       value, source, llm_query, dimension, full_dimension_label,
                        ROW_NUMBER() OVER (
                            PARTITION BY original_label,
                                         COALESCE(dimension, ''),
@@ -2418,6 +2418,7 @@ class FilingMetricRepository:
                 value=row["value"],
                 source=row.get("source"),
                 calculation_note=row.get("llm_query") if row.get("source") == "calculated" else None,
+                full_dimension_label=row.get("full_dimension_label"),
                 dimension=row.get("dimension"),
                 llm_query=row.get("llm_query") if row.get("source") in ("store_count", "credit_rating") else None,
             )

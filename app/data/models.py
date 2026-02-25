@@ -313,6 +313,7 @@ class FilingMetricResult:
     calculation_note: Optional[str] = None  # raw formula string for calculated metrics
     dimension: Optional[str] = None  # XBRL axis (e.g. 'srt:StatementGeographicalAxis')
     llm_query: Optional[str] = None  # JSON detail for store_count/credit_rating sources
+    full_dimension_label: Optional[str] = None  # e.g. "Product and Service: Technology, Segments: Sams Club"
 
     @property
     def formatted_value(self) -> str:
@@ -324,13 +325,13 @@ class FilingMetricResult:
         val = abs(self.numeric_value)  # bracket notation (123) stored as negative — always display positive
         if self.unit_ref and self.unit_ref.lower() == "usd":
             if abs(val) >= 1e12:
-                return f"$ {val / 1e12:,.3f}T"
+                return f"$ {val / 1e12:,.3f} T"
             elif abs(val) >= 1e9:
-                return f"$ {val / 1e9:,.3f}B"
+                return f"$ {val / 1e9:,.3f} B"
             elif abs(val) >= 1e6:
-                return f"$ {val / 1e6:,.0f}M"
+                return f"$ {val / 1e6:,.0f} M"
             elif abs(val) >= 1e3:
-                return f"$ {val / 1e3:,.0f}K"
+                return f"$ {val / 1e3:,.0f} K"
             else:
                 return f"$ {val:,.2f}"
         # Percentage: label or concept contains "percent" → decimal × 100
@@ -366,9 +367,7 @@ class FilingMetricResult:
 
     @property
     def display_label(self) -> str:
-        """Label with dimension suffix if applicable."""
-        if self.is_dimensioned and self.dimension_label:
-            return f"{self.original_label} [{self.dimension_label}]"
+        """Label only — dimension info shown separately on the card."""
         return self.original_label
 
     @property

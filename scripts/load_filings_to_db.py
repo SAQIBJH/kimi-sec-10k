@@ -26,7 +26,7 @@ JSON_FILENAME = "FINAL_FACTS_FILTERED.json"
 
 # Columns we extract from JSON → DB (order matters for INSERT)
 DB_COLUMNS = [
-    "ticker", "fiscal_year", "doc_type",
+    "ticker", "company_name", "fiscal_year", "doc_type",
     "concept", "context_ref", "value", "unit_ref", "decimals", "numeric_value",
     "period_type", "period_start", "period_end", "period_instant", "fiscal_period",
     "label", "original_label", "standard_concept", "balance",
@@ -53,11 +53,27 @@ def get_connection():
     )
 
 
-def record_to_row(record: dict, ticker: str, year: int, doc_type: str) -> tuple:
+def _load_company_names():
+    """One-time lookup: ticker → company_name from coreiq_companies."""
+    try:
+        conn = get_connection()
+        with conn.cursor() as cur:
+            cur.execute("SELECT ticker, COALESCE(name_coresight, name) FROM coreiq_companies WHERE ticker IS NOT NULL")
+            names = {row[0].strip(): row[1] for row in cur.fetchall() if row[0]}
+        conn.close()
+        return names
+    except Exception:
+        return {}
+
+COMPANY_NAME_MAP = _load_company_names()
+
+
+def record_to_row(record: dict, ticker: str, company_name: str, year: int, doc_type: str) -> tuple:
     """Convert a JSON record to a DB row tuple matching DB_COLUMNS order."""
     loc = record.get("html_location") or {}
     return (
         ticker,
+        company_name,
         year,
         doc_type,
         record.get("concept"),
@@ -104,7 +120,8 @@ def load_filing(conn, ticker: str, year: str, doc_type: str, json_path: str):
     records = [r for r in records if r.get("source") != "calculated"]
 
     year_int = int(year)
-    rows = [record_to_row(r, ticker, year_int, doc_type) for r in records]
+    company_name = COMPANY_NAME_MAP.get(ticker, ticker)
+    rows = [record_to_row(r, ticker, company_name, year_int, doc_type) for r in records]
 
     with conn.cursor() as cur:
         # Idempotent: delete existing rows for this filing

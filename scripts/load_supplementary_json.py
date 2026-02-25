@@ -43,14 +43,27 @@ def get_conn():
 
 INSERT_SQL = """
     INSERT INTO filing_metrics
-        (ticker, fiscal_year, doc_type,
+        (ticker, company_name, fiscal_year, doc_type,
          concept, context_ref, value, unit_ref, numeric_value,
          period_type, fiscal_period,
          original_label, standard_concept, statement_type,
          is_dimensioned, dimension, member, dimension_label,
          source)
-    VALUES (%s,%s,%s, %s,%s,%s,%s,%s, %s,%s, %s,%s,%s, %s,%s,%s,%s, %s)
+    VALUES (%s,%s,%s,%s, %s,%s,%s,%s,%s, %s,%s, %s,%s,%s, %s,%s,%s,%s, %s)
 """
+
+def _load_company_names():
+    try:
+        conn = get_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT ticker, COALESCE(name_coresight, name) FROM coreiq_companies WHERE ticker IS NOT NULL")
+            names = {row[0].strip(): row[1] for row in cur.fetchall() if row[0]}
+        conn.close()
+        return names
+    except Exception:
+        return {}
+
+COMPANY_NAME_MAP = _load_company_names()
 
 def _num(v):
     try:
@@ -74,8 +87,9 @@ def load_segments(conn, ticker, year, doc_type, path, stmt_type):
         nv = _num(r.get("value"))
         mt = r.get("metric_type", "Revenue")
         ptype = "instant" if mt == "Assets" else "duration"
+        company_name = COMPANY_NAME_MAP.get(ticker, ticker)
         rows.append((
-            ticker, year, doc_type,
+            ticker, company_name, year, doc_type,
             r.get("concept",""), r.get("context_ref",""),
             r.get("value"), (r.get("unit") or "usd").lower(), nv,
             ptype, "FY",
@@ -111,8 +125,9 @@ def load_financial_ratios(conn, ticker, year, doc_type, path):
         if nv is None:
             continue
         unit = (r.get("unit") or "ratio").lower()
+        company_name = COMPANY_NAME_MAP.get(ticker, ticker)
         rows.append((
-            ticker, year, doc_type,
+            ticker, company_name, year, doc_type,
             "calculated", "calculated",
             r.get("value"), unit, nv,
             "duration", "FY",

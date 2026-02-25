@@ -154,48 +154,50 @@ class FilingDocument:
 from data.repository import FilingMetricRepository
 
 def _load_companies_from_db():
-    """Get (ticker, display_name) for companies that have data in filing_metrics."""
+    """Get (ticker, display_label) for companies that have data in filing_metrics.
+    Display label uses the format: 'Company Name (TICKER)'.
+    """
     try:
-        repo = FilingMetricRepository()
-        with repo.engine.connect() as conn:
-            from sqlalchemy import text
-            rows = conn.execute(text("""
-                SELECT DISTINCT fm.ticker
-                FROM filing_metrics fm
-                ORDER BY fm.ticker
-            """)).fetchall()
-            tickers = [row[0] for row in rows if row[0]]
-            return [(t, COMPANY_NAMES.get(t, t)) for t in tickers]
+        from core.database import db_manager
+        rows = db_manager.execute_query("""
+            SELECT fm.ticker, MIN(fm.company_name) AS company_name
+            FROM filing_metrics fm
+            WHERE fm.ticker IS NOT NULL AND fm.ticker != ''
+            GROUP BY fm.ticker
+            ORDER BY fm.ticker
+        """)
+        results = []
+        for row in rows:
+            ticker = row["ticker"]
+            name = row["company_name"] or COMPANY_NAMES.get(ticker, ticker)
+            display = f"{name} ({ticker})"
+            results.append((ticker, display))
+        return results
     except Exception as e:
         logger.warning(f"[DB] Failed to load companies: {e}")
-        # Fallback to folder scan
-        return [(t, COMPANY_NAMES.get(t, t)) for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc.")]
+        return [(t, f"{COMPANY_NAMES.get(t, t)} ({t})") for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc. (AAPL)")]
 
 def _get_available_years_from_db(ticker: str):
     """Get available fiscal years for a ticker from filing_metrics DB."""
     try:
-        repo = FilingMetricRepository()
-        with repo.engine.connect() as conn:
-            from sqlalchemy import text
-            rows = conn.execute(text("""
-                SELECT DISTINCT fiscal_year FROM filing_metrics
-                WHERE ticker = :ticker ORDER BY fiscal_year DESC
-            """), {"ticker": ticker}).fetchall()
-            return [str(row[0]) for row in rows if row[0]]
+        from core.database import db_manager
+        rows = db_manager.execute_query("""
+            SELECT DISTINCT fiscal_year FROM filing_metrics
+            WHERE ticker = :ticker ORDER BY fiscal_year DESC
+        """, {"ticker": ticker})
+        return [str(row["fiscal_year"]) for row in rows if row["fiscal_year"]]
     except Exception:
         return sorted(FILINGS_DATA.get(ticker, {}).keys(), reverse=True)
 
 def _get_available_doc_types_from_db(ticker: str):
     """Get available doc types for a ticker from filing_metrics DB."""
     try:
-        repo = FilingMetricRepository()
-        with repo.engine.connect() as conn:
-            from sqlalchemy import text
-            rows = conn.execute(text("""
-                SELECT DISTINCT doc_type FROM filing_metrics
-                WHERE ticker = :ticker ORDER BY doc_type
-            """), {"ticker": ticker}).fetchall()
-            return [row[0] for row in rows if row[0]]
+        from core.database import db_manager
+        rows = db_manager.execute_query("""
+            SELECT DISTINCT doc_type FROM filing_metrics
+            WHERE ticker = :ticker ORDER BY doc_type
+        """, {"ticker": ticker})
+        return [row["doc_type"] for row in rows if row["doc_type"]]
     except Exception:
         company_data = FILINGS_DATA.get(ticker, {})
         return sorted(set(dt for yd in company_data.values() for dt in yd.keys())) if company_data else ["10-K"]
@@ -424,13 +426,32 @@ def get_filings_css() -> str:
         word-break: break-word;
     }
 
+    .metric-dimension {
+        font-size: 11px;
+        color: #777;
+        font-style: italic;
+        margin: 1px 0 4px 0;
+        line-height: 1.3;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+
     .metric-meta {
         display: flex;
         align-items: center;
+        flex-wrap: nowrap;
         gap: 6px;
         font-family: 'Roboto', sans-serif;
         font-size: 11px;
         color: #888888;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .metric-meta span {
+        white-space: nowrap;
+        flex-shrink: 0;
     }
     
     .metric-meta-dot {
@@ -472,16 +493,20 @@ def get_filings_css() -> str:
     /* =======================================================================
        COMPACT VIEW BUTTONS IN SEARCH SIDEBAR
        ======================================================================= */
+    /* Compact inline view buttons inside search cards */
     [data-testid="stColumn"]:first-child button {
-        height: 30px !important;
-        min-height: 30px !important;
-        padding: 2px 12px !important;
-        font-size: 12px !important;
-        background: #F0F7FF !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        padding: 0 10px !important;
+        font-size: 11px !important;
+        background: transparent !important;
         color: #0066CC !important;
         border: 1px solid #E0EFFF !important;
-        border-radius: 4px !important;
+        border-radius: 14px !important;
         font-family: 'Roboto', sans-serif !important;
+        font-weight: 500 !important;
+        margin-top: -4px !important;
+        line-height: 28px !important;
     }
 
     [data-testid="stColumn"]:first-child button:hover {
@@ -992,11 +1017,11 @@ def main():
                 try:
                     val = abs(float(m.group(1).replace(",", "")))
                     if val >= 1e12:
-                        return f"(${val/1e12:.1f}T)"
+                        return f"(${val/1e12:.1f} T)"
                     elif val >= 1e9:
-                        return f"(${val/1e9:.1f}B)"
+                        return f"(${val/1e9:.1f} B)"
                     elif val >= 1e6:
-                        return f"(${val/1e6:.0f}M)"
+                        return f"(${val/1e6:.0f} M)"
                     else:
                         return f"(${val:,.0f})"
                 except Exception:
@@ -1008,7 +1033,7 @@ def main():
         search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
         eye_icon_svg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
 
-        with st.container(border=True):
+        with st.container(height=700, border=True):
             st.markdown(f'<div class="search-header">{search_icon}<span class="search-title">Search Metrics</span></div>', unsafe_allow_html=True)
 
             if search_results:
@@ -1025,12 +1050,28 @@ def main():
                         return str(d_str)[:7]
 
                 for i, metric in enumerate(search_results):
-                    is_viewing = (st.session_state.cf_highlight_fact_id == metric.ixbrl_id and metric.ixbrl_id)
+                    # Determine view_id for "View in Document" functionality
+                    source_sentence = None
+                    if not metric.ixbrl_id and metric.source in ('store_count', 'credit_rating') and getattr(metric, 'llm_query', None):
+                        try:
+                            detail = json.loads(getattr(metric, 'llm_query', '{}'))
+                            source_sentence = detail.get('source_sentence', '')
+                        except Exception:
+                            source_sentence = None
+                    view_id = metric.ixbrl_id
+                    if not view_id and source_sentence:
+                        view_id = f"TEXT:{source_sentence[:120]}"
+
+                    is_viewing = (st.session_state.cf_highlight_fact_id == view_id and view_id)
                     card_class = "metric-card active" if is_viewing else "metric-card"
                     btn_class = "viewing" if is_viewing else "view"
                     btn_text = "Viewing" if is_viewing else "View"
                     badge_html = _source_badge(metric.source)
                     label_html = f'{metric.display_label}{badge_html}'
+                    # Dimension subtitle: show full_dimension_label on its own line in parens
+                    dim_html = ""
+                    if metric.is_dimensioned and metric.full_dimension_label:
+                        dim_html = f'<div class="metric-dimension">( {metric.full_dimension_label} )</div>'
                     formula_html = ""
                     if metric.source == "calculated" and metric.calculation_note:
                         formula_html = f'<div class="metric-formula">{_format_calc_note(metric.calculation_note)}</div>'
@@ -1042,24 +1083,12 @@ def main():
                         period_meta = _fmt_period_date(metric.period_instant)
                     else:
                         period_meta = str(metric.fiscal_year)
-                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div><div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.display_statement_type}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{period_meta}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
-                    # Enable "View in Document" for ixbrl_id OR text-searchable sources
-                    source_sentence = None
-                    if not metric.ixbrl_id and metric.source in ('store_count', 'credit_rating') and getattr(metric, 'llm_query', None):
-                        try:
-                            detail = json.loads(getattr(metric, 'llm_query', '{}'))
-                            source_sentence = detail.get('source_sentence', '')
-                        except Exception:
-                            source_sentence = None
-                    
-                    view_id = metric.ixbrl_id  # Normal XBRL ID
-                    if not view_id and source_sentence:
-                        # Use TEXT: prefix for text-search fallback
-                        view_id = f"TEXT:{source_sentence[:120]}"
-                    
+                    st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div>{dim_html}<div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.display_statement_type}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{period_meta}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
+
+                    # Compact "View" button — replaces old "View in Document" button
                     if view_id:
                         btn_key = f"view_{i}_{metric.original_label.replace(' ', '_')}_{hash(view_id) % 10000}"
-                        if st.button(f"View in Document", key=btn_key, use_container_width=True):
+                        if st.button(f"👁 View in Document", key=btn_key, use_container_width=True):
                             st.session_state.cf_highlight_fact_id = view_id
                             st.session_state.cf_view_metric = metric.display_label
                             st.rerun()
