@@ -493,16 +493,20 @@ def get_filings_css() -> str:
     /* =======================================================================
        COMPACT VIEW BUTTONS IN SEARCH SIDEBAR
        ======================================================================= */
+    /* Compact inline view buttons inside search cards */
     [data-testid="stColumn"]:first-child button {
-        height: 30px !important;
-        min-height: 30px !important;
-        padding: 2px 12px !important;
-        font-size: 12px !important;
-        background: #F0F7FF !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        padding: 0 10px !important;
+        font-size: 11px !important;
+        background: transparent !important;
         color: #0066CC !important;
         border: 1px solid #E0EFFF !important;
-        border-radius: 4px !important;
+        border-radius: 14px !important;
         font-family: 'Roboto', sans-serif !important;
+        font-weight: 500 !important;
+        margin-top: -4px !important;
+        line-height: 28px !important;
     }
 
     [data-testid="stColumn"]:first-child button:hover {
@@ -1029,7 +1033,7 @@ def main():
         search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
         eye_icon_svg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
 
-        with st.container(border=True):
+        with st.container(height=700, border=True):
             st.markdown(f'<div class="search-header">{search_icon}<span class="search-title">Search Metrics</span></div>', unsafe_allow_html=True)
 
             if search_results:
@@ -1046,7 +1050,19 @@ def main():
                         return str(d_str)[:7]
 
                 for i, metric in enumerate(search_results):
-                    is_viewing = (st.session_state.cf_highlight_fact_id == metric.ixbrl_id and metric.ixbrl_id)
+                    # Determine view_id for "View in Document" functionality
+                    source_sentence = None
+                    if not metric.ixbrl_id and metric.source in ('store_count', 'credit_rating') and getattr(metric, 'llm_query', None):
+                        try:
+                            detail = json.loads(getattr(metric, 'llm_query', '{}'))
+                            source_sentence = detail.get('source_sentence', '')
+                        except Exception:
+                            source_sentence = None
+                    view_id = metric.ixbrl_id
+                    if not view_id and source_sentence:
+                        view_id = f"TEXT:{source_sentence[:120]}"
+
+                    is_viewing = (st.session_state.cf_highlight_fact_id == view_id and view_id)
                     card_class = "metric-card active" if is_viewing else "metric-card"
                     btn_class = "viewing" if is_viewing else "view"
                     btn_text = "Viewing" if is_viewing else "View"
@@ -1068,23 +1084,11 @@ def main():
                     else:
                         period_meta = str(metric.fiscal_year)
                     st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div>{dim_html}<div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.display_statement_type}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{period_meta}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
-                    # Enable "View in Document" for ixbrl_id OR text-searchable sources
-                    source_sentence = None
-                    if not metric.ixbrl_id and metric.source in ('store_count', 'credit_rating') and getattr(metric, 'llm_query', None):
-                        try:
-                            detail = json.loads(getattr(metric, 'llm_query', '{}'))
-                            source_sentence = detail.get('source_sentence', '')
-                        except Exception:
-                            source_sentence = None
-                    
-                    view_id = metric.ixbrl_id  # Normal XBRL ID
-                    if not view_id and source_sentence:
-                        # Use TEXT: prefix for text-search fallback
-                        view_id = f"TEXT:{source_sentence[:120]}"
-                    
+
+                    # Compact "View" button — replaces old "View in Document" button
                     if view_id:
                         btn_key = f"view_{i}_{metric.original_label.replace(' ', '_')}_{hash(view_id) % 10000}"
-                        if st.button(f"View in Document", key=btn_key, use_container_width=True):
+                        if st.button(f"👁 View in Document", key=btn_key, use_container_width=True):
                             st.session_state.cf_highlight_fact_id = view_id
                             st.session_state.cf_view_metric = metric.display_label
                             st.rerun()
