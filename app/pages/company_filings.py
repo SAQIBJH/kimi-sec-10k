@@ -81,9 +81,13 @@ def scan_filings_directory():
     """Scan the filings directory to discover available companies, years, and doc types.
 
     Expected structure: data/filings/{TICKER}/{YEAR}/{DOC_TYPE}/*.html or *.htm
-    Prefers *-clean.html > *.html > *.htm when multiple files exist.
+    For 10-Q: data/filings/{TICKER}/{YEAR}/10-Q-Q1/  etc.
+
+    Returns: {ticker: {year: {display_type: html_path_or_quarter_dict}}}
+    For 10-Q, the value is a dict: {'Q1': path, 'Q2': path, 'Q3': path}
+    For other types, the value is a string path.
     """
-    filings_data = {}  # {ticker: {year: {doc_type: html_path}}}
+    filings_data = {}  # {ticker: {year: {doc_type: html_path_or_quarter_dict}}}
 
     if not os.path.isdir(FILINGS_BASE_DIR):
         logger.warning(f"[SCAN] Filings directory not found: {FILINGS_BASE_DIR}")
@@ -104,8 +108,7 @@ def scan_filings_directory():
                 if not os.path.isdir(doc_dir):
                     continue
 
-                # Find best HTML file: prefer filing.html (has iXBRL IDs),
-                # then other .html, then .htm. Avoid -clean.html (strips iXBRL).
+                # Find best HTML file
                 filing_html = None
                 html_files = []
                 htm_files = []
@@ -121,9 +124,17 @@ def scan_filings_directory():
                 html_file = filing_html or (html_files or htm_files or [None])[0]
 
                 if html_file:
-                    display_type = DOC_TYPE_MAP.get(doc_type_dir_name, doc_type_dir_name)
-                    filings_data.setdefault(ticker, {}).setdefault(year_name, {})[display_type] = html_file
-                    logger.debug(f"[SCAN] {ticker}/{year_name}/{display_type} -> {os.path.basename(html_file)}")
+                    # Check if this is a 10-Q quarter directory (e.g. 10-Q-Q1)
+                    if doc_type_dir_name.startswith('10-Q-Q'):
+                        quarter = doc_type_dir_name.replace('10-Q-', '')  # 'Q1', 'Q2', 'Q3'
+                        quarter_dict = filings_data.setdefault(ticker, {}).setdefault(year_name, {}).setdefault('10-Q', {})
+                        if isinstance(quarter_dict, dict):
+                            quarter_dict[quarter] = html_file
+                        logger.debug(f"[SCAN] {ticker}/{year_name}/10-Q/{quarter} -> {os.path.basename(html_file)}")
+                    else:
+                        display_type = DOC_TYPE_MAP.get(doc_type_dir_name, doc_type_dir_name)
+                        filings_data.setdefault(ticker, {}).setdefault(year_name, {})[display_type] = html_file
+                        logger.debug(f"[SCAN] {ticker}/{year_name}/{display_type} -> {os.path.basename(html_file)}")
 
     logger.info(f"[SCAN] Found filings: {[(t, list(y.keys())) for t, y in filings_data.items()]}")
     return filings_data
@@ -193,17 +204,29 @@ def _get_available_years_from_db(ticker: str):
         return sorted(FILINGS_DATA.get(ticker, {}).keys(), reverse=True)
 
 def _get_available_doc_types_from_db(ticker: str):
-    """Get available doc types for a ticker from filing_metrics DB."""
+    """Get available doc types for a ticker from filing_metrics DB.
+    Normalizes 10-Q-Q1/Q2/Q3 to just 10-Q."""
     try:
         from core.database import db_manager
         rows = db_manager.execute_query("""
             SELECT DISTINCT doc_type FROM filing_metrics
             WHERE ticker = :ticker ORDER BY doc_type
         """, {"ticker": ticker})
-        return [row["doc_type"] for row in rows if row["doc_type"]]
+        raw_types = [row["doc_type"] for row in rows if row["doc_type"]]
+        # Normalize: 10-Q-Q1, 10-Q-Q2, 10-Q-Q3 → just 10-Q
+        normalized = []
+        seen = set()
+        for dt in raw_types:
+            display = dt
+            if dt.startswith('10-Q-Q'):
+                display = '10-Q'
+            if display not in seen:
+                seen.add(display)
+                normalized.append(display)
+        return normalized if normalized else DOCUMENT_TYPES
     except Exception:
         company_data = FILINGS_DATA.get(ticker, {})
-        return sorted(set(dt for yd in company_data.values() for dt in yd.keys())) if company_data else ["10-K"]
+        return sorted(set(dt for yd in company_data.values() for dt in yd.keys())) if company_data else DOCUMENT_TYPES
 
 COMPANIES = _load_companies_from_db()
 logger.info(f"[INIT] DB companies with data: {len(COMPANIES)}")
@@ -893,6 +916,15 @@ def main():
         # Hide quarter filter for annual filings (10-K, DEF 14A, S-1)
         show_quarter = st.session_state.cf_doc_type not in ANNUAL_DOC_TYPES
 
+        # For 10-Q: discover available quarters from scan data
+        available_quarters = []
+        if show_quarter:
+            scan_entry = FILINGS_DATA.get(st.session_state.cf_company, {}).get(st.session_state.cf_year, {}).get('10-Q', {})
+            if isinstance(scan_entry, dict):
+                available_quarters = sorted(scan_entry.keys())  # ['Q1', 'Q2', 'Q3']
+            if not available_quarters:
+                available_quarters = ['Q1', 'Q2', 'Q3']  # fallback
+
         if show_quarter:
             f1, f2, f3, f4 = st.columns([2.5, 1.2, 1.2, 1.2])
         else:
@@ -928,10 +960,11 @@ def main():
         quarter = "Annual"
         if show_quarter:
             with f4:
+                safe_q_idx = available_quarters.index(st.session_state.cf_quarter) if st.session_state.cf_quarter in available_quarters else 0
                 quarter = st.selectbox(
                     "Quarter",
-                    options=["Q1", "Q2", "Q3", "Q4"],
-                    index=0,
+                    options=available_quarters,
+                    index=safe_q_idx,
                     key="cf_quarter_select"
                 )
 
@@ -964,6 +997,9 @@ def main():
         used_llm = False
         if search_term.strip():
             doc_type_dir = DOC_TYPE_REVERSE.get(doc_type, doc_type)
+            # For 10-Q: resolve to quarter-specific DB doc_type (e.g. 10-Q-Q1)
+            if doc_type == '10-Q' and quarter != 'Annual':
+                doc_type_dir = f'10-Q-{quarter}'
 
             # Step 1: fast DB search (no spinner needed)
             try:
@@ -1105,9 +1141,15 @@ def main():
         company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
 
         # Look up HTML path from scanned filings data
-        html_path = FILINGS_DATA.get(company, {}).get(year, {}).get(doc_type, "")
+        filing_entry = FILINGS_DATA.get(company, {}).get(year, {}).get(doc_type, "")
 
-        logger.info(f"[HTML VIEWER] Company: {company}, Year: {year}, DocType: {doc_type}")
+        # For 10-Q: resolve quarter to specific HTML path
+        if doc_type == '10-Q' and isinstance(filing_entry, dict):
+            html_path = filing_entry.get(quarter, "")
+        else:
+            html_path = filing_entry if isinstance(filing_entry, str) else ""
+
+        logger.info(f"[HTML VIEWER] Company: {company}, Year: {year}, DocType: {doc_type}, Quarter: {quarter}")
         logger.info(f"[HTML VIEWER] HTML path: {html_path}")
         logger.info(f"[HTML VIEWER] File exists: {os.path.exists(html_path) if html_path else False}")
 

@@ -3,6 +3,7 @@ runOnSave = true
 headless = true
 fileWatcherType = "poll"
 folderWatchList = ["app"]
+enableStaticServing = true
 [browser]
 gatherUsageStats = false
 [logger]

@@ -1,4 +1,17 @@
 {
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/app"
+    ],
+    "python.analysis.include": [
+        "app/**/*.py"
+    ],
+    "python.analysis.exclude": [
+        "**/.venv/**",
+        "**/__pycache__/**",
+        "**/.git/**"
+    ],
     "chat.mcp.serverSampling": {
         "kimi-sec-10k-1/.vscode/mcp.json: figma": {
             "allowedModels": [
