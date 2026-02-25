@@ -132,10 +132,13 @@ def run_step_2(ticker: str, year: int, form: str):
 
     from scripts.load_filings_to_db import scan_and_load
 
+    # For 10-Q: dirs are 10-Q-Q1, 10-Q-Q2, 10-Q-Q3 — don't filter by exact doc_type
+    doc_filter = None if form == '10-Q' else form
+
     scan_and_load(
         filter_ticker=ticker,
         filter_year=str(year),
-        filter_doc_type=form,
+        filter_doc_type=doc_filter,
     )
 
     print(f"\n  ✅ Step 2 completed in {elapsed(start)}")
