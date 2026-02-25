@@ -362,7 +362,7 @@ def run_all(args):
             sys.exit(1)
 
     years     = args.years
-    form_type = DEFAULT_FORM
+    form_type = getattr(args, 'form', DEFAULT_FORM)
     steps     = list(range(args.from_step, 8))  # steps from_step → 7
 
     print("\n" + "═" * 60)
@@ -500,6 +500,8 @@ Examples:
     parser.add_argument("--ticker",       type=str,  help="Process only this ticker")
     parser.add_argument("--years",        type=int,  nargs="+", default=DEFAULT_YEARS,
                         help=f"Fiscal years to process (default: {DEFAULT_YEARS})")
+    parser.add_argument("--form",         type=str,  default=DEFAULT_FORM,
+                        help=f"Filing form type: 10-K or 10-Q (default: {DEFAULT_FORM})")
     parser.add_argument("--from-step",   type=int,  default=1, choices=range(1, 8),
                         help="Start from this step number (default: 1)")
     parser.add_argument("--retry-failed", action="store_true",

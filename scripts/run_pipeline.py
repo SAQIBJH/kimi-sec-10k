@@ -374,9 +374,13 @@ def run_pipeline(
     skip_existing: bool = False,
     force_cache: bool = False,
 ):
-    """Run the full or partial pipeline for one ticker across one or more years."""
+    """Run the full or partial pipeline for one ticker across one or more years.
+    For 10-Q: Step 1 processes all quarters internally; Steps 2-7 iterate
+    each discovered 10-Q-Q* directory.
+    """
     skip_steps = skip_steps or []
     ticker = ticker.upper()
+    is_10q = form.upper() in ("10-Q", "10Q")
 
     # Determine which steps to run
     if only_step:
@@ -387,6 +391,8 @@ def run_pipeline(
     banner(f"SEC Filing Pipeline — {ticker}", "═")
     print(f"  Years: {', '.join(map(str, years))}")
     print(f"  Form: {form}")
+    if is_10q:
+        print(f"  Mode: 10-Q (will process all quarters Q1/Q2/Q3)")
     print(f"  Steps: {' → '.join(f'{s}:{STEPS[s][0]}' for s in steps_to_run)}")
     print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 
@@ -399,6 +405,41 @@ def run_pipeline(
         for step_num in steps_to_run:
             step_name, step_fn = STEPS[step_num]
 
+            # For 10-Q: Step 1 handles all quarters internally.
+            # Steps 2-7: iterate each 10-Q-Q* directory found on disk.
+            if is_10q and step_num > 1:
+                # Discover quarter directories for this ticker/year
+                base_dir = PROJECT_ROOT / "data" / "filings" / ticker / str(year)
+                quarter_dirs = sorted([
+                    d.name for d in base_dir.iterdir()
+                    if d.is_dir() and d.name.startswith("10-Q-Q")
+                ]) if base_dir.exists() else []
+
+                if not quarter_dirs:
+                    print(f"\n  ⚠️  No 10-Q-Q* directories found for {ticker} {year}")
+                    print(f"  Run Step 1 first to fetch quarterly filings")
+                    results[(ticker, year, step_num)] = None
+                    continue
+
+                all_quarters_ok = True
+                for qdir in quarter_dirs:
+                    print(f"\n  ── {qdir} ──")
+                    try:
+                        if step_num in (4, 6, 7):
+                            ok = step_fn(ticker, year, qdir, force=force_cache)
+                        else:
+                            ok = step_fn(ticker, year, qdir)
+                        if not ok:
+                            all_quarters_ok = False
+                    except Exception as e:
+                        print(f"\n  ❌ Step {step_num} ERROR for {qdir}: {e}")
+                        traceback.print_exc()
+                        all_quarters_ok = False
+
+                results[(ticker, year, step_num)] = all_quarters_ok
+                continue
+
+            # Standard single-form processing (10-K or Step 1 for 10-Q)
             try:
                 if step_num == 1:
                     ok = step_fn(ticker, year, form, skip_existing=skip_existing)
@@ -444,16 +485,24 @@ def run_pipeline(
     print(f"  Time: {elapsed(total_start)}")
 
     output_dir = PROJECT_ROOT / "data" / "filings" / ticker
-    print(f"\n  📁 Output: {output_dir}/")
-    print(f"     └── <YEAR>/{form}/")
-    print(f"         ├── FINAL_FACTS_FILTERED.json")
-    print(f"         ├── BUSINESS_SEGMENTS.json")
-    print(f"         ├── GEOGRAPHIC_SEGMENTS.json")
-    print(f"         ├── FINANCIAL_RATIOS.json")
-    print(f"         ├── SECTION_CACHE.json")
-    print(f"         ├── STORE_COUNT.json")
-    print(f"         ├── CREDIT_RATING.json")
-    print(f"         └── filing.html")
+    if is_10q:
+        print(f"\n  📁 Output: {output_dir}/")
+        print(f"     └── <YEAR>/10-Q-Q*/")
+        print(f"         ├── FINAL_FACTS_FILTERED.json")
+        print(f"         ├── FINANCIAL_RATIOS.json")
+        print(f"         ├── SECTION_CACHE.json")
+        print(f"         └── filing.html")
+    else:
+        print(f"\n  📁 Output: {output_dir}/")
+        print(f"     └── <YEAR>/{form}/")
+        print(f"         ├── FINAL_FACTS_FILTERED.json")
+        print(f"         ├── BUSINESS_SEGMENTS.json")
+        print(f"         ├── GEOGRAPHIC_SEGMENTS.json")
+        print(f"         ├── FINANCIAL_RATIOS.json")
+        print(f"         ├── SECTION_CACHE.json")
+        print(f"         ├── STORE_COUNT.json")
+        print(f"         ├── CREDIT_RATING.json")
+        print(f"         └── filing.html")
 
     if failed == 0:
         print(f"\n  🎉 All done!")

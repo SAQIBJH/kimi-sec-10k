@@ -18,17 +18,21 @@ from typing import Dict, List, Optional, Tuple, Any
 from dataclasses import dataclass, field
 
 import pandas as pd
-from edgar import Company, set_identity
 
-# ── Set edgar cache to project-local dir (avoids ~/.edgar/_tcache permission issues) ──
+# ── MUST run BEFORE edgar import: redirect httpxthrottlecache away from macOS-protected ~/.edgar/_tcache ──
 try:
-    from edgar import set_cache_directory
-    _PROJ_ROOT = Path(__file__).resolve().parent.parent
-    _CACHE_DIR = _PROJ_ROOT / "data" / ".edgar_cache"
-    _CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    set_cache_directory(str(_CACHE_DIR))
+    import httpxthrottlecache.filecache.transport as _tc
+    _orig_fc_init = _tc.FileCache.__init__
+    def _patched_fc_init(self, cache_dir=None, **kwargs):
+        import tempfile, os
+        safe_dir = os.path.join(tempfile.gettempdir(), 'edgar_tcache')
+        os.makedirs(safe_dir, exist_ok=True)
+        _orig_fc_init(self, cache_dir=safe_dir, **kwargs)
+    _tc.FileCache.__init__ = _patched_fc_init
 except Exception:
-    pass  # fallback to default
+    pass
+
+from edgar import Company, set_identity
 
 # ========== CONFIGURATION ==========
 @dataclass
@@ -107,7 +111,7 @@ def ensure_dir(path: str) -> Path:
 # ========== STEP 1: FETCH DATA ==========
 
 def download_filing(ticker: str, year: int, form_type: str) -> Optional[Any]:
-    """Download filing for a company/year"""
+    """Download filing for a company/year. For 10-K returns the latest; for 10-Q use download_all_filings."""
     try:
         company = Company(ticker)
         filings = company.get_filings(form=form_type, year=year)
@@ -120,6 +124,55 @@ def download_filing(ticker: str, year: int, form_type: str) -> Optional[Any]:
     except Exception as e:
         log(f"Error downloading filing for {ticker} {year}: {e}", "ERROR")
         return None
+
+
+def download_all_filings(ticker: str, year: int, form_type: str) -> List[Any]:
+    """Download ALL filings for a company/year (needed for 10-Q which has up to 3 per year)."""
+    try:
+        company = Company(ticker)
+        filings = company.get_filings(form=form_type, year=year)
+        
+        if len(filings) == 0:
+            log(f"No {form_type} filings found for {ticker} {year}", "WARNING")
+            return []
+        
+        result = list(filings)
+        log(f"Found {len(result)} {form_type} filing(s) for {ticker} {year}")
+        return result
+    except Exception as e:
+        log(f"Error downloading filings for {ticker} {year}: {e}", "ERROR")
+        return []
+
+
+def determine_quarter(filing) -> str:
+    """
+    Determine the fiscal quarter (Q1/Q2/Q3) from a 10-Q filing's XBRL data.
+    Uses the DEI tag DocumentFiscalPeriodFocus as the primary source.
+    Falls back to filing month if DEI tag is missing.
+    """
+    try:
+        xbrl = filing.xbrl()
+        facts_df = xbrl.facts.to_dataframe()
+        fp_rows = facts_df[facts_df['concept'].str.contains(
+            'DocumentFiscalPeriodFocus', case=False, na=False)]
+        if not fp_rows.empty:
+            quarter = str(fp_rows.iloc[0]['value']).strip().upper()
+            if quarter in ('Q1', 'Q2', 'Q3'):
+                return quarter
+    except Exception as e:
+        log(f"  Could not determine quarter from XBRL: {e}", "WARNING")
+    
+    # Fallback: infer from filing date month
+    try:
+        month = filing.filing_date.month
+        if month <= 5:
+            return "Q1"
+        elif month <= 8:
+            return "Q2"
+        else:
+            return "Q3"
+    except Exception:
+        return "Q1"  # safe default
 
 def extract_ixbrl_locations(html_content: str) -> Dict[Tuple[str, str], Dict]:
     """
@@ -1292,43 +1345,119 @@ def save_html(html_content: str, ticker: str, year: int, config: Config) -> bool
 # ========== MAIN PROCESSING ==========
 
 def process_company_year(ticker: str, year: int, config: Config) -> bool:
-    """Process a single company-year combination"""
+    """Process a single company-year combination.
+    For 10-Q: discovers ALL quarterly filings and processes each one.
+    For 10-K: processes the single annual filing (original behavior).
+    """
+    base_form = config.FORM  # e.g. "10-Q" or "10-K"
+
+    # ── 10-Q: iterate ALL quarterly filings ──────────────────────────
+    if base_form.upper() in ("10-Q", "10Q"):
+        all_filings = download_all_filings(ticker, year, "10-Q")
+        if not all_filings:
+            log(f"No 10-Q filings found for {ticker} {year}", "WARNING")
+            return False
+
+        all_ok = True
+        processed_quarters = []
+        for filing in all_filings:
+            quarter = determine_quarter(filing)
+            dir_name = f"10-Q-{quarter}"  # e.g. "10-Q-Q1"
+
+            if quarter in processed_quarters:
+                log(f"  Skipping duplicate {quarter} filing for {ticker} {year}", "WARNING")
+                continue
+            processed_quarters.append(quarter)
+
+            print("\n" + "="*60)
+            print(f"🔄 Processing: {ticker} - Year {year} - {quarter} (10-Q)")
+            print("="*60)
+
+            # Check if output already exists
+            output_path = Path(config.OUTPUT_BASE_DIR) / ticker / str(year) / dir_name / "FINAL_FACTS_FILTERED.json"
+            if config.SKIP_EXISTING and output_path.exists():
+                log(f"Skipping (output exists): {output_path}")
+                continue
+
+            # Temporarily set config.FORM to the quarter-specific dir name
+            config.FORM = dir_name
+            ok = _process_single_filing(ticker, year, filing, config)
+            if not ok:
+                all_ok = False
+
+        # Restore original form
+        config.FORM = base_form
+        return all_ok
+
+    # ── 10-K (and other forms): original behavior ────────────────────
     print("\n" + "="*60)
     print(f"🔄 Processing: {ticker} - Year {year}")
     print("="*60)
-    
+
     # Check if output already exists
     output_path = Path(config.OUTPUT_BASE_DIR) / ticker / str(year) / config.FORM / "FINAL_FACTS_FILTERED.json"
     if config.SKIP_EXISTING and output_path.exists():
         log(f"Skipping (output exists): {output_path}")
         return True
-    
-    # Step 1: Fetch data
+
+    # Step 1: Fetch data (uses download_filing → latest())
     data = step_1_fetch_data(ticker, year, config.FORM)
     if not data:
         return False
-    
+
     html_content, ixbrl_locations, facts_df, filing_date = data
-    
+    return _process_fetched_data(ticker, year, html_content, ixbrl_locations, facts_df, config)
+
+
+def _process_single_filing(ticker: str, year: int, filing, config: Config) -> bool:
+    """Process a single filing object (used for 10-Q quarterly filings)."""
+    filing_date = filing.filing_date
+    log(f"  Filing date: {filing_date}")
+
+    # Download HTML
+    try:
+        html_content = filing.html()
+        log(f"  Downloaded HTML: {len(html_content)} bytes")
+    except Exception as e:
+        log(f"  Error downloading HTML: {e}", "ERROR")
+        return False
+
+    # Extract ixbrl locations
+    ixbrl_locations = extract_ixbrl_locations(html_content)
+    log(f"  Extracted {len(ixbrl_locations)} ixbrl locations")
+
+    # Fetch XBRL facts
+    facts_df = fetch_xbrl_facts(filing)
+    if facts_df is None:
+        return False
+    log(f"  Fetched {len(facts_df)} XBRL facts")
+
+    return _process_fetched_data(ticker, year, html_content, ixbrl_locations, facts_df, config, filing_obj=filing)
+
+
+def _process_fetched_data(ticker: str, year: int, html_content: str,
+                          ixbrl_locations: Dict, facts_df, config: Config,
+                          filing_obj=None) -> bool:
+    """Shared processing logic for both 10-K and 10-Q filings."""
     # Save HTML
     save_html(html_content, ticker, year, config)
-    
+
     # Step 2: Filter & deduplicate
     facts, fiscal_year = step_2_filter_dedupe(facts_df, year)
-    
+
     # Step 3: Enrich
     facts = step_3_enrich(facts, ixbrl_locations)
-    
+
     # Step 4: Clean
     facts = step_4_clean(facts)
-    
+
     # Step 5: Finalize
     facts = step_5_finalize(facts)
-    
+
     # Save output
     if not save_output(facts, ticker, year, config):
         return False
-    
+
     # Step 6: Fetch statements (used by Step 7 for financial ratios)
     # NOTE: Segment JSON generation disabled — all segment data (business &
     # geographic) is already in FINAL_FACTS_FILTERED.json with ixbrl_id.
@@ -1339,13 +1468,22 @@ def process_company_year(ticker: str, year: int, config: Config) -> bool:
     statements = {}
     year_col = None
     try:
-        company = Company(ticker)
-        filings = company.get_filings(form=config.FORM, year=year)
-        if len(filings) > 0:
-            filing_obj = filings.latest()
-            xbrl = filing_obj.xbrl()
+        if filing_obj is not None:
+            # Use the filing object directly (10-Q path)
             statements = fetch_financial_statements(filing_obj)
             year_col, _ = get_year_columns(statements, year)
+        else:
+            # Fetch fresh (10-K original path)
+            company = Company(ticker)
+            # For output dir, config.FORM may be "10-Q-Q1" etc., use base form for SEC API
+            sec_form = config.FORM.split('-Q')[0] + '-' + config.FORM.split('-')[1] if '10-Q' in config.FORM else config.FORM
+            if sec_form.startswith('10-Q'):
+                sec_form = '10-Q'
+            filings = company.get_filings(form=sec_form, year=year)
+            if len(filings) > 0:
+                filing_obj = filings.latest()
+                statements = fetch_financial_statements(filing_obj)
+                year_col, _ = get_year_columns(statements, year)
     except Exception as e:
         log(f"  Error fetching statements for ratios: {e}", "WARNING")
     # Step 7: Calculate and Save Financial Ratios
@@ -1355,11 +1493,14 @@ def process_company_year(ticker: str, year: int, config: Config) -> bool:
             calculate_and_save_ratios_with_statements(facts, statements, year_col, ticker, year, config)
         else:
             # Fallback to old method
-            company = Company(ticker)
-            filings = company.get_filings(form=config.FORM, year=year)
-            if len(filings) > 0:
-                filing_obj = filings.latest()
+            if filing_obj is not None:
                 calculate_and_save_ratios(facts, filing_obj, ticker, year, config)
+            else:
+                company = Company(ticker)
+                sec_form = '10-Q' if '10-Q' in config.FORM else config.FORM
+                filings = company.get_filings(form=sec_form, year=year)
+                if len(filings) > 0:
+                    calculate_and_save_ratios(facts, filings.latest(), ticker, year, config)
     except Exception as e:
         log(f"  Error calculating ratios: {e}", "WARNING")
     
@@ -1388,7 +1529,8 @@ def process_company_year(ticker: str, year: int, config: Config) -> bool:
     except:
         pass
     
-    print(f"\n📊 Summary for {ticker} FY{fiscal_year}:")
+    display_form = config.FORM
+    print(f"\n📊 Summary for {ticker} FY{fiscal_year} ({display_form}):")
     print(f"   Total facts: {len(facts)}")
     print(f"   Unique concepts: {len(all_concepts)}")
     print(f"   With html_location: {with_location} ({with_location/len(facts)*100:.1f}%)")

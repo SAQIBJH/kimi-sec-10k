@@ -55,6 +55,9 @@ DOC_TYPE_MAP = {
     "10-K": "10-K",
     "10Q": "10-Q",
     "10-Q": "10-Q",
+    "10-Q-Q1": "10-Q",
+    "10-Q-Q2": "10-Q",
+    "10-Q-Q3": "10-Q",
     "8K": "8-K",
     "8-K": "8-K",
     "DEF14A": "DEF 14A",
@@ -206,7 +209,7 @@ COMPANIES = _load_companies_from_db()
 logger.info(f"[INIT] DB companies with data: {len(COMPANIES)}")
 
 # Fallback doc types list (used only if DB query fails)
-DOCUMENT_TYPES = ["10-K"]
+DOCUMENT_TYPES = ["10-K", "10-Q"]
 
 
 # =============================================================================
