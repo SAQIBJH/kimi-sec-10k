@@ -2318,7 +2318,7 @@ class FilingMetricRepository:
         fiscal_year: int,
         doc_type: str,
         query: str,
-        limit: int = 20,
+        limit: int = 100,
     ) -> List[FilingMetricResult]:
         """
         Search filing metrics by original_label OR standard_concept OR dimension_label.
@@ -2394,7 +2394,6 @@ class FilingMetricRepository:
                      is_dimensioned ASC,
                      dimension_label ASC,
                      CHAR_LENGTH(original_label) ASC, original_label ASC
-            LIMIT :limit
         """
 
         results = db_manager.execute_query(sql, params)

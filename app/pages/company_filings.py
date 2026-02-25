@@ -913,22 +913,8 @@ def main():
         available_years = _get_available_years_from_db(st.session_state.cf_company) or ["2025"]
         available_doc_types = _get_available_doc_types_from_db(st.session_state.cf_company) or DOCUMENT_TYPES
 
-        # Hide quarter filter for annual filings (10-K, DEF 14A, S-1)
-        show_quarter = st.session_state.cf_doc_type not in ANNUAL_DOC_TYPES
-
-        # For 10-Q: discover available quarters from scan data
-        available_quarters = []
-        if show_quarter:
-            scan_entry = FILINGS_DATA.get(st.session_state.cf_company, {}).get(st.session_state.cf_year, {}).get('10-Q', {})
-            if isinstance(scan_entry, dict):
-                available_quarters = sorted(scan_entry.keys())  # ['Q1', 'Q2', 'Q3']
-            if not available_quarters:
-                available_quarters = ['Q1', 'Q2', 'Q3']  # fallback
-
-        if show_quarter:
-            f1, f2, f3, f4 = st.columns([2.5, 1.2, 1.2, 1.2])
-        else:
-            f1, f2, f3 = st.columns([2.5, 1.2, 1.2])
+        # Always render 4 columns — quarter column stays empty for 10-K
+        f1, f2, f3, f4 = st.columns([2.5, 1.2, 1.2, 1.2])
 
         with f1:
             company = st.selectbox(
@@ -957,9 +943,14 @@ def main():
                 key="cf_year_select"
             )
 
+        # Quarter filter: only for non-annual doc types (current value, not stale session)
         quarter = "Annual"
+        show_quarter = doc_type not in ANNUAL_DOC_TYPES
         if show_quarter:
             with f4:
+                # Discover available quarters from scan data
+                scan_entry = FILINGS_DATA.get(company, {}).get(year, {}).get('10-Q', {})
+                available_quarters = sorted(scan_entry.keys()) if isinstance(scan_entry, dict) and scan_entry else ['Q1', 'Q2', 'Q3']
                 safe_q_idx = available_quarters.index(st.session_state.cf_quarter) if st.session_state.cf_quarter in available_quarters else 0
                 quarter = st.selectbox(
                     "Quarter",
@@ -968,7 +959,14 @@ def main():
                     key="cf_quarter_select"
                 )
 
-    # Update session state
+    # Update session state — and detect filter changes to reset highlight
+    _prev_key = (st.session_state.get('cf_company'), st.session_state.get('cf_doc_type'),
+                 st.session_state.get('cf_year'), st.session_state.get('cf_quarter'))
+    _new_key = (company, doc_type, year, quarter)
+    if _prev_key != _new_key:
+        st.session_state.cf_highlight_fact_id = None
+        st.session_state.cf_view_metric = None
+
     st.session_state.cf_company = company
     st.session_state.cf_doc_type = doc_type
     st.session_state.cf_year = year
@@ -1008,7 +1006,7 @@ def main():
                     fiscal_year=int(year),
                     doc_type=doc_type_dir,
                     query=search_term,
-                    limit=50,
+                    limit=500,
                 )
             except Exception as e:
                 logger.error(f"[SEARCH] DB search error: {e}", exc_info=True)
