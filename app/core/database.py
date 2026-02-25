@@ -63,7 +63,7 @@ class DatabaseManager:
             if ssl_enabled:
                 logger.info(f"SSL enabled — using CA: {self._config.ssl_ca}")
             else:
-                logger.info("SSL disabled — connecting without SSL")
+                logger.debug("SSL disabled — connecting without SSL")
 
             self._engine = create_engine(
                 self._config.connection_string,

@@ -46,7 +46,7 @@ def _load_company_names_from_db():
         return {"AAPL": "Apple Inc.", "AMZN": "Amazon.com Inc.", "M": "Macy's Inc."}
 
 COMPANY_NAMES = _load_company_names_from_db()
-logger.info(f"[INIT] Loaded {len(COMPANY_NAMES)} company names from DB")
+logger.info(f"Loaded {len(COMPANY_NAMES)} company names from DB")
 
 # Map directory names to display names for document types
 # Map directory names to display names (handles both old "10K" and new "10-K" folders)
@@ -136,13 +136,14 @@ def scan_filings_directory():
                         filings_data.setdefault(ticker, {}).setdefault(year_name, {})[display_type] = html_file
                         logger.debug(f"[SCAN] {ticker}/{year_name}/{display_type} -> {os.path.basename(html_file)}")
 
-    logger.info(f"[SCAN] Found filings: {[(t, list(y.keys())) for t, y in filings_data.items()]}")
+    ticker_count = len(filings_data)
+    doc_count = sum(len(years) for years in filings_data.values())
+    logger.info(f"Filing scan complete: {ticker_count} ticker(s), {doc_count} filing year(s) found")
     return filings_data
 
 
 # Scan on module load (cached by Streamlit reruns within same session)
 FILINGS_DATA = scan_filings_directory()
-logger.info(f"[INIT] Filings data: {[(t, {y: list(d.keys()) for y, d in years.items()}) for t, years in FILINGS_DATA.items()]}")
 
 
 # =============================================================================
@@ -229,7 +230,7 @@ def _get_available_doc_types_from_db(ticker: str):
         return sorted(set(dt for yd in company_data.values() for dt in yd.keys())) if company_data else DOCUMENT_TYPES
 
 COMPANIES = _load_companies_from_db()
-logger.info(f"[INIT] DB companies with data: {len(COMPANIES)}")
+logger.info(f"Loaded {len(COMPANIES)} companies with filing data")
 
 # Fallback doc types list (used only if DB query fails)
 DOCUMENT_TYPES = ["10-K", "10-Q"]
@@ -721,14 +722,13 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
     """
     import streamlit.components.v1 as components
 
-    logger.info(f"[RENDER HTML] html_path: {html_path}")
-    logger.info(f"[RENDER HTML] highlight_fact_id: {highlight_fact_id}")
+    logger.debug(f"[RENDER HTML] html_path: {html_path}, highlight: {highlight_fact_id}")
 
     # Read HTML content
     try:
         with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
             clean_html = f.read()
-        logger.info(f"[RENDER HTML] File read success, size: {len(clean_html)} bytes")
+        logger.debug(f"[RENDER HTML] File read: {len(clean_html)} bytes")
     except Exception as e:
         logger.error(f"[RENDER HTML] Error loading document: {e}")
         st.error(f"Error loading document: {e}")
@@ -844,10 +844,8 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
             clean_html = clean_html + highlight_script
 
     # Render HTML via components.html (creates sandboxed iframe)
-    logger.info("[RENDER HTML] Calling components.html...")
     try:
         components.html(clean_html, height=800, scrolling=True)
-        logger.info("[RENDER HTML] components.html completed")
     except Exception as e:
         logger.error(f"[RENDER HTML] components.html error: {e}")
         st.error(f"Error rendering HTML: {e}")
@@ -1147,28 +1145,21 @@ def main():
         else:
             html_path = filing_entry if isinstance(filing_entry, str) else ""
 
-        logger.info(f"[HTML VIEWER] Company: {company}, Year: {year}, DocType: {doc_type}, Quarter: {quarter}")
-        logger.info(f"[HTML VIEWER] HTML path: {html_path}")
-        logger.info(f"[HTML VIEWER] File exists: {os.path.exists(html_path) if html_path else False}")
+        logger.debug(f"[HTML VIEWER] {company} {year} {doc_type} Q={quarter} path={html_path}")
 
         if html_path and os.path.exists(html_path):
-            logger.info("[HTML VIEWER] ✅ File found, rendering HTML")
-            
             # Show document header
             highlight_text = ""
             if st.session_state.cf_highlight_fact_id:
                 highlight_text = f"🔍 Auto-scrolled to {st.session_state.cf_view_metric or 'metric'} ({st.session_state.cf_highlight_fact_id})"
-                logger.info(f"[HTML VIEWER] Highlight: {highlight_text}")
-            
+
             header_html = f'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #E5E5E5;background:#fff;border-radius:8px 8px 0 0;"><div><span style="font-weight:600;font-size:16px;color:#2D2A29;">{company_name} ({company}) {doc_type}</span><span style="background:#F2F2F2;padding:4px 10px;border-radius:4px;font-size:13px;color:#4F4F4F;margin-left:12px;">{year}</span></div><div style="color:#0066CC;font-size:14px;">{highlight_text}</div></div>'
             st.markdown(header_html, unsafe_allow_html=True)
-            
+
             # Render SEC HTML with highlighting
-            logger.info(f"[HTML VIEWER] Calling render_sec_html_viewer with path: {html_path}")
             render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
-            logger.info("[HTML VIEWER] ✅ render_sec_html_viewer completed")
         else:
-            logger.error(f"[HTML VIEWER] ❌ File NOT found: {html_path}")
+            logger.warning(f"[HTML VIEWER] Filing HTML not found: {html_path}")
             # Show placeholder
             document = FilingDocument(
                 company_name=company_name,

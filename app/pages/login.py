@@ -40,7 +40,6 @@ log = logging.getLogger("sip-login")
 AUTH_URL = os.getenv("AUTH_URL", "").strip()
 AUTH_URL_PAID = os.getenv("AUTH_URL_PAID", "").strip()
 
-log.info("=== SIP Login starting ===")
 
 
 # ===========================
@@ -167,7 +166,7 @@ def _send_json_wire(token_url: str, payload: dict, timeout: int = 12):
     st.session_state["__auth_json_preview_wire__"] = wire_json
 
     resp = requests.post(token_url, data=wire_json, headers=headers, timeout=timeout, allow_redirects=False)
-    log.info(f"[AUTH][JSON-WIRE] status={resp.status_code}")
+    log.debug(f"[AUTH][JSON-WIRE] status={resp.status_code}")
     return resp, "json-wire"
 
 def _send_json_raw(token_url: str, payload: dict, timeout: int = 12):
@@ -214,7 +213,7 @@ def authenticate_user(username, password):
 
     payload = {"username": username, "password": password}
 
-    log.warning(f"[DEBUG][AUTH] POST {token_url} | username={username} | pw_len={len(password)} has_quote={_has_quote(password)}")
+    log.debug(f"[AUTH] POST {token_url} | pw_len={len(password)} has_quote={_has_quote(password)}")
 
     try:
         # A) JSON wire
@@ -238,7 +237,7 @@ def authenticate_user(username, password):
         # D) Backslash-escape password value, then retry A→B→C
         if _has_quote(password):
             escaped_pw = _escape_for_unslash(password)
-            log.warning("[DEBUG][AUTH] Retrying with backslash-escaped password value (hidden)")
+            log.debug("[AUTH] Retrying with backslash-escaped password")
             payload2 = {"username": username, "password": escaped_pw}
 
             respD1, modeD1 = _send_json_wire(token_url, payload2, timeout=12)
@@ -491,11 +490,10 @@ def main():
                 )
                 
                 if result.success:
-                    log.info(f"[LOGIN] App session created session_id={result.session_id}")
+                    log.info(f"[LOGIN] Session created for {user_email}")
                     st.session_state.is_authenticating = False
                     st.success("Logged in successfully!")
                     sleep(0.5)
-                    log.info("[LOGIN] Redirect → pages/home.py")
                     st.switch_page("pages/home.py")
                 else:
                     st.session_state.is_authenticating = False
@@ -511,7 +509,7 @@ def main():
     # Login Flow
     # ===========================
     if login_button and not st.session_state.is_authenticating:
-        log.info(f"[LOGIN] Clicked | username={username!r} | pw_len={len(password)}")
+        log.debug(f"[LOGIN] Login attempt | pw_len={len(password)}")
         
         # Set authenticating state and rerun to show loader
         st.session_state.is_authenticating = True

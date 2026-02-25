@@ -10,15 +10,12 @@ from dotenv import load_dotenv
 from streamlit_cookies_controller import CookieController
 from core.database import init_database
 import pandas as pd
-# init_database()
+
 # -------------------------------------------------------------------------
 # Setup
 # -------------------------------------------------------------------------
 load_dotenv()
-logging.basicConfig(
-    level=getattr(logging, os.getenv("LOG_LEVEL", "INFO"), logging.INFO),
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
+logger = logging.getLogger(__name__)
 
 # -------------------------------------------------------------------------
 # Constants
@@ -72,7 +69,7 @@ def _read_auth_cookie() -> Dict[str, Any]:
         raw_data = controller.get("auth_data")
 
         if not raw_data:
-            logging.debug("No auth_data cookie found in controller")
+            logger.debug("No auth_data cookie found")
             return {}
 
         # Parse the cookie value
@@ -85,17 +82,17 @@ def _read_auth_cookie() -> Dict[str, Any]:
             # Validate required fields
             required_fields = ["user_email", "token", "session_id"]
             if all(data.get(field) for field in required_fields):
-                logging.info(f"Successfully restored session for: {data.get('user_email')}")
+                logger.debug(f"Auth cookie read for: {data.get('user_email')}")
                 return data
             else:
-                logging.warning("Auth cookie missing required fields")
+                logger.warning("Auth cookie missing required fields")
                 return {}
 
         except json.JSONDecodeError as e:
-            logging.error(f"Failed to parse auth cookie JSON: {e}")
+            logger.error(f"Failed to parse auth cookie JSON: {e}")
             return {}
     except Exception as e:
-        logging.error(f"Unexpected error reading auth cookie: {e}")
+        logger.error(f"Unexpected error reading auth cookie: {e}")
 
     return {}
 
@@ -105,7 +102,7 @@ def _write_auth_cookie(data: Dict[str, Any]) -> bool:
     """Write auth cookie and return success status."""
     try:
         if not data or not data.get("session_id"):
-            logging.error("Cannot write cookie: missing session_id")
+            logger.error("Cannot write cookie: missing session_id")
             return False
 
         payload = json.dumps(data, ensure_ascii=True, separators=(",", ":"))
@@ -141,11 +138,11 @@ def _write_auth_cookie(data: Dict[str, Any]) -> bool:
         # Mark session as restored immediately
         st.session_state.session_restored = True
         
-        logging.info(f"Successfully wrote cookie {cookie_key} for user: {data.get('user_email')}")
+        logger.debug(f"Auth cookie written for user: {data.get('user_email')}")
         return True
-        
+
     except Exception as e:
-        logging.error(f"Failed to write auth_data cookie: {e}")
+        logger.error(f"Failed to write auth cookie: {e}")
         return False
 
 # -------------------------------------------------------------------------
@@ -189,13 +186,12 @@ def restore_session_from_cookie() -> bool:
                 "restored_at": datetime.now(timezone.utc).isoformat()
             }
             st.session_state.session_restored = True
-            
             return True
         else:
-            print("Cookie data incomplete, cannot restore session")
-            
+            logger.warning("Cookie data incomplete, cannot restore session")
+
     except Exception as e:
-        print(f"Error restoring session from cookie: {e}")
+        logger.error(f"Error restoring session from cookie: {e}")
 
     st.session_state.session_restored = True
     return False
@@ -224,7 +220,6 @@ def _check_cookie_with_retry(max_retries: int = MAX_COOKIE_RETRIES, retry_delay:
     else:
         # Max retries reached
         st.session_state.cookie_retry_count = 0
-        # print("Max retries reached, could not restore session from cookie")
         return False
 
 # -------------------------------------------------------------------------
@@ -265,11 +260,6 @@ def is_authenticated() -> bool:
         auth_data.get("session_id")
     )
     
-    if has_auth:
-        print(f"User authenticated: {auth_data.get('user_email')}")
-    else:
-        print("User not authenticated - no valid auth_data in session")
-        
     return has_auth
 
 # -------------------------------------------------------------------------
@@ -286,32 +276,26 @@ def require_auth(redirect_to: str = "login.py") -> str:
     sleep(1)
     # First, check if we're already authenticated in session state
     if is_authenticated():
-        # print("require_authis_authenticated")
         session_id = get_current_session_id()
-        # print(f"Already authenticated, session: {session_id}")
-        # print("require_authis_authenticated",session_id)
         return session_id or ""
-    
+
     # If not authenticated, try to restore from cookie with retry
     if not _check_cookie_with_retry():
-        # print("require_authnot_authenticated")
-        # print("Authentication required - redirecting to login")
-        
+        logger.info("Authentication required — redirecting to login")
+
         # Clear any partial auth data
         if "auth_data" in st.session_state:
             del st.session_state.auth_data
-        
+
         st.switch_page(redirect_to)
         return ""
-    
+
     # If we get here, cookie restoration was successful
     session_id = get_current_session_id() or ""
-    
-    if session_id:
-        print(f"Successfully restored session from cookie: {session_id}")
-    else:
-        print("Cookie restoration succeeded but no session ID found")
-    
+
+    if not session_id:
+        logger.warning("Cookie restoration succeeded but no session ID found")
+
     return session_id
 
 
@@ -330,7 +314,6 @@ def logout() -> None:
 def _clear_all_auth_cookies():
     """Clear all auth-related cookies."""
     try:
-        # logging("session_id")
         controller = get_cookie_controller()
         cookie_key = "auth_data"
  
@@ -352,7 +335,7 @@ def _clear_all_auth_cookies():
         # Expire cookie
         controller.set(cookie_key, "", **cookie_params)
     except Exception as e:
-        logging.error(f"Error clearing auth cookies: {e}")
+        logger.error(f"Error clearing auth cookies: {e}")
 
 
 def _clean_session_state() -> None:
@@ -408,12 +391,12 @@ def login_user(
     """
     # Validate required fields
     if not user_email or not token:
-        logging.error("Login failed: missing user_email or token")
+        logger.error("Login failed: missing user_email or token")
         return ""
-    
+
     # Clear any existing session first
     if is_authenticated():
-        logging.info("Clearing existing session for new login")
+        logger.info("Clearing existing session for new login")
         logout()
     
     # Generate unique session ID
@@ -441,9 +424,9 @@ def login_user(
             )
             conn.commit()
             conn.close()
-            logging.debug("User session stored in database")
+            logger.debug("User session stored in database")
     except Exception as err:
-        logging.error(f"login_user DB error: {err}")
+        logger.error(f"login_user DB error: {err}")
         # Continue even if DB fails - we still want to set the cookie
 
     # Prepare cookie data
@@ -457,13 +440,13 @@ def login_user(
 
     # Write cookie AND set session state immediately
     if not _write_auth_cookie(cookie_data):
-        logging.error("Failed to write auth cookie during login")
+        logger.error("Failed to write auth cookie during login")
         return ""
 
     # Session state is already set in _write_auth_cookie, just mark as restored
     st.session_state.session_restored = True
 
-    logging.info(f"User {user_email} successfully logged in with session {session_id}")
+    logger.info(f"User logged in: {user_email}")
     return session_id
 
 # -------------------------------------------------------------------------
@@ -496,8 +479,8 @@ def quick_auth_check() -> bool:
             st.session_state.session_restored = True
             return True
     except Exception as e:
-        logging.debug(f"Quick auth check failed: {e}")
-    
+        logger.debug(f"Quick auth check failed: {e}")
+
     return False
 
 def make_json_safe(val):

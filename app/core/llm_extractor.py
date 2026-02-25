@@ -344,11 +344,11 @@ class LLMExtractor:
         cached_status = _check_llm_cache(conn, ticker, fiscal_year, doc_type, q_norm)
 
         if cached_status == "not_found":
-            logger.info(f"[LLM] Cache hit (not_found): {ticker} {fiscal_year} '{q_norm}'")
+            logger.debug(f"[LLM] Cache hit (not_found): {ticker} {fiscal_year} '{q_norm}'")
             return []
 
         if cached_status == "found":
-            logger.info(f"[LLM] Cache hit (found): {ticker} {fiscal_year} '{q_norm}'")
+            logger.debug(f"[LLM] Cache hit (found): {ticker} {fiscal_year} '{q_norm}'")
             rows = _fetch_cached_metrics(conn, ticker, fiscal_year, doc_type, q_norm)
             return [
                 FilingMetricResult(
@@ -373,12 +373,12 @@ class LLMExtractor:
         # ── 2. Load section cache ────────────────────────────────────────────
         cache_path = _get_section_cache_path(ticker, fiscal_year, doc_type)
         if not cache_path:
-            logger.info(f"[LLM] No SECTION_CACHE.json for {ticker} {fiscal_year} {doc_type} — skipping")
+            logger.debug(f"[LLM] No SECTION_CACHE.json for {ticker} {fiscal_year} {doc_type} — skipping")
             return []
 
         sections = _load_section_cache(cache_path)
         if not sections:
-            logger.info(f"[LLM] Empty section cache — skipping")
+            logger.debug(f"[LLM] Empty section cache for {ticker} {fiscal_year} — skipping")
             return []
 
         # ── 3. Build context ─────────────────────────────────────────────────
@@ -396,7 +396,7 @@ class LLMExtractor:
         # ── 5. Parse + store result ──────────────────────────────────────────
         if not llm_result.get("found") or llm_result.get("value") is None:
             _write_llm_cache(conn, ticker, fiscal_year, doc_type, q_norm, "not_found")
-            logger.info(f"[LLM] Not found in filing — cached as not_found")
+            logger.info(f"[LLM] Metric not found in {ticker} {fiscal_year} filing for query '{q_norm}'")
             return []
 
         # Valid extraction
