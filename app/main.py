@@ -16,6 +16,15 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
+# Handle logout action (must be AFTER set_page_config)
+from core.auth_manager import logout
+params = st.query_params
+if params.get("action") == "logout":
+    logout()
+    # Clear all query params and force a rerun so navigation picks up the default page
+    st.query_params.clear()
+    st.rerun()
+
 # Initialize database
 from core.database import init_database
 init_database()

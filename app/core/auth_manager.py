@@ -8,7 +8,8 @@ import os
 import json
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from time import sleep
 from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
@@ -26,6 +27,36 @@ COOKIE_NAME = "auth_session"
 COOKIE_MAX_AGE_DAYS = 7
 
 
+def get_current_domain(default: Optional[str] = None) -> str:
+    """Best-effort current host → cookie domain (normalized)."""
+    try:
+        host = st.context.headers.get("host", "")
+ 
+        if not host:
+            try:
+                from streamlit.web.server.websocket_headers import _get_websocket_headers
+                ws = _get_websocket_headers() or {}
+                host = ws.get("host") or ws.get("Host") or ""
+            except ImportError:
+                pass
+ 
+        # Extract only the domain part (ignore port if present)
+        domain = host.split(":", 1)[0].strip().lower()
+ 
+        # --- Normalize allowed domains ---
+        if domain == "localhost":
+            return "localhost"
+        elif domain == "0.0.0.0":
+            return "0.0.0.0"
+        elif domain.endswith(".coresight.com"):
+            return ".coresight.com"
+ 
+        # Fallback
+        return default or ""
+    except Exception:
+        return default or ""
+
+
 @dataclass
 class AuthResult:
     """Result of authentication attempt."""
@@ -39,7 +70,8 @@ class AuthManager:
     """Manages user authentication with session token pattern."""
     
     def __init__(self):
-        self.cookie_controller = CookieController()
+        # Use same key as auth_utils for consistency
+        self.cookie_controller = CookieController(key="auth_cookies")
     
     # =========================================================================
     # LOGIN FLOW
@@ -141,11 +173,16 @@ class AuthManager:
         try:
             cookie_value = json.dumps(auth_data, separators=(',', ':'))
             
-            self.cookie_controller.set(
-                COOKIE_NAME,
-                cookie_value,
-                max_age=COOKIE_MAX_AGE_DAYS * 24 * 60 * 60  # 7 days in seconds
-            )
+            expires_dt = datetime.now(timezone.utc) + timedelta(days=COOKIE_MAX_AGE_DAYS)
+            domain = get_current_domain()
+            
+            cookie_params = {
+                'expires': expires_dt,
+                'path': '/',
+                'domain': domain,
+            }
+            
+            self.cookie_controller.set(COOKIE_NAME, cookie_value, **cookie_params)
             
             return True
             
@@ -230,22 +267,39 @@ class AuthManager:
     def logout(self):
         """Logout user - clear cookie and session."""
         try:
-            # Clear cookie
-            self.cookie_controller.remove(COOKIE_NAME)
+            # Clear cookie by setting expired date (same as auth_utils)
+            try:
+                past = datetime.now(timezone.utc) - timedelta(days=1)
+                domain = get_current_domain()
+                
+                cookie_params = {
+                    "expires": past,
+                    "path": "/",
+                    'domain': domain,
+                }
+                
+                # Expire cookie by setting empty value with past date
+                self.cookie_controller.set(COOKIE_NAME, "", **cookie_params)
+                logger.info(f"Cookie cleared with domain: {domain}")
+            except Exception as e:
+                logger.warning(f"Cookie clear warning: {e}")
             
             # Clear session state
             keys_to_remove = ["auth_data", "authenticated"]
             for key in keys_to_remove:
                 if key in st.session_state:
                     del st.session_state[key]
-            
+            sleep(0.5)
             logger.info("User logged out")
             
         except Exception as e:
             logger.error(f"Logout error: {e}")
         
-        # Redirect to login
-        st.switch_page("pages/login.py")
+        # # Small delay before redirect (same as auth_utils)
+        # sleep(0.5)
+        
+        # # Redirect to login
+        # st.switch_page("pages/login.py")
 
 
 # =========================================================================
