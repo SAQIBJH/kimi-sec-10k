@@ -17,10 +17,41 @@ import streamlit as st
 from dotenv import load_dotenv
 
 # Import new auth manager
-from core.auth_manager import login_user, AuthResult
+from core.auth_manager import login_user, AuthResult, is_authenticated
 
 # Import UI components (minimal)
 from components.styles import hide_sidebar
+
+# Check if user is already authenticated via cookie - redirect to home
+# Need to try reading cookie directly since session state is cleared on page load
+def _check_existing_auth():
+    """Check if user has valid auth cookie."""
+    try:
+        from streamlit_cookies_controller import CookieController
+        import json
+        
+        controller = CookieController()
+        raw_data = controller.get("auth_session")
+        
+        if raw_data:
+            if isinstance(raw_data, str):
+                data = json.loads(raw_data)
+            else:
+                data = raw_data
+                
+            # Check required fields
+            if data.get("user_email") and data.get("token"):
+                # Restore to session state
+                st.session_state.auth_data = data
+                st.session_state.authenticated = True
+                return True
+    except Exception:
+        pass
+    return False
+
+# Check for existing auth before showing login page
+if _check_existing_auth() or is_authenticated():
+    st.switch_page("pages/home.py")
 
 # Must be called immediately after imports
 hide_sidebar()
@@ -351,7 +382,7 @@ def main():
         )
         st.markdown(
             "<h1 style='font-family:sans-serif,Inter; font-size: 28px; font-weight: 700; "
-            "color: #323232; margin-bottom: 24px; line-height: 1.2;'>"
+            "color: #323232; margin-bottom: 24px; line-height: 1.2; x'>"
             "Coresight Market Data Portal</h1>",
             unsafe_allow_html=True
         )

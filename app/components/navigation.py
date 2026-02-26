@@ -13,6 +13,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from components.styles import COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS
 import streamlit as st
 
+# Import auth functions
+from core.auth_manager import is_authenticated, get_current_user, logout, get_auth_manager
+
 def render_header(full_width: bool = True, current_page: str = "market_data",ticker: str = "M"):
     """
     Render Coresight header based on Figma design - EXACT MATCH.
@@ -36,126 +39,157 @@ def render_header(full_width: bool = True, current_page: str = "market_data",tic
     is_earnings_calls = current_page == "earnings_calls"
 
     actual_ticker = st.query_params.get("ticker", ticker) or ticker
+    
     # Build header HTML - EXACT Figma specifications
     header_html = '''<style>
-/* Header full-width wrapper - background #f2f2f2 */
-.coresight-header-exact {
-  background-color: #f2f2f2;
-  width: 100vw;
-  margin-left: calc(-50vw + 50%);
-  margin-right: calc(-50vw + 50%);
-  box-sizing: border-box;
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-}
+    /* Header full-width wrapper - background #f2f2f2 */
+    .coresight-header-exact {
+      background-color: #f2f2f2;
+      width: 100vw;
+      margin-left: calc(-50vw + 50%);
+      margin-right: calc(-50vw + 50%);
+      box-sizing: border-box;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
 
-/* Header container - 1440px max width, centered, flex layout */
-.coresight-header-container {
-  max-width: 1440px;
-  margin: 0 auto;
-  height: 80px;
-  display: flex;
-  align-items: center;
-  gap: 46px; /* Gap from logo to nav: 568 - 390 - 132 = 46px */
-  padding-left: 106px; /* Logo at x=390 which is 106px from left edge of 1440px container */
-}
+    /* Header container - 1440px max width, centered, flex layout */
+    .coresight-header-container {
+      max-width: 1440px;
+      margin: 0 auto;
+      height: 80px;
+      display: flex;
+      align-items: center;
+      gap: 46px; /* Gap from logo to nav: 568 - 390 - 132 = 46px */
+      padding-left: 106px; /* Logo at x=390 which is 106px from left edge of 1440px container */
+    }
 
-/* Logo - 132x60px */
-.coresight-header-logo {
-  flex-shrink: 0;
-  width: 132px;
-  height: 60px;
-}
-.coresight-header-logo img {
-  width: 132px;
-  height: 60px;
-  object-fit: contain;
-  display: block;
-}
+    /* Logo - 132x60px */
+    .coresight-header-logo {
+      flex-shrink: 0;
+      width: 132px;
+      height: 60px;
+    }
+    .coresight-header-logo img {
+      width: 132px;
+      height: 60px;
+      object-fit: contain;
+      display: block;
+    }
 
-/* Navigation - horizontal layout with 48px gaps */
-.coresight-header-nav {
-  display: flex;
-  align-items: center;
-  gap: 48px;
-  height: 26px;
-}
+    /* Navigation - horizontal layout with 48px gaps */
+    .coresight-header-nav {
+      display: flex;
+      align-items: center;
+      gap: 48px;
+      height: 26px;
+    }
 
-/* Nav links - Roboto 18px weight 500, color #2d2a29 */
-.coresight-header-nav a {
-  font-family: 'Roboto', sans-serif;
-  font-size: 18px;
-  font-weight: 500;
-  color: #2d2a29;
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 0.2s ease;
-  line-height: 26px;
-}
-.coresight-header-nav a:hover {
-  color: #d62e2f;
-}
-.coresight-header-nav a.active {
-  color: #d62e2f;
-}
+    /* Nav links - Roboto 18px weight 500, color #2d2a29 */
+    .coresight-header-nav a {
+      font-family: 'Roboto', sans-serif;
+      font-size: 18px;
+      font-weight: 500;
+      color: #2d2a29;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: color 0.2s ease;
+      line-height: 26px;
+    }
+    .coresight-header-nav a:hover {
+      color: #d62e2f;
+    }
+    .coresight-header-nav a.active {
+      color: #d62e2f;
+    }
 
-/* Remove default Streamlit padding */
-.stApp > header {
-  display: none !important;
-}
-.main > div:first-child {
-  padding-top: 0 !important;
-}
-
-/* Prevent horizontal scroll */
-html, body {
-  overflow-x: hidden !important;
-  max-width: 100% !important;
-}
-.stApp {
-  overflow-x: hidden !important;
-}
-
-/* Responsive adjustments */
-@media (max-width: 1024px) {
-  .coresight-header-container {
-    padding-left: 20px;
-    gap: 30px;
+    /* Logout button - styled as nav link with red color */
+    .logout-btn {
+    font-family: 'Roboto', sans-serif;
+    font-size: 16px;
+    font-weight: 500;
+    color: #d62e2f;
+    text-decoration: none;
+    white-space: nowrap;
+    line-height: 1;
+    padding: 8px 18px;
+    border-radius: 6px;
+    border: 1px solid #000;
+    background-color: white !important;
+    transition: all 0.18s ease;
+    margin-right: 40px;
   }
-  .coresight-header-nav {
-    gap: 24px;
-  }
-  .coresight-header-nav a {
-    font-size: 14px;
-  }
-}
 
-@media (max-width: 768px) {
-  .coresight-header-nav {
-    display: none;
+  .logout-btn:hover {
+    background-color: #d62e2f !important;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(214, 46, 47, 0.25);
   }
-}
-</style>
 
-<div class="coresight-header-exact">
-  <div class="coresight-header-container">
-    <!-- Logo: 132x60 at x=390 (106px from left edge) -->
-    <div class="coresight-header-logo">
-      <a href="https://coresight.com/">
-        <img src="https://production-wordpress-cdn-dpa0g9bzd7b3h7gy.z03.azurefd.net/wp-content/uploads/2023/12/coresight-logo-1.png" 
-             alt="Coresight Research" width="132" height="60">
-      </a>
-    </div>
-    
-    <!-- Navigation: at x=568, 48px gaps between items, Roboto 18px weight 500 -->
-    <nav class="coresight-header-nav">
-      <a href="/market_data?ticker=''' + actual_ticker + '''" target="_self" class="''' + ('active' if not is_newsroom and not is_company_profile and not is_earnings_calls else '') + '''">Market Data Dashboard</a>
-      <a href="/earnings_calls?ticker=''' + actual_ticker + '''" target="_self" class="''' + ('active' if is_earnings_calls else '') + '''">Earnings Calls</a>
-      <a href="/newsroom?ticker=''' + actual_ticker + '''" target="_self" class="''' + ('active' if is_newsroom else '') + '''">News</a>
-    </nav>
-  </div>
-</div>'''
+    /* Remove default Streamlit padding */
+    .stApp > header {
+      display: none !important;
+    }
+    .main > div:first-child {
+      padding-top: 0 !important;
+    }
+
+    /* Prevent horizontal scroll */
+    html, body {
+      overflow-x: hidden !important;
+      max-width: 100% !important;
+    }
+    .stApp {
+      overflow-x: hidden !important;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 1024px) {
+      .coresight-header-container {
+        padding-left: 20px;
+        gap: 30px;
+      }
+      .coresight-header-nav {
+        gap: 24px;
+      }
+      .coresight-header-nav a {
+        font-size: 14px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .coresight-header-nav {
+        display: none;
+      }
+    }
+    </style>
+
+    <div class="coresight-header-exact">
+      <div class="coresight-header-container">
+        <!-- Logo: 132x60 at x=390 (106px from left edge) -->
+        <div class="coresight-header-logo">
+          <a href="https://coresight.com/">
+            <img src="https://production-wordpress-cdn-dpa0g9bzd7b3h7gy.z03.azurefd.net/wp-content/uploads/2023/12/coresight-logo-1.png" 
+                alt="Coresight Research" width="132" height="60">
+          </a>
+        </div>
+        
+        <!-- Navigation: at x=568, 48px gaps between items, Roboto 18px weight 500 -->
+        <nav class="coresight-header-nav">
+          <a href="/market_data?ticker=''' + actual_ticker + '''" target="_self" class="''' + ('active' if not is_newsroom and not is_company_profile and not is_earnings_calls else '') + '''">Market Data Dashboard</a>
+          <a href="/earnings_calls?ticker=''' + actual_ticker + '''" target="_self" class="''' + ('active' if is_earnings_calls else '') + '''">Earnings Calls</a>
+          <a href="/newsroom?ticker=''' + actual_ticker + '''" target="_self" class="''' + ('active' if is_newsroom else '') + '''">News</a>
+        </nav>
+        
+        <!-- Spacer to push logout to right -->
+        <div style="flex: 1;"></div>
+        <a href="?action=logout" class="logout-btn">Logout</a>
+        <!-- Logout placeholder - Streamlit button will be injected here -->
+        <div id="logout-container" style="margin-right: 40px;"></div>
+      </div> 
+      
+    </div>'''
     
     # Use st.html for proper rendering
     try:
