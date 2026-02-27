@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from components.styles import hide_sidebar, set_page_layout
 from core.auth_manager import require_auth
-# require_auth()
+require_auth()
 hide_sidebar()
 
 from components.styles import render_styles, COLORS, TYPOGRAPHY, SPACING
@@ -419,6 +419,51 @@ def get_earnings_css() -> str:
         color: #6B6B6B;
     }
 
+    /* ===== SEARCH RESULT VIEW BUTTON & META ===== */
+    .transcript-result-footer {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: 8px;
+        padding-top: 6px;
+        border-top: 1px solid #F0F0F0;
+    }
+    .transcript-result-meta {
+        font-family: 'Roboto', sans-serif;
+        font-size: 11px;
+        color: #999;
+        font-weight: 500;
+        letter-spacing: 0.3px;
+    }
+    .transcript-view-btn {
+        font-family: 'Roboto', sans-serif;
+        font-size: 11px;
+        font-weight: 600;
+        color: #D62E2F;
+        text-decoration: none;
+        border: 1px solid #D62E2F;
+        border-radius: 4px;
+        padding: 3px 10px;
+        transition: all 0.15s;
+        background: transparent;
+        white-space: nowrap;
+        display: inline-block;
+    }
+    .transcript-view-btn:hover {
+        background: #D62E2F;
+        color: #fff !important;
+        text-decoration: none !important;
+    }
+
+    /* Highlight the targeted segment when navigated via anchor */
+    .speaker-section:target {
+        background: rgba(214, 46, 47, 0.06);
+        border-radius: 6px;
+        outline: 1px solid rgba(214, 46, 47, 0.2);
+        padding: 8px;
+        margin: -8px;
+    }
+
     /* =======================================================================
        RESPONSIVE ADJUSTMENTS
        ======================================================================= */
@@ -811,6 +856,10 @@ def render_earnings_calls(active_ticker: str = None):
                         <div class="transcript-search-result-card">
                             <div class="transcript-search-speaker">{m['speaker']}</div>
                             <div class="transcript-search-snippet">{highlighted_snippet}</div>
+                            <div class="transcript-result-footer">
+                                <span class="transcript-result-meta">{company} &bull; {year} &bull; {quarter}</span>
+                                <a href="#seg-{m['index']}" class="transcript-view-btn">View &#8594;</a>
+                            </div>
                         </div>
                         '''
                         st.markdown(card_html, unsafe_allow_html=True)
