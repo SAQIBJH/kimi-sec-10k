@@ -1,13 +1,14 @@
+# app/main.py
 """
-Unified Entry Point - Coresight Research Portal
-Uses Streamlit's built-in multipage navigation for hot-reload support.
+Coresight Research Portal - Main Entry Point
+Initializes SSL certificates and database connections
 """
+
 import streamlit as st
 
-# MUST be first Streamlit command
 st.set_page_config(
-    page_title="Coresight Research Portal",
-    page_icon="📊",
+    page_title="Market Data Portal",
+    page_icon="https://coresight.com/wp-content/uploads/2019/03/cropped-CoreSightTransparent_Logo_favico-32x32.png",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
@@ -16,7 +17,9 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Handle logout action (must be AFTER set_page_config)
+# Download SSL CA certificate before database init (required for secure MySQL connections)
+from core.ssl_setup import ensure_ca_cert
+ensure_ca_cert()
 from core.auth_manager import logout
 params = st.query_params
 if params.get("action") == "logout":

@@ -362,20 +362,20 @@ def _clean_session_state() -> None:
 # -------------------------------------------------------------------------
 # Database Operations
 # -------------------------------------------------------------------------
-# def create_db_connection():
-#     """Create and return database connection."""
-#     try:
-#         return mysql.connector.connect(
-#             database=os.getenv("DB_NAME"),
-#             user=os.getenv("DB_USER"),
-#             password=os.getenv("DB_PASSWORD"),
-#             host=os.getenv("DB_HOST"),
-#             port=int(os.getenv("DB_PORT", 3306)),
-#             ssl_ca=os.getenv("SSL_CA"),
-#         )
-#     except Exception as err:
-#         logging.error(f"DB connection error: {err}")
-#         return None
+def create_db_connection():
+    """Create and return database connection."""
+    try:
+        return mysql.connector.connect(
+            database=os.getenv("DB_NAME"),
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            host=os.getenv("DB_HOST"),
+            port=int(os.getenv("DB_PORT", 3306)),
+            ssl_ca=os.getenv("SSL_CA"),
+        )
+    except Exception as err:
+        logging.error(f"DB connection error: {err}")
+        return None
 
 
 def login_user(

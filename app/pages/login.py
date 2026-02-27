@@ -29,16 +29,16 @@ def _check_existing_auth():
     try:
         from streamlit_cookies_controller import CookieController
         import json
-        
+
         controller = CookieController()
         raw_data = controller.get("auth_session")
-        
+
         if raw_data:
             if isinstance(raw_data, str):
                 data = json.loads(raw_data)
             else:
                 data = raw_data
-                
+
             # Check required fields
             if data.get("user_email") and data.get("token"):
                 # Restore to session state
@@ -71,7 +71,7 @@ log = logging.getLogger("sip-login")
 AUTH_URL = os.getenv("AUTH_URL", "").strip()
 AUTH_URL_PAID = os.getenv("AUTH_URL_PAID", "").strip()
 
-
+AUTH_URL_PAID = "https://stage3.coresight.com/wp-json"
 
 # ===========================
 # Small utils
@@ -348,32 +348,32 @@ def load_html_component(filename: str) -> str:
 # ===========================
 def main():
     """Main render function - with external header/footer components."""
-    
+
     # Load and apply layout CSS first
     layout_css = load_html_component(LAYOUT_CSS_FILE)
     if layout_css:
         if not layout_css.strip().startswith('<style>'):
             layout_css = f"<style>{layout_css}</style>"
         st.markdown(layout_css, unsafe_allow_html=True)
-    
+
     # Load and render Header (at top, fixed position)
     header_html = load_html_component("login_header.html")
     if header_html:
         st.markdown(header_html, unsafe_allow_html=True)
-    
+
     # Spacer to push content below fixed header
     st.markdown("<div style='height: 78px;'></div>", unsafe_allow_html=True)
-    
+
     # Content wrapper for consistent layout
     st.markdown('<div class="content-wrapper login-content">', unsafe_allow_html=True)
-    
+
     # Use columns to center the form (left spacer | form | right spacer)
     left_spacer, center_col, right_spacer = st.columns([2, 5, 2])
-    
+
     with center_col:
         # Add some top spacing for visual balance
         st.markdown("<div style='height: 20px;'></div>", unsafe_allow_html=True)
-        
+
         # Welcome text
         st.markdown(
             "<h4 style='font-family:sans-serif,Inter; color: #323232; font-size: 24px; font-weight: 600; padding: 0; margin: 0; '> "
@@ -382,11 +382,11 @@ def main():
         )
         st.markdown(
             "<h1 style='font-family:sans-serif,Inter; font-size: 28px; font-weight: 700; "
-            "color: #323232; margin-bottom: 24px; line-height: 1.2; x'>"
+            "color: #323232; margin-bottom: 24px; line-height: 1.2;'>"
             "Coresight Market Data Portal</h1>",
             unsafe_allow_html=True
         )
-        
+
         # ===========================
         # Login Form
         # ===========================
@@ -398,16 +398,16 @@ def main():
                 display: none !important;
                 visibility: hidden !important;
             }
-            
+
             /* Red login button - FULL WIDTH */
             div[data-testid="stVerticalBlock"] div[data-testid="stElementContainer"] {
                 width: 100% !important;
             }
-            
+
             div[data-testid="stVerticalBlock"] div[data-testid="stButton"] {
                 width: 100% !important;
             }
-            
+
             div[data-testid="stVerticalBlock"] div[data-testid="stButton"] > button,
             div[data-testid="stVerticalBlock"] button[data-testid="stBaseButton-secondary"],
             div[data-testid="stVerticalBlock"] button[kind="secondary"] {
@@ -424,12 +424,12 @@ def main():
                 font-weight: 600 !important;
                 margin-top: 8px !important;
             }
-            
+
             div[data-testid="stVerticalBlock"] div[data-testid="stButton"] > button:hover,
             div[data-testid="stVerticalBlock"] button[data-testid="stBaseButton-secondary"]:hover {
                 background-color: #b71c1c !important;
             }
-            
+
             /* Center button text when disabled (authenticating) */
             div[data-testid="stVerticalBlock"] div[data-testid="stButton"] > button:disabled > div {
                 display: flex !important;
@@ -438,7 +438,7 @@ def main():
                 gap: 10px !important;
                 width: 100% !important;
             }
-            
+
             /* Spinner before "Authenticating..." text */
             div[data-testid="stVerticalBlock"] div[data-testid="stButton"] > button:disabled > div::before {
                 content: "";
@@ -450,11 +450,11 @@ def main():
                 animation: spin 0.8s linear infinite;
                 flex-shrink: 0;
             }
-            
+
             @keyframes spin {
                 to { transform: rotate(360deg); }
             }
-            
+
             /* Input fields styling */
             div[data-testid="stTextInput"] > div > div > input {
                 border-radius: 4px !important;
@@ -463,7 +463,7 @@ def main():
                 font-size: 15px !important;
                 height: 42px !important;
             }
-            
+
             /* Label styling */
             div[data-testid="stTextInput"] label {
                 font-size: 13px !important;
@@ -472,35 +472,35 @@ def main():
             }
             </style>
         """, unsafe_allow_html=True)
-        
+
         # Use session state to track loading
         if "is_authenticating" not in st.session_state:
             st.session_state.is_authenticating = False
         if "auth_error" not in st.session_state:
             st.session_state.auth_error = None
-        
-        username = st.text_input("Email or Username")
+
+        username = st.text_input("Email")
         password = st.text_input("Password", type="password")
-        
+
         # Show button with loader text when authenticating
         button_label = "Authenticating..." if st.session_state.is_authenticating else "Login"
-        
+
         # Disable button during authentication
         login_button = st.button(
-            button_label, 
+            button_label,
             key="login_button",
             disabled=st.session_state.is_authenticating
         )
-        
+
         # Show error message if exists (and clear it)
         if st.session_state.auth_error:
             st.error(st.session_state.auth_error)
             st.session_state.auth_error = None
-            
+
         # Perform authentication when in authenticating state (no spinner, just button text)
         if st.session_state.is_authenticating:
             token_data = authenticate_user(username, password)
-            
+
             if token_data:
                 user_email = token_data.get("user_email")
                 token = token_data.get("token")
@@ -511,6 +511,11 @@ def main():
                     st.session_state.is_authenticating = False
                     st.session_state.auth_error = "Invalid response from server."
                     st.rerun()
+                if not user_email.lower().endswith("@coresight.com"):
+                    log.warning(f"[LOGIN] Blocked non-coresight login: {user_email}")
+                    st.session_state.is_authenticating = False
+                    st.session_state.auth_error = "Access restricted to @coresight.com accounts."
+                    st.rerun()
 
                 # Create session (DB + Cookie)
                 result = login_user(
@@ -519,7 +524,7 @@ def main():
                     user_display_name=token_data.get("user_display_name"),
                     token=token
                 )
-                
+
                 if result.success:
                     log.info(f"[LOGIN] Session created for {user_email}")
                     st.session_state.is_authenticating = False
@@ -535,22 +540,22 @@ def main():
                 log.warning("[LOGIN] Authentication failed (JWT error or incorrect credentials).")
                 st.session_state.auth_error = "Incorrect username or password."
                 st.rerun()
-    
+
     # ===========================
     # Login Flow
     # ===========================
     if login_button and not st.session_state.is_authenticating:
         log.debug(f"[LOGIN] Login attempt | pw_len={len(password)}")
-        
+
         # Set authenticating state and rerun to show loader
         st.session_state.is_authenticating = True
         st.rerun()
-    
+
     # Close content wrapper
     st.markdown('</div>', unsafe_allow_html=True)
-    
+
     st.markdown("<div style='height: 60px;'></div>", unsafe_allow_html=True)
-    
+
     # Load and render Footer (at bottom, no extra space)
     footer_html = load_html_component("login_footer.html")
     if footer_html:

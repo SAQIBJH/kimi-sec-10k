@@ -7,7 +7,7 @@ from components.navigation import render_header, render_coresight_footer
 from core.auth_manager import require_auth
 from data.repository import CompanyRepository
 from utils.local_storage_manager import set_persistent_state, save_market_data_state
-# require_auth()
+require_auth()
 hide_sidebar()
 
 @st.cache_data(ttl=300)
