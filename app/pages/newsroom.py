@@ -47,17 +47,17 @@ def calculate_relative_time(published_time: datetime) -> str:
         if not published_time.tzinfo:
             published_time = published_time.replace(tzinfo=None)
             now = now.replace(tzinfo=None)
-        
+
         diff = now - published_time
         diff_seconds = diff.total_seconds()
-        
+
         if diff_seconds < 0:
             return '(just now)'
-        
+
         diff_mins = int(diff_seconds / 60)
         diff_hours = int(diff_seconds / 3600)
         diff_days = int(diff_seconds / 86400)
-        
+
         if diff_mins < 1:
             return '(just now)'
         elif diff_mins < 60:
@@ -97,10 +97,10 @@ def render_news_card(article: NewsArticle, company_map: dict, keyword: str = Non
     """
     # Format the date
     formatted_date = article.formatted_date
-    
+
     # Calculate relative time server-side
     relative_time = calculate_relative_time(article.time_published)
-    
+
     # Build tagged companies HTML with tooltips
     tagged_companies_html = ""
     if article.ticker_sentiment:
@@ -112,13 +112,13 @@ def render_news_card(article: NewsArticle, company_map: dict, keyword: str = Non
             # Company link with custom tooltip - links to company profile page
             company_html = f'<a href="/market_data?ticker={ts.ticker}" class="company-link" title="{tooltip_text}">{company_name}</a>'
             companies_parts.append(company_html)
-        
+
         tagged_companies_html = "<span class='tagged-label'>Tagged Companies: </span>" + " | ".join(companies_parts)
-    
+
     # Build the card HTML - Title is a link but styled as black text without underline
     display_title = _highlight_keyword(article.title, keyword) if keyword else article.title
     display_summary = _highlight_keyword(article.summary, keyword) if keyword else article.summary
-    
+
     card_html = f"""
     <div class="news-card">
         <div class="news-header">
@@ -133,7 +133,7 @@ def render_news_card(article: NewsArticle, company_map: dict, keyword: str = Non
     </div>
     <div class="divider"></div>
     """
-    
+
     return card_html
 
 
@@ -142,7 +142,7 @@ def get_news_css() -> str:
     return """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Montserrat:wght@400;500;600;700&display=swap');
-    
+
     /* Keyword highlight — brand red theme */
     mark {
         background: rgba(214, 46, 47, 0.15);
@@ -157,19 +157,19 @@ def get_news_css() -> str:
         margin: 0 auto;
         padding: 16px 0;
     }
-    
+
     .news-card {
         padding: 16px 0;
         font-family: 'Roboto', sans-serif;
     }
-    
+
     .news-header {
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
         margin-bottom: 12px;
     }
-    
+
     .news-source {
         font-family: 'Roboto', sans-serif;
         font-weight: 700;
@@ -177,7 +177,7 @@ def get_news_css() -> str:
         line-height: 21px;
         color: #888888;
     }
-    
+
     .news-date {
         font-family: 'Roboto', sans-serif;
         font-weight: 700;
@@ -186,12 +186,12 @@ def get_news_css() -> str:
         color: #888888;
         text-align: right;
     }
-    
+
     .relative-time {
         color: #888888;
         font-weight: 700;
     }
-    
+
     .news-title-link {
         font-family: 'Montserrat', sans-serif;
         font-weight: 700;
@@ -203,7 +203,7 @@ def get_news_css() -> str:
         margin-bottom: 12px;
         display: block;
     }
-    
+
     /* Ensure title link is black and not underlined */
     .news-title-link,
     .news-title-link:hover,
@@ -212,7 +212,7 @@ def get_news_css() -> str:
         color: #000000 !important;
         text-decoration: none !important;
     }
-    
+
     .news-summary {
         font-family: 'Roboto', sans-serif;
         font-weight: 400;
@@ -222,7 +222,7 @@ def get_news_css() -> str:
         margin-bottom: 12px;
         padding-left: 24px;
     }
-    
+
     .tagged-companies {
         font-family: 'Roboto', sans-serif;
         font-weight: 700;
@@ -231,23 +231,23 @@ def get_news_css() -> str:
         color: #4F4F4F;
         padding-left: 24px;
     }
-    
+
     .tagged-label {
         font-weight: 700;
         color: #4F4F4F;
     }
-    
+
     .company-link {
         color: #d62e2f !important;
         text-decoration: none;
         cursor: pointer;
     }
-    
+
     .company-link:hover {
         color: #d62e2f !important;
         text-decoration: underline;
     }
-    
+
     /* Override Streamlit's default link colors */
     a.company-link,
     a.company-link:visited,
@@ -255,14 +255,14 @@ def get_news_css() -> str:
     a.company-link:active {
         color: #d62e2f !important;
     }
-    
+
     .divider {
         height: 1px;
         background: #CBCACA;
         margin: 8px 0;
         width: 100%;
     }
-    
+
     /* Filter section styles */
     .filter-container {
         background: #f8f9fa;
@@ -270,7 +270,7 @@ def get_news_css() -> str:
         border-radius: 8px;
         margin-bottom: 24px;
     }
-    
+
     .filter-title {
         font-family: 'Montserrat', sans-serif;
         font-weight: 600;
@@ -395,7 +395,7 @@ def render_page():
         <div style="font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 28px; color: #323232;">News Results</div>
     </div>
     """, unsafe_allow_html=True)
-    
+
     # Get date bounds from news table
     date_bounds = NewsRepository.get_news_date_range()
     news_min_date = date_bounds['min_date']
@@ -406,7 +406,7 @@ def render_page():
         st.session_state.date_from = max(news_min_date, news_max_date - timedelta(days=7))
     if 'date_to' not in st.session_state:
         st.session_state.date_to = news_max_date
-    
+
     # Render custom CSS
     st.markdown(get_news_css(), unsafe_allow_html=True)
 
@@ -548,10 +548,10 @@ def main():
     """Newsroom page entry point (standalone)."""
     # Initialize
     initialize_app()
-    
+
     # Render global styles
     render_styles()
-    
+
     # Set layout
     set_page_layout(
         header_full_width=True,
@@ -561,13 +561,13 @@ def main():
         remove_top_padding=True,
         footer_at_bottom=True
     )
-    
+
     # Render Header
     render_header(full_width=True, current_page="newsroom",ticker=st.query_params.get("ticker", "M"))
 
     # Render content
     render_page()
-    
+
     # Render Footer
     render_coresight_footer(full_width=True, stick_to_bottom=True)
 
