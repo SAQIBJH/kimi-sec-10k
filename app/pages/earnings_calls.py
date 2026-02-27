@@ -493,6 +493,7 @@ class SpeakerSegment:
     text: str
 
 
+@st.cache_data(ttl=600, show_spinner=False)
 def parse_transcript(transcript_text: str) -> List[SpeakerSegment]:
     """
     Parse transcript text into speaker segments.
