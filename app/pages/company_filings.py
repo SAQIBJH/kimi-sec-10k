@@ -27,6 +27,7 @@ from components.navigation import render_header, render_coresight_footer
 FILINGS_BASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "filings")
 
 # ── DB-based company names (replaces hardcoded dict) ─────────────────────────
+@st.cache_resource(show_spinner=False)
 def _load_company_names_from_db():
     """Load ticker→display_name map from coreiq_companies for all DB companies."""
     try:
@@ -77,6 +78,7 @@ DOC_TYPE_REVERSE = {
 ANNUAL_DOC_TYPES = {"10-K", "DEF 14A", "S-1"}
 
 
+@st.cache_resource(show_spinner=False)
 def scan_filings_directory():
     """Scan the filings directory to discover available companies, years, and doc types.
 
@@ -168,6 +170,7 @@ class FilingDocument:
 # ── DB-based company/year/doctype lists (replaces folder scan) ────────────────
 from data.repository import FilingMetricRepository
 
+@st.cache_data(ttl=600, show_spinner=False)
 def _load_companies_from_db():
     """Get (ticker, display_label) for companies that have data in filing_metrics.
     Display label uses the format: 'Company Name (TICKER)'.
@@ -192,6 +195,7 @@ def _load_companies_from_db():
         logger.warning(f"[DB] Failed to load companies: {e}")
         return [(t, f"{COMPANY_NAMES.get(t, t)} ({t})") for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc. (AAPL)")]
 
+@st.cache_data(ttl=300, show_spinner=False)
 def _get_available_years_from_db(ticker: str):
     """Get available fiscal years for a ticker from filing_metrics DB."""
     try:
@@ -204,6 +208,7 @@ def _get_available_years_from_db(ticker: str):
     except Exception:
         return sorted(FILINGS_DATA.get(ticker, {}).keys(), reverse=True)
 
+@st.cache_data(ttl=300, show_spinner=False)
 def _get_available_doc_types_from_db(ticker: str):
     """Get available doc types for a ticker from filing_metrics DB.
     Normalizes 10-Q-Q1/Q2/Q3 to just 10-Q."""
@@ -245,7 +250,7 @@ def get_filings_css() -> str:
     return """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap');
-    
+
     /* =======================================================================
        PAGE CONTAINER
        ======================================================================= */
@@ -256,13 +261,13 @@ def get_filings_css() -> str:
         font-family: 'Roboto', sans-serif;
         background: #FFFFFF;
     }
-    
+
     .filings-content-wrapper {
         max-width: 1220px;
         margin: 0 auto;
         padding: 0 110px;
     }
-    
+
     /* =======================================================================
        HEADER SECTION WITH FILTERS
        ======================================================================= */
@@ -274,7 +279,7 @@ def get_filings_css() -> str:
         border-bottom: 1px solid #E5E5E5;
         margin-bottom: 24px;
     }
-    
+
     .filings-title {
         font-family: 'Montserrat', sans-serif;
         font-weight: 700;
@@ -282,18 +287,18 @@ def get_filings_css() -> str:
         color: #2D2A29;
         margin: 0;
     }
-    
+
     /* Filter row styling */
     .filter-row {
         display: flex;
         gap: 16px;
         align-items: flex-end;
     }
-    
+
     /* =======================================================================
        STREAMLIT SELECTBOX STYLING
        ======================================================================= */
-    
+
     /* Selectbox label styling */
     div[data-testid="stSelectbox"] label {
         font-family: 'Roboto', sans-serif !important;
@@ -302,7 +307,7 @@ def get_filings_css() -> str:
         color: #6B6B6B !important;
         margin-bottom: 4px !important;
     }
-    
+
     /* Selectbox input container */
     div[data-testid="stSelectbox"] > div[data-baseweb="select"] {
         border: 1px solid #CBCACA !important;
@@ -310,19 +315,19 @@ def get_filings_css() -> str:
         background: #FFFFFF !important;
         min-height: 36px !important;
     }
-    
+
     /* Selectbox hover state */
     div[data-testid="stSelectbox"] > div[data-baseweb="select"]:hover {
         border-color: #0066CC !important;
     }
-    
+
     /* Selectbox text */
     div[data-testid="stSelectbox"] > div[data-baseweb="select"] span {
         font-family: 'Roboto', sans-serif !important;
         font-size: 14px !important;
         color: #2D2A29 !important;
     }
-    
+
     /* =======================================================================
        SEARCH METRICS SIDEBAR
        ======================================================================= */
@@ -336,21 +341,21 @@ def get_filings_css() -> str:
         overflow-y: auto;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
     }
-    
+
     .search-sidebar::-webkit-scrollbar {
         width: 6px;
     }
-    
+
     .search-sidebar::-webkit-scrollbar-track {
         background: #F2F2F2;
         border-radius: 3px;
     }
-    
+
     .search-sidebar::-webkit-scrollbar-thumb {
         background: #CBCACA;
         border-radius: 3px;
     }
-    
+
     .search-header {
         display: flex;
         align-items: center;
@@ -359,23 +364,23 @@ def get_filings_css() -> str:
         padding-bottom: 12px;
         border-bottom: 1px solid #F2F2F2;
     }
-    
+
     .search-header svg {
         color: #D62E2F;
     }
-    
+
     .search-title {
         font-family: 'Montserrat', sans-serif;
         font-weight: 600;
         font-size: 16px;
         color: #2D2A29;
     }
-    
+
     /* Search input styling - integrated with sidebar */
     div[data-testid="stTextInput"] {
         margin-bottom: 0 !important;
     }
-    
+
     div[data-testid="stTextInput"] > div > div > input {
         border: 1px solid #CBCACA !important;
         border-radius: 4px !important;
@@ -384,19 +389,19 @@ def get_filings_css() -> str:
         background: #FFFFFF !important;
         height: 36px !important;
     }
-    
+
     div[data-testid="stTextInput"] > div > div > input:focus {
         border-color: #0066CC !important;
         box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2) !important;
     }
-    
+
     .metrics-count {
         font-family: 'Roboto', sans-serif;
         font-size: 12px;
         color: #888888;
         margin: 4px 0 12px 4px;
     }
-    
+
     /* =======================================================================
        METRIC CARDS
        ======================================================================= */
@@ -417,16 +422,16 @@ def get_filings_css() -> str:
         border-color: #CBCACA;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.06);
     }
-    
+
     .metric-card.active {
         border-color: #D62E2F;
         background: #FDF5F5;
     }
-    
+
     .metric-info {
         flex: 1;
     }
-    
+
     .metric-name {
         font-family: 'Roboto', sans-serif;
         font-weight: 500;
@@ -434,7 +439,7 @@ def get_filings_css() -> str:
         color: #2D2A29;
         margin-bottom: 4px;
     }
-    
+
     .metric-value {
         font-family: 'Roboto', sans-serif;
         font-weight: 600;
@@ -480,14 +485,14 @@ def get_filings_css() -> str:
         white-space: nowrap;
         flex-shrink: 0;
     }
-    
+
     .metric-meta-dot {
         width: 3px;
         height: 3px;
         background: #888888;
         border-radius: 50%;
     }
-    
+
     .metric-action-btn {
         display: flex;
         align-items: center;
@@ -502,21 +507,21 @@ def get_filings_css() -> str:
         border: none;
         background: transparent;
     }
-    
+
     .metric-action-btn.view {
         color: #0066CC;
         background: #F0F7FF;
     }
-    
+
     .metric-action-btn.view:hover {
         background: #E0EFFF;
     }
-    
+
     .metric-action-btn.viewing {
         color: #D62E2F;
         background: #FDF5F5;
     }
-    
+
     /* =======================================================================
        COMPACT VIEW BUTTONS IN SEARCH SIDEBAR
        ======================================================================= */
@@ -542,6 +547,16 @@ def get_filings_css() -> str:
     }
 
     /* =======================================================================
+       BOTH PANELS — Override Streamlit's native bordered container
+       Applies to: left Search Metrics box AND right Document Viewer box
+       ======================================================================= */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border: 1px solid #E5E5E5 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.05) !important;
+    }
+
+    /* =======================================================================
        DOCUMENT VIEWER
        ======================================================================= */
     .document-viewer {
@@ -554,7 +569,7 @@ def get_filings_css() -> str:
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
         flex-direction: column;
     }
-    
+
     .document-header {
         display: flex;
         align-items: center;
@@ -562,21 +577,21 @@ def get_filings_css() -> str:
         padding: 16px 20px;
         border-bottom: 1px solid #E5E5E5;
     }
-    
+
     .document-title-section {
         display: flex;
         align-items: center;
         gap: 12px;
         flex-wrap: wrap;
     }
-    
+
     .document-title {
         font-family: 'Montserrat', sans-serif;
         font-weight: 600;
         font-size: 16px;
         color: #2D2A29;
     }
-    
+
     .document-meta {
         display: flex;
         align-items: center;
@@ -585,14 +600,14 @@ def get_filings_css() -> str:
         font-size: 14px;
         color: #6B6B6B;
     }
-    
+
     .document-meta-dot {
         width: 4px;
         height: 4px;
         background: #6B6B6B;
         border-radius: 50%;
     }
-    
+
     .document-badge {
         display: inline-flex;
         align-items: center;
@@ -603,7 +618,7 @@ def get_filings_css() -> str:
         font-size: 13px;
         color: #4F4F4F;
     }
-    
+
     .download-btn {
         display: flex;
         align-items: center;
@@ -620,12 +635,12 @@ def get_filings_css() -> str:
         text-decoration: none;
         white-space: nowrap;
     }
-    
+
     .download-btn:hover {
         background: #F9F9F9;
         border-color: #888888;
     }
-    
+
     .document-content {
         flex: 1;
         padding: 40px;
@@ -637,30 +652,30 @@ def get_filings_css() -> str:
         overflow: auto;
         border-radius: 0 0 8px 8px;
     }
-    
+
     .document-placeholder {
         text-align: center;
         color: #888888;
     }
-    
+
     .document-placeholder svg {
         margin-bottom: 16px;
         color: #CBCACA;
     }
-    
+
     .document-placeholder-text {
         font-family: 'Roboto', sans-serif;
         font-size: 18px;
         color: #888888;
         margin-bottom: 8px;
     }
-    
+
     .document-placeholder-subtext {
         font-family: 'Roboto', sans-serif;
         font-size: 14px;
         color: #888888;
     }
-    
+
     /* =======================================================================
        RESPONSIVE ADJUSTMENTS
        ======================================================================= */
@@ -668,7 +683,7 @@ def get_filings_css() -> str:
         .filings-content-wrapper {
             padding: 0 24px;
         }
-        
+
         .filings-header {
             flex-direction: column;
             align-items: flex-start;
@@ -687,10 +702,10 @@ def render_document_viewer(document: Optional[FilingDocument]) -> str:
     """Render the document viewer area."""
     # Download icon SVG (inline)
     download_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
-    
+
     if not document:
         return f'<div class="document-viewer"><div class="document-content"><div class="document-placeholder"><div class="document-placeholder-text">Select a metric to view document</div><div class="document-placeholder-subtext">Choose a financial metric from the list to view details</div></div></div></div>'
-    
+
     return f'<div class="document-viewer"><div class="document-header"><div class="document-title-section"><span class="document-title">{document.company_name} ({document.ticker}) {document.document_type}</span><span class="document-badge">{document.year}</span><span class="document-meta"><span class="document-meta-dot"></span><span>{document.quarter}</span></span></div><a href="#" class="download-btn" onclick="alert(\'Download functionality coming soon!\'); return false;">{download_icon}<span>Download</span></a></div><div class="document-content"><div class="document-placeholder"><div class="document-placeholder-text">FILING DOCUMENT</div><div class="document-placeholder-subtext">{document.company_name} {document.document_type} for {document.year} {document.quarter}</div></div></div></div>'
 
 
@@ -716,26 +731,71 @@ def _convert_ixbrl_to_spans(html: str) -> str:
     return html
 
 
+@st.cache_data(max_entries=20, show_spinner=False)
+def _load_and_process_html(html_path: str, _v: int = 2) -> str:
+    """Read HTML file from disk, strip XML preamble, convert iXBRL tags — cached per path.
+    _v: cache-buster — increment to force re-processing of all cached files.
+    """
+    import re
+    with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
+        raw = f.read()
+    logger.debug(f"[RENDER HTML] File read: {len(raw)} bytes from {html_path}")
+    # Strip XML declaration — SEC iXBRL files often start with <?xml version='1.0'?>
+    # which makes browsers treat the document as XML and render raw source instead
+    # of rendering the HTML. Removing it forces HTML5 parsing mode.
+    raw = re.sub(r'^\s*<\?xml[^?]*\?>\s*', '', raw, count=1)
+    raw = _convert_ixbrl_to_spans(raw)
+
+    # ── Lazy rendering via content-visibility: auto ───────────────────────────
+    # SEC filings are 50-60 pages (1–2.4 MB). Injecting content-visibility:auto
+    # on direct body children tells the browser to skip layout/paint for
+    # off-screen sections while keeping every element in the DOM.
+    #
+    # Why this is safe for our features:
+    #   • getElementById()  — element IS in DOM, just not painted → works ✓
+    #   • textContent search — text IS in DOM → works ✓
+    #   • scrollIntoView()  — converges correctly via multi-pass JS (see below) ✓
+    #
+    # contain-intrinsic-size: auto 80px
+    #   "auto"  = remember actual rendered height after first visit (self-correcting)
+    #   "80px"  = initial estimate — DELIBERATELY small (underestimate).
+    #             A small estimate makes the first scroll land BEFORE the target,
+    #             rendering intermediate sections so the next scroll is more accurate.
+    #             (A large estimate like 1200px overshoots to the end of the document.)
+    lazy_css = (
+        "<style>"
+        "body>*{"
+        "content-visibility:auto;"
+        "contain-intrinsic-size:auto 80px"
+        "}"
+        "</style>"
+    )
+    if '</head>' in raw:
+        raw = raw.replace('</head>', lazy_css + '</head>', 1)
+    elif '<head>' in raw:
+        raw = raw.replace('<head>', '<head>' + lazy_css, 1)
+    else:
+        raw = lazy_css + raw
+
+    return raw
+
+
 def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = None) -> None:
     """
     Render SEC HTML document using components.html for iframe isolation.
+    HTML content is cached so the file is only read + processed once per path.
     """
     import streamlit.components.v1 as components
 
     logger.debug(f"[RENDER HTML] html_path: {html_path}, highlight: {highlight_fact_id}")
 
-    # Read HTML content
+    # Read and process HTML content (cached — no re-read on rerun)
     try:
-        with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
-            clean_html = f.read()
-        logger.debug(f"[RENDER HTML] File read: {len(clean_html)} bytes")
+        clean_html = _load_and_process_html(html_path)
     except Exception as e:
         logger.error(f"[RENDER HTML] Error loading document: {e}")
         st.error(f"Error loading document: {e}")
         return
-
-    # Convert iXBRL namespace tags to spans so IDs are in the DOM
-    clean_html = _convert_ixbrl_to_spans(clean_html)
 
     # Inject highlight script if fact_id provided
     if highlight_fact_id:
@@ -753,7 +813,24 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
                 el.style.border = '2px solid #D62E2F';
                 el.style.borderRadius = '4px';
                 el.style.padding = '4px';
-                el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                /*
+                 * Multi-pass scroll for content-visibility:auto accuracy.
+                 *
+                 * WHY: content-visibility:auto uses contain-intrinsic-size (80px) as
+                 * a placeholder height for unrendered sections. The browser calculates
+                 * scrollIntoView positions from these estimates, which are inaccurate.
+                 *
+                 * With contain-intrinsic-size:auto 80px (underestimate), the first
+                 * instant scroll lands BEFORE the target. That renders the intermediate
+                 * sections, which update their true heights in the layout engine.
+                 * Each subsequent scroll uses more accurate heights and converges on
+                 * the real position from below. After 3–4 passes, the smooth final
+                 * scroll lands exactly on the element.
+                 */
+                el.scrollIntoView({{behavior: 'instant', block: 'center'}});
+                setTimeout(function(){{ el.scrollIntoView({{behavior: 'instant', block: 'center'}}); }}, 150);
+                setTimeout(function(){{ el.scrollIntoView({{behavior: 'instant', block: 'center'}}); }}, 380);
+                setTimeout(function(){{ el.scrollIntoView({{behavior: 'smooth',  block: 'center'}}); }}, 680);
             }}
 
             function findAndHighlightText(text) {{
@@ -879,7 +956,7 @@ def main():
         st.session_state.cf_highlight_fact_id = None
     if 'cf_view_metric' not in st.session_state:
         st.session_state.cf_view_metric = None
-    
+
     # Set layout
     set_page_layout(
         header_full_width=True,
@@ -889,13 +966,13 @@ def main():
         remove_top_padding=True,
         footer_at_bottom=True
     )
-    
+
     # Render Header
     render_header(full_width=True, current_page="company_filings")
 
     # Inject custom CSS
     st.markdown(get_filings_css(), unsafe_allow_html=True)
-    
+
     # =======================================================================
     # HEADER WITH TITLE AND FILTERS
     # =======================================================================
@@ -975,7 +1052,7 @@ def main():
     # =======================================================================
 
     left_col, right_col = st.columns([0.3, 0.7])
-    
+
     with left_col:
         # Search input at the top
         search_term = st.text_input(
@@ -1147,31 +1224,32 @@ def main():
 
         logger.debug(f"[HTML VIEWER] {company} {year} {doc_type} Q={quarter} path={html_path}")
 
-        if html_path and os.path.exists(html_path):
-            # Show document header
-            highlight_text = ""
-            if st.session_state.cf_highlight_fact_id:
-                highlight_text = f"🔍 Auto-scrolled to {st.session_state.cf_view_metric or 'metric'} ({st.session_state.cf_highlight_fact_id})"
+        with st.container(border=True):
+            if html_path and os.path.exists(html_path):
+                # Inner header bar — border-bottom separator only (outer box comes from st.container)
+                highlight_text = ""
+                if st.session_state.cf_highlight_fact_id:
+                    highlight_text = f"🔍 Auto-scrolled to {st.session_state.cf_view_metric or 'metric'} ({st.session_state.cf_highlight_fact_id})"
 
-            header_html = f'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #E5E5E5;background:#fff;border-radius:8px 8px 0 0;"><div><span style="font-weight:600;font-size:16px;color:#2D2A29;">{company_name} ({company}) {doc_type}</span><span style="background:#F2F2F2;padding:4px 10px;border-radius:4px;font-size:13px;color:#4F4F4F;margin-left:12px;">{year}</span></div><div style="color:#0066CC;font-size:14px;">{highlight_text}</div></div>'
-            st.markdown(header_html, unsafe_allow_html=True)
+                header_html = f'<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid #E5E5E5;margin-bottom:8px;"><div><span style="font-weight:600;font-size:16px;color:#2D2A29;">{company_name} ({company}) {doc_type}</span><span style="background:#F2F2F2;padding:4px 10px;border-radius:4px;font-size:13px;color:#4F4F4F;margin-left:12px;">{year}</span></div><div style="color:#0066CC;font-size:14px;">{highlight_text}</div></div>'
+                st.markdown(header_html, unsafe_allow_html=True)
 
-            # Render SEC HTML with highlighting
-            render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
-        else:
-            logger.warning(f"[HTML VIEWER] Filing HTML not found: {html_path}")
-            # Show placeholder
-            document = FilingDocument(
-                company_name=company_name,
-                ticker=company,
-                document_type=doc_type,
-                year=year,
-                quarter=quarter,
-                content=""
-            )
-            viewer_html = render_document_viewer(document)
-            st.markdown(viewer_html, unsafe_allow_html=True)
-    
+                # Render SEC HTML with highlighting
+                render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
+            else:
+                logger.warning(f"[HTML VIEWER] Filing HTML not found: {html_path}")
+                # Show placeholder
+                document = FilingDocument(
+                    company_name=company_name,
+                    ticker=company,
+                    document_type=doc_type,
+                    year=year,
+                    quarter=quarter,
+                    content=""
+                )
+                viewer_html = render_document_viewer(document)
+                st.markdown(viewer_html, unsafe_allow_html=True)
+
     # Render Footer
     render_coresight_footer(full_width=True, stick_to_bottom=True)
 
