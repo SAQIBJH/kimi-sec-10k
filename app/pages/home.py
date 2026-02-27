@@ -21,7 +21,7 @@ SECTORS = ["Apparel & Footwear", "Department Stores", "Discount Stores", "Luxury
 
 def main():
     if 'home_company' not in st.session_state:
-        st.session_state.home_company = COMPANIES[0][0] if COMPANIES else ""
+        st.session_state.home_company = None
     if 'home_sector' not in st.session_state:
         st.session_state.home_sector = SECTORS[0]
 
@@ -112,41 +112,78 @@ def main():
 
         company = st.selectbox("Company", options=[c[0] for c in COMPANIES],
             format_func=lambda x: next((c[1] for c in COMPANIES if c[0] == x), x),
-            index=[c[0] for c in COMPANIES].index(st.session_state.home_company),
+            index=None,
+            placeholder="Select a Company",
             key="company_select", label_visibility="collapsed")
         st.session_state.home_company = company
         # No need to save ticker to local storage - it will be passed via query params
         save_market_data_state()
-        st.markdown(f'''
-            <a href="/market_data?ticker={company}" target="_self" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
-                View
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                    <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
-                    <path d="M14 4h6v6"/>
-                    <path d="M21 3 12 12"/>
-                </svg>
-            </a>
-        ''', unsafe_allow_html=True)
+        if company:
+            st.markdown(f'''
+                <a href="/market_data?ticker={company}" target="_self" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
+                    View
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                        <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
+                        <path d="M14 4h6v6"/>
+                        <path d="M21 3 12 12"/>
+                    </svg>
+                </a>
+            ''', unsafe_allow_html=True)
+        else:
+            st.markdown('''
+                <div style="background-color: #cccccc; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box; cursor: not-allowed;">
+                    View
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                        <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
+                        <path d="M14 4h6v6"/>
+                        <path d="M21 3 12 12"/>
+                    </svg>
+                </div>
+            ''', unsafe_allow_html=True)
 
-    # Card 2: View by Sector
+    # Card 2: View by Sector (Coming Soon - disabled)
     with col2:
         st.markdown('<p style="font-family: Roboto, sans-serif; font-weight: 600; font-size: 18px; color: #2D2A29; text-align: center; margin: 0 0 8px 0;">View by Sector</p>', unsafe_allow_html=True)
 
-        sector = st.selectbox("Sector", options=SECTORS,
-            index=SECTORS.index(st.session_state.home_sector) if st.session_state.home_sector in SECTORS else 0,
+        st.selectbox("Sector", options=SECTORS,
+            index=None,
+            placeholder="Select a Sector",
+            disabled=True,
             key="sector_select", label_visibility="collapsed")
-        st.session_state.home_sector = sector
-        set_persistent_state('selected_sector_home', sector)
-        save_market_data_state()
+
         st.markdown('''
-            <a href="/market_data" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
-                View
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                    <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
-                    <path d="M14 4h6v6"/>
-                    <path d="M21 3 12 12"/>
-                </svg>
-            </a>
+            <style>
+            .sector-btn-wrapper { position: relative; width: 100%; display: inline-block; }
+            .sector-coming-soon-tip {
+                visibility: hidden;
+                background: rgba(50,50,50,0.85);
+                color: #fff;
+                text-align: center;
+                padding: 5px 12px;
+                border-radius: 4px;
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                font-size: 13px;
+                font-family: Roboto, sans-serif;
+                white-space: nowrap;
+                pointer-events: none;
+                z-index: 999;
+            }
+            .sector-btn-wrapper:hover .sector-coming-soon-tip { visibility: visible; }
+            </style>
+            <div class="sector-btn-wrapper">
+                <div style="background-color: #cccccc; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box; cursor: not-allowed;">
+                    View
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+                        <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
+                        <path d="M14 4h6v6"/>
+                        <path d="M21 3 12 12"/>
+                    </svg>
+                </div>
+                <span class="sector-coming-soon-tip">Coming Soon</span>
+            </div>
         ''', unsafe_allow_html=True)
 
     st.markdown("<div style='height: 100px;'></div>", unsafe_allow_html=True)
