@@ -7,6 +7,7 @@ Matches Figma design with Streamlit native components + custom styling.
 import os
 import json
 import logging
+import threading
 import streamlit as st
 from typing import List, Dict, Optional
 from dataclasses import dataclass
@@ -25,6 +26,10 @@ from components.navigation import render_header, render_coresight_footer
 # FILINGS DIRECTORY SCANNER
 # =============================================================================
 FILINGS_BASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "filings")
+
+# Pre-processed clean HTML files for fast static serving.
+# Streamlit serves app/static/ at /app/static/ when enableStaticServing=true.
+_STATIC_CLEAN_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "filings_clean")
 
 # ── DB-based company names (replaces hardcoded dict) ─────────────────────────
 @st.cache_resource(show_spinner=False)
@@ -149,6 +154,170 @@ FILINGS_DATA = scan_filings_directory()
 
 
 # =============================================================================
+# STATIC HTML PRE-PROCESSOR
+# =============================================================================
+# SEC filing HTML files are 600KB–3MB. Sending them via components.html() passes
+# the entire file over WebSocket on every render (3–8 seconds for a 2MB file).
+#
+# Fix: pre-process each file once (strip XML, convert iXBRL, inject CSS + highlight
+# receiver) and save to app/static/filings_clean/. Then render_sec_html_viewer()
+# sends only a ~500-byte wrapper with <iframe src="/app/static/..."> instead of
+# 2MB of HTML — the browser fetches the filing directly from disk (fast, cacheable).
+
+def _make_clean_html_for_static(raw: str) -> str:
+    """Process raw filing HTML: strip XML, convert iXBRL, inject CSS + postMessage receiver."""
+    import re
+    raw = re.sub(r'^\s*<\?xml[^?]*\?>\s*', '', raw, count=1)
+    raw = _convert_ixbrl_to_spans(raw)
+
+    lazy_css = (
+        "<style>"
+        "body>*{content-visibility:auto;contain-intrinsic-size:auto 80px}"
+        "</style>"
+    )
+    # postMessage receiver — listens for {type:'HIGHLIGHT_FACT', factId:'...'} from wrapper
+    receiver = (
+        "<script>(function(){"
+        "window.addEventListener('message',function(e){"
+        "var d=e.data;if(!d||d.type!=='HIGHLIGHT_FACT')return;"
+        "var fid=d.factId;if(!fid)return;"
+        "var el=fid.startsWith('TEXT:')?_fbt(fid.slice(5)):document.getElementById(fid);"
+        "if(el)_hl(el);"
+        "});"
+        "function _hl(el){"
+        "el.style.backgroundColor='#FDF5F5';"
+        "el.style.boxShadow='0 0 10px rgba(214,46,47,0.3)';"
+        "el.style.border='2px solid #D62E2F';"
+        "el.style.borderRadius='4px';"
+        "el.style.padding='4px';"
+        "el.scrollIntoView({behavior:'instant',block:'center'});"
+        "setTimeout(function(){el.scrollIntoView({behavior:'instant',block:'center'});},150);"
+        "setTimeout(function(){el.scrollIntoView({behavior:'instant',block:'center'});},380);"
+        "setTimeout(function(){el.scrollIntoView({behavior:'smooth',block:'center'});},680);"
+        "}"
+        "function _fbt(text){"
+        "var WS=/[\\u00A0\\s]+/g,ns=text.replace(WS,' ').trim();"
+        "var vs=[ns,ns.slice(0,80),ns.slice(0,50),ns.slice(0,30)];"
+        "for(var vi=0;vi<vs.length;vi++){"
+        "var sv=vs[vi];if(sv.length<15)continue;"
+        "var all=document.body.querySelectorAll('p,td,li,div,span,section,article');"
+        "var best=null,bestSz=Infinity;"
+        "for(var i=0;i<all.length;i++){"
+        "var et=(all[i].textContent||'').replace(WS,' ');"
+        "if(et.includes(sv)&&et.length<bestSz){bestSz=et.length;best=all[i];}"
+        "}"
+        "if(best){_hl(best);return true;}"
+        "}"
+        "return false;"
+        "}"
+        "})();</script>"
+    )
+
+    if '</head>' in raw:
+        raw = raw.replace('</head>', lazy_css + '</head>', 1)
+    elif '<head>' in raw:
+        raw = raw.replace('<head>', '<head>' + lazy_css, 1)
+    else:
+        raw = lazy_css + raw
+
+    if '</body>' in raw:
+        raw = raw.replace('</body>', receiver + '</body>', 1)
+    else:
+        raw = raw + receiver
+
+    return raw
+
+
+def _get_static_clean_paths(html_path: str):
+    """Return (filesystem_path, url_path) for the clean static version of a filing."""
+    try:
+        rel = os.path.relpath(html_path, FILINGS_BASE_DIR)
+        fs_path = os.path.join(_STATIC_CLEAN_DIR, rel)
+        url = "/app/static/filings_clean/" + rel.replace(os.sep, "/")
+        return fs_path, url
+    except Exception:
+        return None, None
+
+
+def _write_clean_static(html_path: str) -> Optional[str]:
+    """Process html_path and write clean version to static dir. Returns URL or None."""
+    fs_path, url = _get_static_clean_paths(html_path)
+    if not fs_path:
+        return None
+    try:
+        # Skip if clean file is newer than source
+        if os.path.exists(fs_path) and os.path.getmtime(fs_path) >= os.path.getmtime(html_path):
+            return url
+        os.makedirs(os.path.dirname(fs_path), exist_ok=True)
+        with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
+            raw = f.read()
+        clean = _make_clean_html_for_static(raw)
+        # Write atomically via temp file
+        tmp = fs_path + ".tmp"
+        with open(tmp, 'w', encoding='utf-8') as f:
+            f.write(clean)
+        os.replace(tmp, fs_path)
+        logger.debug(f"[STATIC] Wrote clean HTML: {fs_path} ({len(clean)//1024}KB)")
+        return url
+    except Exception as e:
+        logger.warning(f"[STATIC] Failed to write {fs_path}: {e}")
+        return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _get_or_create_static_url(html_path: str) -> Optional[str]:
+    """Return static URL for a filing, creating the clean file if needed (cached 1hr)."""
+    fs_path, url = _get_static_clean_paths(html_path)
+    if not fs_path:
+        return None
+    if os.path.exists(fs_path) and os.path.getmtime(fs_path) >= os.path.getmtime(html_path):
+        return url
+    return _write_clean_static(html_path)
+
+
+@st.cache_resource(show_spinner=False)
+def _start_static_warmup():
+    """Start a background thread to pre-process ALL filing HTML files to static dir.
+    Uses @st.cache_resource so it starts only once per server process (not per rerun).
+    """
+    def _worker():
+        count = 0
+        errors = 0
+        try:
+            if not os.path.isdir(FILINGS_BASE_DIR):
+                return
+            for dirpath, _, filenames in os.walk(FILINGS_BASE_DIR):
+                for fname in filenames:
+                    if not (fname.endswith('.html') or fname.endswith('.htm')):
+                        continue
+                    if fname.endswith('-clean.html'):
+                        continue
+                    src = os.path.join(dirpath, fname)
+                    fs_path, _ = _get_static_clean_paths(src)
+                    if not fs_path:
+                        continue
+                    # Skip already-processed files
+                    if os.path.exists(fs_path) and os.path.getmtime(fs_path) >= os.path.getmtime(src):
+                        continue
+                    result = _write_clean_static(src)
+                    if result:
+                        count += 1
+                    else:
+                        errors += 1
+        except Exception as e:
+            logger.warning(f"[WARMUP] Background preprocessing error: {e}")
+        logger.info(f"[WARMUP] Static preprocessing done — {count} processed, {errors} errors")
+
+    t = threading.Thread(target=_worker, daemon=True, name="filings-warmup")
+    t.start()
+    return True
+
+
+# Start background preprocessing immediately on module load
+_start_static_warmup()
+
+
+# =============================================================================
 # DATA MODELS
 # =============================================================================
 
@@ -173,21 +342,22 @@ from data.repository import FilingMetricRepository
 @st.cache_data(ttl=600, show_spinner=False)
 def _load_companies_from_db():
     """Get (ticker, display_label) for companies that have data in filing_metrics.
-    Display label uses the format: 'Company Name (TICKER)'.
+    Uses index-only GROUP BY (no heap fetch) + COMPANY_NAMES for display names.
     """
     try:
         from core.database import db_manager
+        # GROUP BY ticker without aggregate → MySQL uses loose index scan on the
+        # (ticker, fiscal_year, doc_type) index — O(distinct_tickers), not O(1.27M rows).
         rows = db_manager.execute_query("""
-            SELECT fm.ticker, MIN(fm.company_name) AS company_name
-            FROM filing_metrics fm
-            WHERE fm.ticker IS NOT NULL AND fm.ticker != ''
-            GROUP BY fm.ticker
-            ORDER BY fm.ticker
+            SELECT ticker FROM filing_metrics
+            WHERE ticker IS NOT NULL AND ticker != ''
+            GROUP BY ticker
+            ORDER BY ticker
         """)
         results = []
         for row in rows:
             ticker = row["ticker"]
-            name = row["company_name"] or COMPANY_NAMES.get(ticker, ticker)
+            name = COMPANY_NAMES.get(ticker, ticker)
             display = f"{name} ({ticker})"
             results.append((ticker, display))
         return results
@@ -782,14 +952,78 @@ def _load_and_process_html(html_path: str, _v: int = 2) -> str:
 
 def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = None) -> None:
     """
-    Render SEC HTML document using components.html for iframe isolation.
-    HTML content is cached so the file is only read + processed once per path.
+    Render SEC HTML document in a sandboxed iframe.
+
+    FAST PATH (static file serving):
+      Pre-processed HTML is served as a static file at /app/static/filings_clean/...
+      components.html() sends only a ~500-byte wrapper with <iframe src="...">.
+      The browser fetches the filing HTML directly via HTTP GET (fast, browser-cacheable).
+      Highlight commands are sent via postMessage (no same-origin restriction).
+
+    SLOW FALLBACK (inline HTML):
+      Used only if the static file doesn't exist yet (e.g., warmup thread still running).
+      Sends the full HTML over WebSocket — same as before this optimization.
     """
     import streamlit.components.v1 as components
 
-    logger.debug(f"[RENDER HTML] html_path: {html_path}, highlight: {highlight_fact_id}")
+    logger.debug(f"[RENDER HTML] html_path={html_path}, highlight={highlight_fact_id}")
 
-    # Read and process HTML content (cached — no re-read on rerun)
+    # ── FAST PATH: static file via fetch + document.write ────────────────────
+    # Streamlit serves .html files as text/plain (security restriction), so we
+    # cannot use <iframe src="..."> directly — the browser renders raw text.
+    # Fix: fetch the file as text, then write it into a blank iframe's document.
+    # WebSocket payload: ~800 bytes (wrapper only). Filing loads over HTTP GET.
+    static_url = _get_or_create_static_url(html_path)
+    if static_url:
+        fid_json = json.dumps(highlight_fact_id or "")
+        wrapper = (
+            "<!DOCTYPE html><html><head>"
+            "<style>"
+            "html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#fff;}"
+            "iframe{width:100%;height:100%;border:none;display:block;}"
+            "#loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);"
+            "font-family:sans-serif;color:#888;font-size:14px;}"
+            "</style>"
+            "</head><body>"
+            '<div id="loading">Loading filing\u2026</div>'
+            '<iframe id="ff" style="display:none"></iframe>'
+            "<script>(function(){"
+            f"var url={json.dumps(static_url)};"
+            f"var fid={fid_json};"
+            "var fr=document.getElementById('ff');"
+            "var ld=document.getElementById('loading');"
+            # postMessage sender for highlight
+            "function sendHL(){"
+            "if(fid){try{fr.contentWindow.postMessage({type:'HIGHLIGHT_FACT',factId:fid},'*');}catch(e){}}"
+            "}"
+            # Fetch the HTML file and write it into the iframe
+            "fetch(url)"
+            ".then(function(r){return r.text();})"
+            ".then(function(html){"
+            "var doc=fr.contentDocument||fr.contentWindow.document;"
+            "doc.open('text/html');"
+            "doc.write(html);"
+            "doc.close();"
+            "ld.style.display='none';"
+            "fr.style.display='block';"
+            "if(fid){setTimeout(sendHL,200);setTimeout(sendHL,700);setTimeout(sendHL,1400);}"
+            "})"
+            ".catch(function(e){"
+            "ld.textContent='Error loading filing: '+e.message;"
+            "});"
+            "})();</script>"
+            "</body></html>"
+        )
+        try:
+            components.html(wrapper, height=800, scrolling=False)
+        except Exception as e:
+            logger.error(f"[RENDER HTML] Static fetch error: {e}")
+            st.error(f"Error rendering document: {e}")
+        return
+
+    # ── SLOW FALLBACK: send full HTML via WebSocket ───────────────────────────
+    # Only reached if static preprocessing hasn't run yet.
+    logger.debug(f"[RENDER HTML] Static file not ready, falling back to inline HTML")
     try:
         clean_html = _load_and_process_html(html_path)
     except Exception as e:
@@ -797,7 +1031,6 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
         st.error(f"Error loading document: {e}")
         return
 
-    # Inject highlight script if fact_id provided
     if highlight_fact_id:
         highlight_script = f"""
         <script>
@@ -806,112 +1039,50 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
             const factId = '{highlight_fact_id}';
             const isTextSearch = factId.startsWith('TEXT:');
             const searchText = isTextSearch ? factId.substring(5) : '';
-
             function highlightElement(el) {{
                 el.style.backgroundColor = '#FDF5F5';
                 el.style.boxShadow = '0 0 10px rgba(214, 46, 47, 0.3)';
                 el.style.border = '2px solid #D62E2F';
                 el.style.borderRadius = '4px';
                 el.style.padding = '4px';
-                /*
-                 * Multi-pass scroll for content-visibility:auto accuracy.
-                 *
-                 * WHY: content-visibility:auto uses contain-intrinsic-size (80px) as
-                 * a placeholder height for unrendered sections. The browser calculates
-                 * scrollIntoView positions from these estimates, which are inaccurate.
-                 *
-                 * With contain-intrinsic-size:auto 80px (underestimate), the first
-                 * instant scroll lands BEFORE the target. That renders the intermediate
-                 * sections, which update their true heights in the layout engine.
-                 * Each subsequent scroll uses more accurate heights and converges on
-                 * the real position from below. After 3–4 passes, the smooth final
-                 * scroll lands exactly on the element.
-                 */
                 el.scrollIntoView({{behavior: 'instant', block: 'center'}});
                 setTimeout(function(){{ el.scrollIntoView({{behavior: 'instant', block: 'center'}}); }}, 150);
                 setTimeout(function(){{ el.scrollIntoView({{behavior: 'instant', block: 'center'}}); }}, 380);
                 setTimeout(function(){{ el.scrollIntoView({{behavior: 'smooth',  block: 'center'}}); }}, 680);
             }}
-
             function findAndHighlightText(text) {{
-                /*
-                 * Robust text search for non-XBRL metrics.
-                 *
-                 * WHY NOT TreeWalker: SEC filings wrap numbers in iXBRL <span> tags,
-                 * e.g. "operated <span>680</span> store locations".
-                 * TreeWalker visits individual text nodes, so it never sees the full
-                 * sentence in one node.
-                 *
-                 * FIX: Use element.textContent (concatenates ALL child text) to find
-                 * the DEEPEST element containing the search text, then highlight it
-                 * exactly like getElementById does for XBRL.
-                 */
-                /*
-                 * Normalize ALL whitespace including non-breaking spaces (U+00A0 / &#160;)
-                 * SEC filings heavily use &#160; which becomes U+00A0 in textContent
-                 * but search text has regular U+0020 spaces — must normalize both.
-                 */
-                const WS = /[\u00A0\s]+/g;
+                const WS = /[\u00A0\u0020\t\r\n]+/g;
                 const normalizedSearch = text.replace(WS, ' ').trim();
-
-
-                /* Try full text first, then progressively shorter prefixes */
-                const searchVariants = [
-                    normalizedSearch,
-                    normalizedSearch.substring(0, 80),
-                    normalizedSearch.substring(0, 50),
-                    normalizedSearch.substring(0, 30),
-                ];
-
+                const searchVariants = [normalizedSearch, normalizedSearch.substring(0, 80),
+                    normalizedSearch.substring(0, 50), normalizedSearch.substring(0, 30)];
                 for (const searchStr of searchVariants) {{
                     if (searchStr.length < 15) continue;
-
                     const allElements = document.body.querySelectorAll('p, td, li, div, span, section, article');
-                    let bestMatch = null;
-                    let bestSize = Infinity;
-
+                    let bestMatch = null, bestSize = Infinity;
                     for (const el of allElements) {{
                         const elText = (el.textContent || '').replace(WS, ' ');
-                        if (elText.includes(searchStr)) {{
-                            /* Prefer the smallest (most specific) element */
-                            if (elText.length < bestSize) {{
-                                bestSize = elText.length;
-                                bestMatch = el;
-                            }}
+                        if (elText.includes(searchStr) && elText.length < bestSize) {{
+                            bestSize = elText.length; bestMatch = el;
                         }}
                     }}
-
-                    if (bestMatch) {{
-                        highlightElement(bestMatch);
-                        return true;
-                    }}
+                    if (bestMatch) {{ highlightElement(bestMatch); return true; }}
                 }}
                 return false;
             }}
-
             function tryScroll() {{
                 if (isTextSearch) {{
-                    /* Text-search fallback for non-XBRL (store_count, credit_rating) */
                     if (!findAndHighlightText(searchText) && attempts < 30) {{
-                        attempts++;
-                        setTimeout(tryScroll, 300);
+                        attempts++; setTimeout(tryScroll, 300);
                     }}
                 }} else {{
-                    /* Standard getElementById for XBRL */
                     const el = document.getElementById(factId);
-                    if (el) {{
-                        highlightElement(el);
-                    }} else if (attempts < 30) {{
-                        attempts++;
-                        setTimeout(tryScroll, 300);
-                    }}
+                    if (el) {{ highlightElement(el); }}
+                    else if (attempts < 30) {{ attempts++; setTimeout(tryScroll, 300); }}
                 }}
             }}
             if (document.readyState === 'loading') {{
                 document.addEventListener('DOMContentLoaded', tryScroll);
-            }} else {{
-                tryScroll();
-            }}
+            }} else {{ tryScroll(); }}
         }})();
         </script>
         """
@@ -920,7 +1091,6 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
         else:
             clean_html = clean_html + highlight_script
 
-    # Render HTML via components.html (creates sandboxed iframe)
     try:
         components.html(clean_html, height=800, scrolling=True)
     except Exception as e:

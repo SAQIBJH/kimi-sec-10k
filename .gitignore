@@ -22,3 +22,7 @@ config.toml
 *.db
 .streamlit/config.toml
 .env
+
+# Generated static clean HTML files (recreated by warmup thread at startup)
+app/static/filings_clean/
+app/static/filings/
