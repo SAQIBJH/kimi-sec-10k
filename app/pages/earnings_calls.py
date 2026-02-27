@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from components.styles import hide_sidebar, set_page_layout
 from core.auth_manager import require_auth
-require_auth()
+# require_auth()
 hide_sidebar()
 
 from components.styles import render_styles, COLORS, TYPOGRAPHY, SPACING
@@ -29,7 +29,7 @@ def get_earnings_css() -> str:
     return """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap');
-    
+
     /* =======================================================================
        PAGE CONTAINER
        ======================================================================= */
@@ -44,13 +44,13 @@ def get_earnings_css() -> str:
         font-family: 'Roboto', sans-serif;
         background: #FFFFFF;
     }
-    
+
     .earnings-content-wrapper {
         max-width: 1220px;
         margin: 0 auto;
         padding: 0 110px;
     }
-    
+
     /* =======================================================================
        HEADER SECTION
        ======================================================================= */
@@ -62,7 +62,7 @@ def get_earnings_css() -> str:
         border-bottom: 1px solid #E5E5E5;
         margin-bottom: 24px;
     }
-    
+
     .earnings-title {
         font-family: 'Montserrat', sans-serif;
         font-weight: 700;
@@ -70,23 +70,23 @@ def get_earnings_css() -> str:
         color: #2D2A29;
         margin: 0;
     }
-    
+
     /* =======================================================================
        FILTER BAR - Styled Streamlit Selectboxes
        ======================================================================= */
-    
+
     /* Style the filter row */
     .filter-bar {
         display: flex;
         align-items: flex-end;
         gap: 16px;
     }
-    
+
     /* Target Streamlit selectboxes in the filter area */
     div[data-testid="stSelectbox"] {
         min-height: auto !important;
     }
-    
+
     /* Style the selectbox labels (helper text) */
     div[data-testid="stSelectbox"] label {
         font-family: 'Roboto', sans-serif !important;
@@ -95,7 +95,7 @@ def get_earnings_css() -> str:
         color: #6B6B6B !important;
         margin-bottom: 4px !important;
     }
-    
+
     /* Style the selectbox input container */
     div[data-testid="stSelectbox"] > div[data-baseweb="select"] {
         border: 1px solid #CBCACA !important;
@@ -103,38 +103,38 @@ def get_earnings_css() -> str:
         background: #FFFFFF !important;
         min-height: 36px !important;
     }
-    
+
     /* Style the selectbox input value text */
     div[data-testid="stSelectbox"] > div[data-baseweb="select"] span {
         font-family: 'Roboto', sans-serif !important;
         font-size: 14px !important;
         color: #2D2A29 !important;
     }
-    
+
     /* Hover state */
     div[data-testid="stSelectbox"] > div[data-baseweb="select"]:hover {
         border-color: #0066CC !important;
     }
-    
+
     /* Focus state */
     div[data-testid="stSelectbox"] > div[data-baseweb="select"][aria-expanded="true"] {
         border-color: #0066CC !important;
         box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2) !important;
     }
-    
+
     /* Dropdown menu styling */
     div[data-baseweb="popover"] div[data-baseweb="menu"] {
         border: 1px solid #E5E5E5 !important;
         border-radius: 4px !important;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
     }
-    
+
     /* Dropdown options */
     div[data-baseweb="popover"] div[data-baseweb="menu"] li {
         font-family: 'Roboto', sans-serif !important;
         font-size: 14px !important;
     }
-    
+
     /* =======================================================================
        TRANSCRIPT CARD
        ======================================================================= */
@@ -149,7 +149,7 @@ def get_earnings_css() -> str:
         margin-right: auto;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
     }
-    
+
     /* Card Header */
     .transcript-card-header {
         display: flex;
@@ -159,20 +159,20 @@ def get_earnings_css() -> str:
         border-bottom: 1px solid #E5E5E5;
         background: #FFFFFF;
     }
-    
+
     .transcript-title-section {
         display: flex;
         align-items: center;
         gap: 12px;
     }
-    
+
     .transcript-title {
         font-family: 'Montserrat', sans-serif;
         font-weight: 700;
         font-size: 18px;
         color: #2D2A29;
     }
-    
+
     .transcript-meta {
         display: flex;
         align-items: center;
@@ -182,14 +182,14 @@ def get_earnings_css() -> str:
         font-size: 14px;
         color: #6B6B6B;
     }
-    
+
     .meta-dot {
         width: 4px;
         height: 4px;
         background: #6B6B6B;
         border-radius: 50%;
     }
-    
+
     /* Download Button */
     .download-btn {
         display: flex;
@@ -206,12 +206,12 @@ def get_earnings_css() -> str:
         text-decoration: none;
         transition: all 0.2s ease;
     }
-    
+
     .download-btn:hover {
         background: #0066CC;
         color: #FFFFFF;
     }
-    
+
     /* =======================================================================
        TRANSCRIPT BODY
        ======================================================================= */
@@ -221,22 +221,22 @@ def get_earnings_css() -> str:
         padding: 20px;
         background: #F9F9F9;
     }
-    
+
     .transcript-content {
         padding: 20px;
         background: #FFFFFF;
         border-radius: 8px;
     }
-    
+
     /* Speaker Section */
     .speaker-section {
         margin-bottom: 24px;
     }
-    
+
     .speaker-section:last-child {
         margin-bottom: 0;
     }
-    
+
     .speaker-name {
         font-family: 'Roboto', sans-serif;
         font-weight: 700;
@@ -244,7 +244,7 @@ def get_earnings_css() -> str:
         color: #D62E2F;
         margin-bottom: 8px;
     }
-    
+
     .speaker-text {
         font-family: 'Roboto', sans-serif;
         font-weight: 400;
@@ -252,7 +252,7 @@ def get_earnings_css() -> str:
         color: #2D2A29;
         line-height: 1.7;
     }
-    
+
     /* =======================================================================
        EMPTY STATE
        ======================================================================= */
@@ -263,7 +263,7 @@ def get_earnings_css() -> str:
         border-radius: 8px;
         margin-top: 32px;
     }
-    
+
     .empty-state-title {
         font-family: 'Montserrat', sans-serif;
         font-weight: 600;
@@ -271,30 +271,30 @@ def get_earnings_css() -> str:
         color: #2D2A29;
         margin-bottom: 8px;
     }
-    
+
     .empty-state-text {
         font-family: 'Roboto', sans-serif;
         font-size: 14px;
         color: #6B6B6B;
     }
-    
+
     /* =======================================================================
        SCROLLBAR STYLING
        ======================================================================= */
     .transcript-body::-webkit-scrollbar {
         width: 8px;
     }
-    
+
     .transcript-body::-webkit-scrollbar-track {
         background: #F2F2F2;
         border-radius: 4px;
     }
-    
+
     .transcript-body::-webkit-scrollbar-thumb {
         background: #CBCACA;
         border-radius: 4px;
     }
-    
+
     .transcript-body::-webkit-scrollbar-thumb:hover {
         background: #999999;
     }
@@ -314,7 +314,7 @@ def get_earnings_css() -> str:
         border-radius: 2px;
         font-weight: 600;
     }
-    
+
     /* ===== TRANSCRIPT SEARCH SIDEBAR ===== */
     .transcript-search-sidebar {
         background: #FFFFFF;
@@ -426,7 +426,7 @@ def get_earnings_css() -> str:
         .earnings-content-wrapper {
             padding: 0 24px;
         }
-        
+
         .earnings-header-section {
             flex-direction: column;
             align-items: flex-start;
@@ -451,30 +451,30 @@ class SpeakerSegment:
 def parse_transcript(transcript_text: str) -> List[SpeakerSegment]:
     """
     Parse transcript text into speaker segments.
-    
+
     Detects speakers by pattern: "Name:" at the beginning of a paragraph.
     """
     if not transcript_text:
         return []
-    
+
     # Split into paragraphs
     paragraphs = re.split(r'\n\s*\n', transcript_text.strip())
-    
+
     segments = []
     current_speaker = None
     current_text = []
-    
+
     # Pattern to detect speaker names (Name: or Name Title:)
     speaker_pattern = re.compile(r'^([A-Z][a-zA-Z\s\.]+(?:\s+[A-Z][a-zA-Z]+)*):\s*(.*)$')
-    
+
     for para in paragraphs:
         para = para.strip()
         if not para:
             continue
-        
+
         # Check if this paragraph starts with a speaker name
         match = speaker_pattern.match(para)
-        
+
         if match:
             # Save previous segment if exists
             if current_speaker and current_text:
@@ -482,28 +482,28 @@ def parse_transcript(transcript_text: str) -> List[SpeakerSegment]:
                     speaker=current_speaker,
                     text=' '.join(current_text)
                 ))
-            
+
             # Start new segment
             current_speaker = match.group(1).strip()
             current_text = [match.group(2).strip()] if match.group(2) else []
         else:
             # Continue current segment
             current_text.append(para)
-    
+
     # Save last segment
     if current_speaker and current_text:
         segments.append(SpeakerSegment(
             speaker=current_speaker,
             text=' '.join(current_text)
         ))
-    
+
     # If no speakers detected, treat entire text as one segment
     if not segments and transcript_text.strip():
         segments.append(SpeakerSegment(
             speaker="Transcript",
             text=transcript_text.strip()
         ))
-    
+
     return segments
 
 
@@ -534,7 +534,7 @@ def render_speaker_section(segment: SpeakerSegment, keyword: str = None, index: 
             p = _highlight_keyword(p, keyword)
         processed.append(f'<p style="margin: 0 0 12px 0;">{p}</p>')
     paragraphs_html = ''.join(processed)
-    
+
     return f"""
     <div class="speaker-section" id="seg-{index}">
         <div class="speaker-name">{segment.speaker}</div>
@@ -554,13 +554,13 @@ def render_transcript_card(
     """Render the transcript card with header and content."""
     # Parse transcript into speaker segments
     segments = parse_transcript(transcript_text)
-    
+
     # Render speaker sections with optional keyword highlighting
     speaker_html = ''.join([
         render_speaker_section(s, keyword=keyword, index=i)
         for i, s in enumerate(segments)
     ])
-    
+
     html = f"""
     <div class="transcript-card">
         <div class="transcript-card-header">
@@ -615,11 +615,11 @@ def render_earnings_calls(active_ticker: str = None):
     """Render earnings calls content (for unified entry point)."""
     # Inject custom CSS
     st.markdown(get_earnings_css(), unsafe_allow_html=True)
-    
+
     # Page container
     st.markdown('<div class="earnings-page-container">', unsafe_allow_html=True)
     st.markdown('<div class="earnings-content-wrapper">', unsafe_allow_html=True)
-    
+
     # Get data for dropdowns
     companies = EarningsCallRepository.get_companies_with_earnings()
     company_options = [(c['ticker'], f"{c['name']} ({c['ticker']})") for c in companies]
@@ -735,24 +735,24 @@ def render_earnings_calls(active_ticker: str = None):
                 on_change=on_quarter_change,
             )
 
-    
+
     # Sync session state with widget values
     st.session_state.ec_company = company
     st.session_state.ec_year = year
     st.session_state.ec_quarter = quarter
     save_earnings_calls_state()
-    
+
     # =======================================================================
     # FETCH TRANSCRIPT DATA
     # =======================================================================
-    
+
     # Fetch transcript data
     earnings_calls = EarningsCallRepository.get_earnings_calls(
         ticker=company,
         year=year,
         quarter=quarter
     )
-    
+
     # Get company display name
     company_display = next((opt[1] for opt in company_options if opt[0] == company), company)
     company_name = company_display.split('(')[0].strip() if '(' in company_display else company_display
@@ -834,9 +834,9 @@ def render_earnings_calls(active_ticker: str = None):
             )
         else:
             card_html = render_empty_state()
-        
+
         st.markdown(card_html, unsafe_allow_html=True)
-    
+
     # Close containers
     st.markdown('</div>', unsafe_allow_html=True)  # content-wrapper
     st.markdown('</div>', unsafe_allow_html=True)  # page-container
@@ -846,10 +846,10 @@ def main():
     """Earnings calls page entry point (standalone)."""
     # Initialize
     init_database()
-    
+
     # Render global styles
     render_styles()
-    
+
     # Set layout
     set_page_layout(
         header_full_width=True,
@@ -865,7 +865,7 @@ def main():
 
     # Render content
     render_earnings_calls(active_ticker)
-    
+
     # Render Footer
     render_coresight_footer(full_width=True, stick_to_bottom=True)
 
