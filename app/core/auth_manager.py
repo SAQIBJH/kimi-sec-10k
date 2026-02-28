@@ -69,9 +69,10 @@ class AuthResult:
 class AuthManager:
     """Manages user authentication with session token pattern."""
     
-    def __init__(self):
-        # Use same key as auth_utils for consistency
-        self.cookie_controller = CookieController(key="auth_cookies")
+    def _get_controller(self) -> CookieController:
+        """Get a fresh CookieController for the current Streamlit session.
+        Must NOT be cached as a class attribute — each session needs its own."""
+        return CookieController(key="auth_cookies")
     
     # =========================================================================
     # LOGIN FLOW
@@ -182,7 +183,8 @@ class AuthManager:
                 'domain': domain,
             }
             
-            self.cookie_controller.set(COOKIE_NAME, cookie_value, **cookie_params)
+            controller = self._get_controller()
+            controller.set(COOKIE_NAME, cookie_value, **cookie_params)
             
             return True
             
@@ -216,19 +218,44 @@ class AuthManager:
     def require_auth(self, redirect_to: str = "login") -> Optional[Dict[str, Any]]:
         """
         Require authentication for protected pages.
-        FAST: No database validation, cookie is source of truth.
+        Uses st.rerun() retry to handle async CookieController mount on refresh.
+        SECURITY: st.stop() is called after redirect/rerun as a safety net
+                  to guarantee execution NEVER continues past this point.
         """
+        # Initialize retry counter on first run
+        if "_auth_retry_count" not in st.session_state:
+            st.session_state._auth_retry_count = 0
+        
+        # Fast path: already authenticated in session state
         if self.is_authenticated():
+            st.session_state._auth_retry_count = 0
             return st.session_state.get("auth_data")
         
-        # Not authenticated - redirect
+        # Cookie not available yet — CookieController may still be mounting.
+        # Retry by calling st.rerun() to give the frontend another render cycle.
+        # sleep() gives the frontend time to mount the component before retrying.
+        if st.session_state._auth_retry_count < 3:
+            st.session_state._auth_retry_count += 1
+            sleep(0.5)
+            st.rerun()
+            st.stop()  # Safety net: guarantee execution halts
+            return None
+        
+        # Max retries exhausted — cookie truly not available, redirect to login
+        st.session_state._auth_retry_count = 0
+        if "auth_data" in st.session_state:
+            del st.session_state["auth_data"]
+        if "authenticated" in st.session_state:
+            del st.session_state["authenticated"]
         st.switch_page(f"pages/{redirect_to}.py")
+        st.stop()  # Safety net: guarantee execution halts even if switch_page fails
         return None
     
     def _get_cookie(self) -> Optional[Dict[str, Any]]:
         """Read and parse auth cookie."""
         try:
-            cookie_value = self.cookie_controller.get(COOKIE_NAME)
+            controller = self._get_controller()
+            cookie_value = controller.get(COOKIE_NAME)
             
             if not cookie_value:
                 return None
@@ -279,7 +306,8 @@ class AuthManager:
                 }
                 
                 # Expire cookie by setting empty value with past date
-                self.cookie_controller.set(COOKIE_NAME, "", **cookie_params)
+                controller = self._get_controller()
+                controller.set(COOKIE_NAME, "", **cookie_params)
                 logger.info(f"Cookie cleared with domain: {domain}")
             except Exception as e:
                 logger.warning(f"Cookie clear warning: {e}")
