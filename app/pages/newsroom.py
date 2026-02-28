@@ -437,6 +437,9 @@ def render_page():
 
     # Get URL ticker parameter (e.g. /newsroom?ticker=UA)
     url_ticker = st.query_params.get("ticker", None)
+    # Cross-page sync: also check active_ticker from session state
+    if not url_ticker and st.session_state.get("active_ticker"):
+        url_ticker = st.session_state.active_ticker
 
     # Get date bounds from news table
     date_bounds = NewsRepository.get_news_date_range()
@@ -554,6 +557,9 @@ def render_page():
             format_func=lambda t: company_display_map.get(t, t),
             key="news_company_select",
         )
+    # Write to shared active_ticker for cross-page synchronization
+    if selected_company and selected_company != 'All':
+        st.session_state.active_ticker = selected_company
 
     # Prepare filters for query
     query_company = None if selected_company == 'All' else selected_company
@@ -648,8 +654,15 @@ def main():
         footer_at_bottom=True
     )
 
-    # Render Header
-    render_header(full_width=True, current_page="newsroom",ticker=st.query_params.get("ticker", "M"))
+    # Render Header — resolve active_ticker for nav links
+    # Check the widget key first (Streamlit updates widget session_state BEFORE rerun)
+    _widget_company = st.session_state.get("news_company_select", None)
+    if _widget_company and _widget_company != "All":
+        active_ticker = _widget_company
+        st.session_state.active_ticker = active_ticker
+    else:
+        active_ticker = st.query_params.get("ticker") or st.session_state.get("active_ticker", "M")
+    render_header(full_width=True, current_page="newsroom", ticker=active_ticker)
 
     # Render content
     render_page()

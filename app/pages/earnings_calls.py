@@ -772,16 +772,27 @@ def render_earnings_calls(active_ticker: str = None):
             st.session_state.ec_quarter = _qp_quarter
 
     # ---------------------------------
-    # Initialize company state (default to first real company, not ALL)
+    # Initialize company state — respect cross-page active_ticker
     # ---------------------------------
+    # Resolve the ticker to use: URL param > session active_ticker > default
+    _resolved_ticker = active_ticker
+    if (not _resolved_ticker or _resolved_ticker not in tickers) and st.session_state.get("active_ticker") in tickers:
+        _resolved_ticker = st.session_state.active_ticker
+
     if "ec_company" not in st.session_state:
-        if active_ticker and active_ticker in tickers:
-            st.session_state.ec_company = active_ticker
+        if _resolved_ticker and _resolved_ticker in tickers:
+            st.session_state.ec_company = _resolved_ticker
         else:
-            st.session_state.ec_company = tickers[1] if len(tickers) > 1 else tickers[0]
+            st.session_state.ec_company = tickers[0]  # "ALL"
+    # If URL or active_ticker provides a specific ticker, override current selection
+    elif _resolved_ticker and _resolved_ticker in tickers and _resolved_ticker != st.session_state.ec_company:
+        # Only override if the user just navigated here (URL ticker differs from current)
+        _qp_ticker_raw = st.query_params.get("ticker", "")
+        if _qp_ticker_raw and _qp_ticker_raw in tickers:
+            st.session_state.ec_company = _qp_ticker_raw
     # Validate persisted company still exists in available tickers
-    elif st.session_state.ec_company not in tickers:
-        st.session_state.ec_company = tickers[1] if len(tickers) > 1 else tickers[0]
+    if st.session_state.ec_company not in tickers:
+        st.session_state.ec_company = tickers[0]
 
     # Get available years based on selected company
     if st.session_state.ec_company == 'ALL':
@@ -817,6 +828,8 @@ def render_earnings_calls(active_ticker: str = None):
                 del st.query_params["ticker"]
         else:
             st.query_params["ticker"] = ticker
+            # Write to shared active_ticker for cross-page synchronization
+            st.session_state.active_ticker = ticker
         st.session_state.ec_company = ticker
 
         if ticker == 'ALL':
@@ -1072,9 +1085,16 @@ def main():
         remove_top_padding=True,
         footer_at_bottom=True
     )
-    active_ticker = st.query_params.get("ticker", "M")
+    # Render Header — resolve active_ticker for nav links
+    # Check the widget key first (Streamlit updates widget session_state BEFORE rerun)
+    _widget_company = st.session_state.get("ec_company_select", None)
+    if _widget_company and _widget_company != "All":
+        active_ticker = _widget_company
+        st.session_state.active_ticker = active_ticker
+    else:
+        active_ticker = st.query_params.get("ticker") or st.session_state.get("active_ticker", "M")
     # Render Header
-    render_header(full_width=True, current_page="earnings_calls",ticker=active_ticker)
+    render_header(full_width=True, current_page="earnings_calls", ticker=active_ticker)
 
     # Render content
     render_earnings_calls(active_ticker)

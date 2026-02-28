@@ -116,6 +116,9 @@ def main():
             placeholder="Select a Company",
             key="company_select", label_visibility="collapsed")
         st.session_state.home_company = company
+        # Write to shared active_ticker for cross-page synchronization
+        if company:
+            st.session_state.active_ticker = company
         # No need to save ticker to local storage - it will be passed via query params
         save_market_data_state()
         if company:

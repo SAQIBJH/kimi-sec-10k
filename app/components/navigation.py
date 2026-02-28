@@ -38,7 +38,8 @@ def render_header(full_width: bool = True, current_page: str = "market_data",tic
     is_company_profile = current_page == "company_profile"
     is_earnings_calls = current_page == "earnings_calls"
 
-    actual_ticker = st.query_params.get("ticker", ticker) or ticker
+    # Priority: session state active_ticker > URL query param > function argument
+    actual_ticker = st.session_state.get("active_ticker") or st.query_params.get("ticker", ticker) or ticker
     
     # Build header HTML - EXACT Figma specifications
     header_html = '''<style>
@@ -610,7 +611,7 @@ def render_company_header(company_name: str, ticker: str, exchange: str = "NYSE"
                 </span>
             </div>
         </div>
-        <a href="/company_filings" target="_self" class="company-documents-btn">
+        <a href="/company_filings?ticker={ticker}" target="_self" class="company-documents-btn">
             <span class="text">
               <span>Company</span>
               <span>Documents</span>

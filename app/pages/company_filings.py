@@ -1108,10 +1108,23 @@ def main():
 
     # Initialize session state with defaults from available data
     available_tickers = [c[0] for c in COMPANIES]
+
+    # Resolve ticker: URL param > active_ticker > default
+    _url_ticker = st.query_params.get("ticker", "")
+    _active_ticker = st.session_state.get("active_ticker", "")
+    _resolved_ticker = None
+    if _url_ticker and _url_ticker in available_tickers:
+        _resolved_ticker = _url_ticker
+    elif _active_ticker and _active_ticker in available_tickers:
+        _resolved_ticker = _active_ticker
+
     if 'cf_search' not in st.session_state:
         st.session_state.cf_search = ""
     if 'cf_company' not in st.session_state:
-        st.session_state.cf_company = available_tickers[0] if available_tickers else "AAPL"
+        st.session_state.cf_company = _resolved_ticker or (available_tickers[0] if available_tickers else "AAPL")
+    elif _resolved_ticker and _resolved_ticker != st.session_state.cf_company:
+        # URL ticker or cross-page active_ticker takes precedence over stale cf_company
+        st.session_state.cf_company = _resolved_ticker
     if st.session_state.cf_company not in available_tickers:
         st.session_state.cf_company = available_tickers[0] if available_tickers else "AAPL"
     if 'cf_doc_type' not in st.session_state:
@@ -1137,8 +1150,15 @@ def main():
         footer_at_bottom=True
     )
 
-    # Render Header
-    render_header(full_width=True, current_page="company_filings")
+    # Render Header — resolve active_ticker for nav links
+    # Check the widget key first (Streamlit updates widget session_state BEFORE rerun)
+    _widget_company = st.session_state.get("cf_company_select", None)
+    if _widget_company:
+        _header_ticker = _widget_company
+        st.session_state.active_ticker = _header_ticker
+    else:
+        _header_ticker = st.session_state.get("cf_company") or st.session_state.get("active_ticker", "M")
+    render_header(full_width=True, current_page="company_filings", ticker=_header_ticker)
 
     # Inject custom CSS
     st.markdown(get_filings_css(), unsafe_allow_html=True)
@@ -1216,6 +1236,8 @@ def main():
     st.session_state.cf_doc_type = doc_type
     st.session_state.cf_year = year
     st.session_state.cf_quarter = quarter
+    # Write to shared active_ticker for cross-page synchronization
+    st.session_state.active_ticker = company
 
     # =======================================================================
     # MAIN CONTENT - TWO COLUMN LAYOUT

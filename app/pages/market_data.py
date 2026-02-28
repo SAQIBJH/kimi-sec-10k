@@ -606,13 +606,26 @@ def render_page():
     # Resolve ticker: Check if we're initializing (no query params) or if query params exist
     query_ticker = st.query_params.get("ticker")
     stored_ticker = get_marketdata_company()
+    # Cross-page sync: another page may have set active_ticker
+    cross_page_ticker = st.session_state.get("active_ticker")
 
-    # If no query ticker, use stored ticker, otherwise use query ticker
-    selected_ticker = stored_ticker if not query_ticker else query_ticker
+    # Priority: cross-page ticker (if different from URL = user changed on another page)
+    #           > URL ticker > stored ticker
+    if cross_page_ticker and query_ticker and cross_page_ticker != query_ticker:
+        # User changed company on another page THEN clicked nav link (which has old ticker)
+        # active_ticker is more recent — use it
+        selected_ticker = cross_page_ticker
+    elif query_ticker:
+        selected_ticker = query_ticker
+    elif cross_page_ticker:
+        selected_ticker = cross_page_ticker
+    elif stored_ticker:
+        selected_ticker = stored_ticker
+    else:
+        selected_ticker = "M"  # fallback
 
     # Always update query params to reflect current state (for bookmarking/navigation)
-    if not query_ticker and stored_ticker:
-        st.query_params["ticker"] = stored_ticker
+    st.query_params["ticker"] = selected_ticker
 
     # Save the selected ticker to local storage to persist across sessions
     set_marketdata_company(selected_ticker)
@@ -641,6 +654,8 @@ def render_page():
 
     # Store the selected ticker in session state for persistence
     st.session_state.selected_ticker_market_data = selected_ticker
+    # Write to shared active_ticker for cross-page synchronization
+    st.session_state.active_ticker = selected_ticker
 
     company = CompanyOverviewRepository.get_company_overview(selected_ticker)
 
