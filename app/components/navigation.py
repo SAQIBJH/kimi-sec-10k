@@ -116,15 +116,17 @@ def render_header(full_width: bool = True, current_page: str = "market_data",tic
     line-height: 1;
     padding: 8px 18px;
     border-radius: 6px;
-    border: 1px solid #000;
+    border: 1px solid #d62e2f;
     background-color: white !important;
     transition: all 0.18s ease;
     margin-right: 40px;
+    cursor: pointer;
   }
 
   .logout-btn:hover {
     background-color: #d62e2f !important;
     color: #ffffff;
+    border-color: transparent;
     box-shadow: 0 2px 6px rgba(214, 46, 47, 0.25);
   }
 
