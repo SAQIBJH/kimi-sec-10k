@@ -5,8 +5,7 @@ Earnings call transcripts page using native Streamlit components with custom sty
 """
 import streamlit as st
 import re
-from typing import List, Optional, Tuple
-from dataclasses import dataclass
+from typing import List, Optional, Tuple, Dict
 
 from components.styles import hide_sidebar, set_page_layout
 from core.auth_manager import require_auth
@@ -31,56 +30,74 @@ def get_earnings_css() -> str:
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap');
 
     /* =======================================================================
-       PAGE CONTAINER
+       HIDE STREAMLIT CHROME
        ======================================================================= */
     [data-testid="stHeaderActionElements"] {
-                display: none !important;
-                visibility: hidden !important;
+        display: none !important;
+        visibility: hidden !important;
     }
-    .earnings-page-container {
-        max-width: 1440px;
-        margin: 0 auto;
-        padding: 0;
-        font-family: 'Roboto', sans-serif;
-        background: #FFFFFF;
-    }
-
-    .earnings-content-wrapper {
-        max-width: 1220px;
-        margin: 0 auto;
-        padding: 0 110px;
+    /* Also hide stHeader if styles.py didn't already catch it */
+    header[data-testid="stHeader"] {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        overflow: hidden !important;
     }
 
     /* =======================================================================
-       HEADER SECTION
+       FIX: REMOVE EXTRA TOP PADDING ABOVE NAV
+       Streamlit adds default top padding to block-container; remove it so
+       the nav bar starts at the top of the viewport.
        ======================================================================= */
-    .earnings-header-section {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 32px 0 24px 0;
-        border-bottom: 1px solid #E5E5E5;
-        margin-bottom: 24px;
+    div.block-container > div[data-testid="stVerticalBlock"],
+    [data-testid="block-container"] > div[data-testid="stVerticalBlock"] {
+        padding-top: 0 !important;
     }
 
-    .earnings-title {
-        font-family: 'Montserrat', sans-serif;
-        font-weight: 700;
-        font-size: 24px;
-        color: #2D2A29;
-        margin: 0;
+    /* =======================================================================
+       SCROLLBARS — Left panel (Streamlit container) + Right panel (transcript)
+       Matches company_filings.py scrollbar style exactly.
+       ======================================================================= */
+
+    /* Left search panel scrollbar — target inner scrollable div of st.container */
+    [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"]::-webkit-scrollbar,
+    [data-testid="stVerticalBlockBorderWrapper"] div::-webkit-scrollbar {
+        width: 6px;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
+    [data-testid="stVerticalBlockBorderWrapper"] div::-webkit-scrollbar-track {
+        background: #F2F2F2;
+        border-radius: 3px;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
+    [data-testid="stVerticalBlockBorderWrapper"] div::-webkit-scrollbar-thumb {
+        background: #CBCACA;
+        border-radius: 3px;
+    }
+
+    /* Left panel border/shadow — matches company_filings style */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border: 1px solid #E5E5E5 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    }
+
+    /* Right transcript body scrollbar */
+    .transcript-body::-webkit-scrollbar {
+        width: 6px;
+    }
+    .transcript-body::-webkit-scrollbar-track {
+        background: #F2F2F2;
+        border-radius: 3px;
+    }
+    .transcript-body::-webkit-scrollbar-thumb {
+        background: #CBCACA;
+        border-radius: 3px;
     }
 
     /* =======================================================================
        FILTER BAR - Styled Streamlit Selectboxes
        ======================================================================= */
-
-    /* Style the filter row */
-    .filter-bar {
-        display: flex;
-        align-items: flex-end;
-        gap: 16px;
-    }
 
     /* Target Streamlit selectboxes in the filter area */
     div[data-testid="stSelectbox"] {
@@ -137,14 +154,19 @@ def get_earnings_css() -> str:
 
     /* =======================================================================
        TRANSCRIPT CARD
+       Fixed at 520px to match the left search panel height exactly.
+       Uses flex so the body fills remaining space after the header.
        ======================================================================= */
     .transcript-card {
         width: 90%;
+        height: 520px;
+        display: flex;
+        flex-direction: column;
         background: #FFFFFF;
         border: 1px solid #E5E5E5;
         border-radius: 12px;
         overflow: hidden;
-        margin-top: 32px;
+        margin-top: 0;
         margin-left: auto;
         margin-right: auto;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -153,17 +175,22 @@ def get_earnings_css() -> str:
     /* Card Header */
     .transcript-card-header {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         justify-content: space-between;
         padding: 16px 20px;
         border-bottom: 1px solid #E5E5E5;
         background: #FFFFFF;
+        gap: 12px;
     }
 
     .transcript-title-section {
         display: flex;
-        align-items: center;
+        align-items: flex-start;
         gap: 12px;
+        flex-wrap: wrap;
+        flex: 1;
+        min-width: 0;
+        margin-right: 16px;
     }
 
     .transcript-title {
@@ -171,6 +198,9 @@ def get_earnings_css() -> str:
         font-weight: 700;
         font-size: 18px;
         color: #2D2A29;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        min-width: 0;
     }
 
     .transcript-meta {
@@ -205,6 +235,8 @@ def get_earnings_css() -> str:
         color: #0066CC;
         text-decoration: none;
         transition: all 0.2s ease;
+        flex-shrink: 0;
+        white-space: nowrap;
     }
 
     .download-btn:hover {
@@ -214,9 +246,12 @@ def get_earnings_css() -> str:
 
     /* =======================================================================
        TRANSCRIPT BODY
+       flex: 1 so it fills whatever height remains after the card header.
+       This ensures the total card height stays at exactly 520px.
        ======================================================================= */
     .transcript-body {
-        max-height: 600px;
+        flex: 1;
+        max-height: none;
         overflow-y: auto;
         padding: 20px;
         background: #F9F9F9;
@@ -464,20 +499,6 @@ def get_earnings_css() -> str:
         margin: -8px;
     }
 
-    /* =======================================================================
-       RESPONSIVE ADJUSTMENTS
-       ======================================================================= */
-    @media (max-width: 1024px) {
-        .earnings-content-wrapper {
-            padding: 0 24px;
-        }
-
-        .earnings-header-section {
-            flex-direction: column;
-            align-items: flex-start;
-            gap: 16px;
-        }
-    }
     </style>
     """
 
@@ -486,19 +507,13 @@ def get_earnings_css() -> str:
 # TRANSCRIPT PARSING
 # =============================================================================
 
-@dataclass
-class SpeakerSegment:
-    """A segment of transcript from a single speaker."""
-    speaker: str
-    text: str
-
-
 @st.cache_data(ttl=600, show_spinner=False)
-def parse_transcript(transcript_text: str) -> List[SpeakerSegment]:
+def parse_transcript(transcript_text: str) -> List[Dict]:
     """
     Parse transcript text into speaker segments.
 
-    Detects speakers by pattern: "Name:" at the beginning of a paragraph.
+    Returns List[Dict] with keys 'speaker' and 'text' — plain dicts are
+    picklable so st.cache_data works correctly across Streamlit reruns.
     """
     if not transcript_text:
         return []
@@ -518,37 +533,21 @@ def parse_transcript(transcript_text: str) -> List[SpeakerSegment]:
         if not para:
             continue
 
-        # Check if this paragraph starts with a speaker name
         match = speaker_pattern.match(para)
 
         if match:
-            # Save previous segment if exists
             if current_speaker and current_text:
-                segments.append(SpeakerSegment(
-                    speaker=current_speaker,
-                    text=' '.join(current_text)
-                ))
-
-            # Start new segment
+                segments.append({'speaker': current_speaker, 'text': ' '.join(current_text)})
             current_speaker = match.group(1).strip()
             current_text = [match.group(2).strip()] if match.group(2) else []
         else:
-            # Continue current segment
             current_text.append(para)
 
-    # Save last segment
     if current_speaker and current_text:
-        segments.append(SpeakerSegment(
-            speaker=current_speaker,
-            text=' '.join(current_text)
-        ))
+        segments.append({'speaker': current_speaker, 'text': ' '.join(current_text)})
 
-    # If no speakers detected, treat entire text as one segment
     if not segments and transcript_text.strip():
-        segments.append(SpeakerSegment(
-            speaker="Transcript",
-            text=transcript_text.strip()
-        ))
+        segments.append({'speaker': 'Transcript', 'text': transcript_text.strip()})
 
     return segments
 
@@ -567,10 +566,9 @@ def _highlight_keyword(text: str, keyword: str) -> str:
     return result
 
 
-def render_speaker_section(segment: SpeakerSegment, keyword: str = None, index: int = 0) -> str:
+def render_speaker_section(segment: Dict, keyword: str = None, index: int = 0) -> str:
     """Render a single speaker section with optional keyword highlighting."""
-    # Format text with paragraphs
-    paragraphs = segment.text.split('\n')
+    paragraphs = segment['text'].split('\n')
     processed = []
     for p in paragraphs:
         p = p.strip()
@@ -583,7 +581,7 @@ def render_speaker_section(segment: SpeakerSegment, keyword: str = None, index: 
 
     return f"""
     <div class="speaker-section" id="seg-{index}">
-        <div class="speaker-name">{segment.speaker}</div>
+        <div class="speaker-name">{segment['speaker']}</div>
         <div class="speaker-text">{paragraphs_html}</div>
     </div>
     """
@@ -611,7 +609,7 @@ def render_transcript_card(
     <div class="transcript-card">
         <div class="transcript-card-header">
             <div class="transcript-title-section">
-                <span class="transcript-title">{company_name} ({ticker}) Earnings Call</span>
+                <span class="transcript-title">{company_name} ({ticker})</span>
                 <span class="transcript-meta">
                     {year}
                     <span class="meta-dot"></span>
@@ -657,20 +655,92 @@ def get_years(company):
 def get_quarters(company, year):
     return EarningsCallRepository.get_available_quarters(company, year)
 
+
+@st.cache_data(ttl=120, show_spinner=False)
+def _get_cross_search_results(keyword: str, company: str, year: str, quarter: str) -> List[Dict]:
+    """
+    Cross-transcript search: FULLTEXT DB lookup (~15ms) + cached segment extraction.
+
+    Returns up to 50 results — one best-matching segment per transcript.
+    Cached 2 min: subsequent searches for same keyword+filters are instant.
+    """
+    raw_rows = EarningsCallRepository.search_transcripts_fulltext(
+        keyword=keyword,
+        ticker=company if company != 'ALL' else None,
+        year=year if str(year) != 'ALL' else None,
+        quarter=quarter if quarter != 'ALL' else None,
+        limit=50,
+    )
+
+    results = []
+    kw_lower = keyword.lower()
+    for row in raw_rows:
+        transcript_text = row.get('transcript_text', '') or ''
+        if not transcript_text:
+            continue
+
+        segments = parse_transcript(transcript_text)
+
+        for i, seg in enumerate(segments):
+            if kw_lower in seg['text'].lower():
+                idx = seg['text'].lower().find(kw_lower)
+                start = max(0, idx - 40)
+                end = min(len(seg['text']), idx + len(keyword) + 40)
+                snippet = seg['text'][start:end]
+                if start > 0:
+                    snippet = '...' + snippet
+                if end < len(seg['text']):
+                    snippet = snippet + '...'
+
+                q_val = row.get('q')
+                q_str = f"Q{q_val}" if q_val else ''
+                results.append({
+                    'ticker': row.get('ticker', ''),
+                    'year': str(row.get('year', '')),
+                    'quarter': q_str,
+                    'speaker': seg['speaker'],
+                    'snippet': snippet,
+                    'seg_index': i,
+                })
+                break  # first match per transcript only
+
+    return results
+
+
+def render_cross_search_panel(company: str, year: str, quarter: str) -> str:
+    """Right panel shown when any filter is ALL (cross-transcript search mode)."""
+    parts = []
+    parts.append('All Companies' if company == 'ALL' else company)
+    parts.append('All Years' if str(year) == 'ALL' else str(year))
+    parts.append('All Quarters' if quarter == 'ALL' else quarter)
+    scope = ' &bull; '.join(parts)
+
+    return f"""
+    <div class="empty-state" style="margin-top: 32px;">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="1.5" style="margin-bottom: 16px; opacity: 0.7;">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <div class="empty-state-title">Search Across Transcripts</div>
+        <div class="empty-state-text" style="margin-top: 10px;">
+            <span style="font-weight: 600; color: #2D2A29; font-size: 13px;">{scope}</span><br><br>
+            Type a keyword on the left to search all matching transcripts.<br>
+            Click <strong>View &#8594;</strong> on any result to open the full transcript.
+        </div>
+    </div>
+    """
+
 def render_earnings_calls(active_ticker: str = None):
     """Render earnings calls content (for unified entry point)."""
     # Inject custom CSS
     st.markdown(get_earnings_css(), unsafe_allow_html=True)
 
-    # Page container
-    st.markdown('<div class="earnings-page-container">', unsafe_allow_html=True)
-    st.markdown('<div class="earnings-content-wrapper">', unsafe_allow_html=True)
+    # (title is rendered inline in the filter header row below — matches Figma layout)
 
     # Get data for dropdowns
     companies = EarningsCallRepository.get_companies_with_earnings()
-    company_options = [(c['ticker'], f"{c['name']} ({c['ticker']})") for c in companies]
+    company_options = [('ALL', 'All Companies')] + [(c['ticker'], f"{c['name']} ({c['ticker']})") for c in companies]
 
-    if not company_options:
+    if len(company_options) <= 1:
         st.error("No earnings call data available.")
         st.stop()
 
@@ -682,49 +752,92 @@ def render_earnings_calls(active_ticker: str = None):
     load_earnings_calls_state()
 
     # ---------------------------------
-    # Initialize company state
+    # Handle View → navigation from cross-search results
+    # Uses a nav_id to consume params ONCE per navigation, not on every rerun.
+    # URL: /earnings_calls?ticker=NKE&year=2024&quarter=Q2&highlight=revenue
+    # ---------------------------------
+    _qp_ticker = st.query_params.get("ticker", "")
+    _qp_year = st.query_params.get("year", "")
+    _qp_quarter = st.query_params.get("quarter", "")
+    _qp_highlight = st.query_params.get("highlight", "")
+    _nav_id = f"nav_{_qp_ticker}_{_qp_year}_{_qp_quarter}_{_qp_highlight}"
+
+    if _qp_highlight and st.session_state.get("_ec_nav_id") != _nav_id:
+        # Fresh cross-search navigation — consume params into session state
+        st.session_state._ec_nav_id = _nav_id
+        st.session_state.ec_search = _qp_highlight
+        if _qp_ticker and _qp_ticker in tickers:
+            st.session_state.ec_company = _qp_ticker
+        if _qp_year and _qp_year != 'ALL':
+            st.session_state.ec_year = _qp_year
+        if _qp_quarter and _qp_quarter != 'ALL':
+            st.session_state.ec_quarter = _qp_quarter
+
+    # ---------------------------------
+    # Initialize company state (default to first real company, not ALL)
     # ---------------------------------
     if "ec_company" not in st.session_state:
         if active_ticker and active_ticker in tickers:
             st.session_state.ec_company = active_ticker
         else:
-            st.session_state.ec_company = tickers[0]
+            st.session_state.ec_company = tickers[1] if len(tickers) > 1 else tickers[0]
     # Validate persisted company still exists in available tickers
     elif st.session_state.ec_company not in tickers:
-        st.session_state.ec_company = tickers[0]
+        st.session_state.ec_company = tickers[1] if len(tickers) > 1 else tickers[0]
 
-    # Get available years and quarters based on selected company
-    available_years = get_years(st.session_state.ec_company)
-    year_options = [str(y) for y in sorted(available_years, reverse=True)] if available_years else ["2025", "2024"]
+    # Get available years based on selected company
+    if st.session_state.ec_company == 'ALL':
+        _all_yrs = EarningsCallRepository.get_all_available_years()
+        year_options = ['ALL'] + [str(y) for y in _all_yrs]
+    else:
+        available_years = get_years(st.session_state.ec_company)
+        year_options = ['ALL'] + ([str(y) for y in sorted(available_years, reverse=True)] if available_years else ["2025", "2024"])
 
     if "ec_year" not in st.session_state or st.session_state.ec_year not in year_options:
-        st.session_state.ec_year = year_options[0]
+        # Default to first real year (skip 'ALL')
+        st.session_state.ec_year = year_options[1] if len(year_options) > 1 else year_options[0]
 
-    available_quarters = get_quarters(st.session_state.ec_company, st.session_state.ec_year)
-    quarter_options = sorted(available_quarters) if available_quarters else ["Q4", "Q3", "Q2", "Q1"]
+    # Get available quarters based on company + year
+    if st.session_state.ec_company != 'ALL' and str(st.session_state.ec_year) != 'ALL':
+        available_quarters = get_quarters(st.session_state.ec_company, st.session_state.ec_year)
+        quarter_options = ['ALL'] + (sorted(available_quarters) if available_quarters else ["Q1", "Q2", "Q3", "Q4"])
+    else:
+        quarter_options = ['ALL', 'Q1', 'Q2', 'Q3', 'Q4']
 
     if "ec_quarter" not in st.session_state or st.session_state.ec_quarter not in quarter_options:
-        st.session_state.ec_quarter = quarter_options[0]
+        # Default to first real quarter (skip 'ALL')
+        st.session_state.ec_quarter = quarter_options[1] if len(quarter_options) > 1 else quarter_options[0]
 
     # =======================================================================
     # HEADER WITH TITLE AND FILTERS
     # =======================================================================
     def on_company_change():
         ticker = st.session_state.ec_company_select
-        st.query_params["ticker"] = ticker
+        # Only push a specific ticker to URL — never push "ALL" (breaks nav links)
+        if ticker == 'ALL':
+            if "ticker" in st.query_params:
+                del st.query_params["ticker"]
+        else:
+            st.query_params["ticker"] = ticker
         st.session_state.ec_company = ticker
 
-        years = get_years(ticker)
-        year_opts = [str(y) for y in sorted(years, reverse=True)] if years else ["2025", "2024"]
+        if ticker == 'ALL':
+            _yrs = EarningsCallRepository.get_all_available_years()
+            year_opts = ['ALL'] + [str(y) for y in _yrs]
+        else:
+            years = get_years(ticker)
+            year_opts = ['ALL'] + ([str(y) for y in sorted(years, reverse=True)] if years else ["2025", "2024"])
 
-        st.session_state.ec_year = year_opts[0]
-        st.session_state.ec_year_select = st.session_state.ec_year
+        # Default to first real year when changing company
+        st.session_state.ec_year = year_opts[1] if len(year_opts) > 1 else year_opts[0]
 
-        quarters = get_quarters(ticker, st.session_state.ec_year)
-        q_opts = sorted(quarters) if quarters else ["Q4", "Q3", "Q2", "Q1"]
+        if ticker != 'ALL' and str(st.session_state.ec_year) != 'ALL':
+            quarters = get_quarters(ticker, st.session_state.ec_year)
+            q_opts = ['ALL'] + (sorted(quarters) if quarters else ["Q1", "Q2", "Q3", "Q4"])
+        else:
+            q_opts = ['ALL', 'Q1', 'Q2', 'Q3', 'Q4']
 
-        st.session_state.ec_quarter = q_opts[0]
-        st.session_state.ec_quarter_select = st.session_state.ec_quarter
+        st.session_state.ec_quarter = q_opts[1] if len(q_opts) > 1 else q_opts[0]
 
         save_earnings_calls_state()
 
@@ -733,11 +846,13 @@ def render_earnings_calls(active_ticker: str = None):
         year = st.session_state.ec_year_select
         st.session_state.ec_year = year
 
-        quarters = get_quarters(ticker, year)
-        q_opts = sorted(quarters) if quarters else ["Q4", "Q3", "Q2", "Q1"]
+        if ticker != 'ALL' and str(year) != 'ALL':
+            quarters = get_quarters(ticker, year)
+            q_opts = ['ALL'] + (sorted(quarters) if quarters else ["Q1", "Q2", "Q3", "Q4"])
+        else:
+            q_opts = ['ALL', 'Q1', 'Q2', 'Q3', 'Q4']
 
-        st.session_state.ec_quarter = q_opts[0]
-        st.session_state.ec_quarter_select = st.session_state.ec_quarter
+        st.session_state.ec_quarter = q_opts[1] if len(q_opts) > 1 else q_opts[0]
 
         save_earnings_calls_state()
 
@@ -745,109 +860,159 @@ def render_earnings_calls(active_ticker: str = None):
         st.session_state.ec_quarter = st.session_state.ec_quarter_select
         save_earnings_calls_state()
 
-    spacer1, header_col1, header_col2, spacer2 = st.columns([0.1, 1, 1, 0.1])
-
-    with header_col1:
-        st.markdown('<h1 class="earnings-title">Earnings Calls</h1>', unsafe_allow_html=True)
-
-    with header_col2:
-        filter_col1, filter_col2, filter_col3 = st.columns([1.5, 0.5, 0.5])
-
-        with filter_col1:
-            company = st.selectbox(
-                "Select a company and date range to view transcripts.",
-                options=tickers,
-                format_func=lambda x: next((opt[1].split("(")[0].strip() for opt in company_options if opt[0] == x), x),
-                index=tickers.index(st.session_state.ec_company),
-                key="ec_company_select",
-                on_change=on_company_change,
-            )
-
-        with filter_col2:
-            year = st.selectbox(
-                "Year",
-                options=year_options,
-                index=year_options.index(st.session_state.ec_year),
-                key="ec_year_select",
-                on_change=on_year_change,
-            )
-
-        with filter_col3:
-            quarter = st.selectbox(
-                "Quarter",
-                options=quarter_options,
-                index=quarter_options.index(st.session_state.ec_quarter),
-                key="ec_quarter_select",
-                on_change=on_quarter_change,
-            )
-
-
-    # Sync session state with widget values
-    st.session_state.ec_company = company
-    st.session_state.ec_year = year
-    st.session_state.ec_quarter = quarter
-    save_earnings_calls_state()
+    # =======================================================================
+    # PAGE TITLE — Same pattern as newsroom
+    # =======================================================================
+    st.markdown("""
+    <div style="margin: 24px 0 8px 0;">
+        <div style="font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 24px; color: #d62e2f; letter-spacing: 1px;">CORESIGHT MARKET DATA</div>
+        <div style="font-family: 'Montserrat', sans-serif; font-weight: 700; font-size: 28px; color: #323232;">Earnings Calls</div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # =======================================================================
-    # FETCH TRANSCRIPT DATA
+    # FILTER ROW — Same pattern as newsroom:
+    # Search | (gap) | Company | Year | Quarter
     # =======================================================================
+    search_col, _gap, company_col, year_col, quarter_col = st.columns([2.5, 0.3, 2.2, 0.8, 0.8])
 
-    # Fetch transcript data
-    earnings_calls = EarningsCallRepository.get_earnings_calls(
-        ticker=company,
-        year=year,
-        quarter=quarter
-    )
+    with search_col:
+        search_term = st.text_input(
+            "Search",
+            placeholder="eg., revenue, AWS, guidance...",
+            value=st.session_state.get('ec_search', ''),
+            key="ec_search_input",
+        )
+        st.session_state.ec_search = search_term
+
+    with company_col:
+        company = st.selectbox(
+            "Company",
+            options=tickers,
+            format_func=lambda x: next((opt[1] if opt[0] == 'ALL' else opt[1].split("(")[0].strip() for opt in company_options if opt[0] == x), x),
+            index=tickers.index(st.session_state.ec_company),
+            key="ec_company_select",
+            on_change=on_company_change,
+        )
+
+    with year_col:
+        year = st.selectbox(
+            "Year",
+            options=year_options,
+            index=year_options.index(st.session_state.ec_year),
+            key="ec_year_select",
+            on_change=on_year_change,
+        )
+
+    with quarter_col:
+        quarter = st.selectbox(
+            "Quarter",
+            options=quarter_options,
+            index=quarter_options.index(st.session_state.ec_quarter),
+            key="ec_quarter_select",
+            on_change=on_quarter_change,
+        )
+
+
+    # =======================================================================
+    # DETECT MODE: cross-transcript search vs single-transcript view
+    # =======================================================================
+    is_cross_search = (company == 'ALL' or str(year) == 'ALL' or quarter == 'ALL')
+
+    # =======================================================================
+    # FETCH TRANSCRIPT DATA (single-transcript mode only)
+    # =======================================================================
+    earnings_calls = []
+    if not is_cross_search:
+        earnings_calls = EarningsCallRepository.get_earnings_calls(
+            ticker=company,
+            year=year,
+            quarter=quarter
+        )
 
     # Get company display name
     company_display = next((opt[1] for opt in company_options if opt[0] == company), company)
     company_name = company_display.split('(')[0].strip() if '(' in company_display else company_display
+
 
     # =======================================================================
     # TWO-COLUMN LAYOUT: Search (Left) + Transcript (Right)
     # =======================================================================
     left_col, right_col = st.columns([0.3, 0.7])
 
-    # ── Parse transcript for search ──
+    # ── Parse transcript for single-transcript search ──
     transcript_text = None
     segments = []
-    if earnings_calls and len(earnings_calls) > 0:
+    if not is_cross_search and earnings_calls and len(earnings_calls) > 0:
         transcript = earnings_calls[0]
         transcript_text = transcript.transcript_text
         if transcript_text:
             segments = parse_transcript(transcript_text)
 
-    # ── LEFT COLUMN: Search Input + Results Panel ──
-    with left_col:
-        search_term = st.text_input(
-            "Search Transcript",
-            placeholder="eg., revenue, AWS, guidance...",
-            value=st.session_state.get('ec_search', ''),
-            key="ec_search_input",
-        )
-        st.session_state.ec_search = search_term
-        active_keyword = search_term.strip() if search_term and search_term.strip() else None
+    # active_keyword comes from the search input in the filter row above
+    active_keyword = search_term.strip() if search_term and search_term.strip() else None
 
+    # ── LEFT COLUMN: Search Results Panel ──
+    with left_col:
+        search_label = "Search All Transcripts" if is_cross_search else "Search Transcript"
         search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
 
-        with st.container(border=True):
-            st.markdown(f'<div class="transcript-search-header">{search_icon}<span class="transcript-search-title">Search Transcript</span></div>', unsafe_allow_html=True)
+        with st.container(border=True, height=520):
+            st.markdown(f'<div class="transcript-search-header">{search_icon}<span class="transcript-search-title">{search_label}</span></div>', unsafe_allow_html=True)
 
-            if active_keyword and segments:
-                # Find matching segments
+            if is_cross_search:
+                # ── CROSS-TRANSCRIPT SEARCH MODE ──
+                if active_keyword:
+                    cross_results = _get_cross_search_results(active_keyword, company, str(year), quarter)
+                    if cross_results:
+                        st.markdown(
+                            f'<div class="transcript-search-count">Found <b>{len(cross_results)}</b> '
+                            f'match{"es" if len(cross_results) != 1 else ""} for "<b>{active_keyword}</b>"</div>',
+                            unsafe_allow_html=True
+                        )
+                        for r in cross_results:
+                            highlighted_snippet = _highlight_keyword(r['snippet'], active_keyword)
+                            view_url = (
+                                f"/earnings_calls?ticker={r['ticker']}"
+                                f"&year={r['year']}&quarter={r['quarter']}"
+                                f"&highlight={active_keyword}"
+                            )
+                            card_html = f'''
+                            <div class="transcript-search-result-card">
+                                <div class="transcript-search-speaker">{r['speaker']}</div>
+                                <div class="transcript-search-snippet">{highlighted_snippet}</div>
+                                <div class="transcript-result-footer">
+                                    <span class="transcript-result-meta">{r['ticker']} &bull; {r['year']} &bull; {r['quarter']}</span>
+                                    <a href="{view_url}" target="_self" class="transcript-view-btn">View &#8594;</a>
+                                </div>
+                            </div>
+                            '''
+                            st.markdown(card_html, unsafe_allow_html=True)
+                    else:
+                        st.markdown(
+                            f'<div class="transcript-search-placeholder">No matches found for "<b>{active_keyword}</b>"</div>',
+                            unsafe_allow_html=True
+                        )
+                else:
+                    st.markdown(
+                        '<div class="transcript-search-placeholder">Enter a keyword to search across all matching transcripts</div>',
+                        unsafe_allow_html=True
+                    )
+
+            elif active_keyword and segments:
+                # ── SINGLE-TRANSCRIPT SEARCH MODE ──
                 matches = []
                 for i, seg in enumerate(segments):
-                    if active_keyword.lower() in seg.text.lower():
-                        # Extract snippet around first occurrence
-                        idx = seg.text.lower().find(active_keyword.lower())
+                    if active_keyword.lower() in seg['text'].lower():
+                        idx = seg['text'].lower().find(active_keyword.lower())
                         start = max(0, idx - 40)
-                        end = min(len(seg.text), idx + len(active_keyword) + 40)
-                        snippet = seg.text[start:end]
+                        end = min(len(seg['text']), idx + len(active_keyword) + 40)
+                        snippet = seg['text'][start:end]
                         if start > 0:
                             snippet = '...' + snippet
-                        if end < len(seg.text):
+                        if end < len(seg['text']):
                             snippet = snippet + '...'
-                        matches.append({'speaker': seg.speaker, 'snippet': snippet, 'index': i})
+                        matches.append({'speaker': seg['speaker'], 'snippet': snippet, 'index': i})
 
                 if matches:
                     st.markdown(f'<div class="transcript-search-count">Found {len(matches)} match{"es" if len(matches) != 1 else ""} for "<b>{active_keyword}</b>"</div>', unsafe_allow_html=True)
@@ -873,7 +1038,9 @@ def render_earnings_calls(active_ticker: str = None):
 
     # ── RIGHT COLUMN: Transcript Content ──
     with right_col:
-        if transcript_text:
+        if is_cross_search:
+            card_html = render_cross_search_panel(company, str(year), quarter)
+        elif transcript_text:
             card_html = render_transcript_card(
                 company_name=company_name,
                 ticker=company,
@@ -887,9 +1054,7 @@ def render_earnings_calls(active_ticker: str = None):
 
         st.markdown(card_html, unsafe_allow_html=True)
 
-    # Close containers
-    st.markdown('</div>', unsafe_allow_html=True)  # content-wrapper
-    st.markdown('</div>', unsafe_allow_html=True)  # page-container
+    # (no wrapper divs to close — using newsroom's flat layout pattern)
 
 
 def main():
@@ -904,8 +1069,8 @@ def main():
     set_page_layout(
         header_full_width=True,
         footer_full_width=True,
-        body_padding="0",
-        max_content_width="1440px",
+        body_padding="0 20px",
+        max_content_width="1350px",
         remove_top_padding=True,
         footer_at_bottom=True
     )
