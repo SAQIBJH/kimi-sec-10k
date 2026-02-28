@@ -35,6 +35,21 @@ def get_company_name_map() -> dict:
     return st.session_state.company_name_map
 
 
+def _get_ticker_sector(ticker: str) -> Optional[str]:
+    """Look up the sector (primary_industry_coresight) for a given ticker."""
+    from core.database import db_manager
+    query = """
+        SELECT primary_industry_coresight as sector
+        FROM coreiq_companies
+        WHERE ticker = :ticker
+        LIMIT 1
+    """
+    results = db_manager.execute_query(query, {'ticker': ticker})
+    if results and results[0].get('sector'):
+        return results[0]['sector']
+    return None
+
+
 def format_company_display(ticker: str, company_map: dict) -> str:
     """Get company display name for ticker."""
     return company_map.get(ticker, ticker)
@@ -382,6 +397,30 @@ def get_news_css() -> str:
         font-family: 'Roboto', sans-serif;
         font-size: 14px;
     }
+
+    /* =======================================================================
+       SCROLLBARS — Left search panel (Streamlit container)
+       ======================================================================= */
+    [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"]::-webkit-scrollbar,
+    [data-testid="stVerticalBlockBorderWrapper"] div::-webkit-scrollbar {
+        width: 6px;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"]::-webkit-scrollbar-track,
+    [data-testid="stVerticalBlockBorderWrapper"] div::-webkit-scrollbar-track {
+        background: #F2F2F2;
+        border-radius: 3px;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] > div[data-testid="stVerticalBlock"]::-webkit-scrollbar-thumb,
+    [data-testid="stVerticalBlockBorderWrapper"] div::-webkit-scrollbar-thumb {
+        background: #CBCACA;
+        border-radius: 3px;
+    }
+
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border: 1px solid #E5E5E5 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    }
     </style>
     """
 
@@ -396,6 +435,9 @@ def render_page():
     </div>
     """, unsafe_allow_html=True)
 
+    # Get URL ticker parameter (e.g. /newsroom?ticker=UA)
+    url_ticker = st.query_params.get("ticker", None)
+
     # Get date bounds from news table
     date_bounds = NewsRepository.get_news_date_range()
     news_min_date = date_bounds['min_date']
@@ -407,13 +449,19 @@ def render_page():
     if 'date_to' not in st.session_state:
         st.session_state.date_to = news_max_date
 
+    # Initialize sort order
+    if 'news_sort_order' not in st.session_state:
+        st.session_state.news_sort_order = "Latest"
+
     # Render custom CSS
     st.markdown(get_news_css(), unsafe_allow_html=True)
 
     # =======================================================================
-    # FILTER ROW: Search + Cascading Filters in one line
+    # FILTER ROW: Search + Date + Sort + Sector + Company
     # =======================================================================
-    search_col, col1, col2, col3, col4 = st.columns([1.2, 0.5, 0.5, 1, 1])
+    search_col,frre_space, col_from, col_to, col_sort, col_sector, col_company = st.columns(
+        [2.7, 0.5, 1, 1, 1, 1.3, 1.5]
+    )
 
     with search_col:
         search_term = st.text_input(
@@ -424,7 +472,7 @@ def render_page():
         )
         st.session_state.news_search = search_term
 
-    with col1:
+    with col_from:
         date_from = st.date_input(
             "From",
             value=st.session_state.date_from,
@@ -433,7 +481,7 @@ def render_page():
         )
         st.session_state.date_from = date_from
 
-    with col2:
+    with col_to:
         date_to = st.date_input(
             "To",
             value=st.session_state.date_to,
@@ -442,15 +490,33 @@ def render_page():
         )
         st.session_state.date_to = date_to
 
+    # Sort filter (Earliest = ASC, Latest = DESC)
+    with col_sort:
+        sort_order = st.selectbox(
+            "Sort",
+            options=["Latest", "Earliest"],
+            index=0 if st.session_state.news_sort_order == "Latest" else 1,
+            key="news_sort_select",
+        )
+        st.session_state.news_sort_order = sort_order
+    sort_ascending = sort_order == "Earliest"
+
     # Cascading: sectors based on selected date range
     sectors = ['All'] + NewsRepository.get_sectors(date_from=date_from, date_to=date_to)
 
-    with col3:
+    # Sector always defaults to "All" — preserve user's manual selection if valid
+    default_sector_idx = 0
+    if st.session_state.get('news_selected_sector') and st.session_state['news_selected_sector'] in sectors:
+        default_sector_idx = sectors.index(st.session_state['news_selected_sector'])
+
+    with col_sector:
         selected_sector = st.selectbox(
             "Sector",
             options=sectors,
-            index=0,
+            index=default_sector_idx,
+            key="news_sector_select",
         )
+    st.session_state.news_selected_sector = selected_sector
 
     # Cascading: companies based on selected date range + sector
     query_sector = None if selected_sector == 'All' else selected_sector
@@ -459,17 +525,35 @@ def render_page():
         date_to=date_to,
         sector=query_sector
     )
+    company_tickers = [c['ticker'] for c in companies]
 
-    with col4:
-        company_options_list = [f"{c['name']} ({c['ticker']})" if c['ticker'] != 'All' else c['name'] for c in companies]
-        company_tickers = [c['ticker'] for c in companies]
-        selected_company_idx = st.selectbox(
+    # Pre-set the widget key ONLY on initial load (key doesn't exist yet).
+    # After that, let the user's selectbox changes drive the state.
+    if 'news_company_select' not in st.session_state:
+        # First visit: use URL ticker if valid, else "All"
+        if url_ticker and url_ticker in company_tickers:
+            st.session_state['news_company_select'] = url_ticker
+        else:
+            st.session_state['news_company_select'] = 'All'
+    elif st.session_state.get('news_company_select') not in company_tickers:
+        # Current selection no longer valid (e.g., date range or sector changed)
+        st.session_state['news_company_select'] = 'All'
+
+    # Build display label map: ticker → "Company Name (TICKER)" or "All Companies"
+    company_display_map = {}
+    for c in companies:
+        if c['ticker'] == 'All':
+            company_display_map['All'] = 'All Companies'
+        else:
+            company_display_map[c['ticker']] = f"{c['name']} ({c['ticker']})"
+
+    with col_company:
+        selected_company = st.selectbox(
             "Company",
-            options=range(len(company_options_list)),
-            format_func=lambda i: company_options_list[i],
-            index=0,
+            options=company_tickers,
+            format_func=lambda t: company_display_map.get(t, t),
+            key="news_company_select",
         )
-        selected_company = company_tickers[selected_company_idx]
 
     # Prepare filters for query
     query_company = None if selected_company == 'All' else selected_company
@@ -483,7 +567,8 @@ def render_page():
             sector=query_sector,
             company_ticker=query_company,
             keyword=active_keyword,
-            limit=50
+            limit=50,
+            sort_ascending=sort_ascending,
         )
     except Exception as e:
         st.error(f"Error fetching news: {e}")
@@ -501,7 +586,7 @@ def render_page():
     with left_col:
         search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
 
-        with st.container(border=True):
+        with st.container(border=True, height=560):
             st.markdown(f'<div class="news-search-header">{search_icon}<span class="news-search-title">Search News</span></div>', unsafe_allow_html=True)
 
             if active_keyword:
@@ -534,14 +619,15 @@ def render_page():
             else:
                 st.markdown('<div class="news-search-placeholder">Type a keyword above to search across news headlines and summaries</div>', unsafe_allow_html=True)
 
-    # ── RIGHT COLUMN: News Cards ──
+    # ── RIGHT COLUMN: News Cards (scrollable container) ──
     with right_col:
-        if articles:
-            for article in articles:
-                card_html = render_news_card(article, company_map, keyword=active_keyword)
-                st.markdown(card_html, unsafe_allow_html=True)
-        else:
-            st.info("No news articles found for the selected filters.")
+        with st.container(border=False, height=560):
+            if articles:
+                for article in articles:
+                    card_html = render_news_card(article, company_map, keyword=active_keyword)
+                    st.markdown(card_html, unsafe_allow_html=True)
+            else:
+                st.info("No news articles found for the selected filters.")
 
 
 def main():
