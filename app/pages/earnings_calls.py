@@ -158,7 +158,7 @@ def get_earnings_css() -> str:
        Uses flex so the body fills remaining space after the header.
        ======================================================================= */
     .transcript-card {
-        width: 90%;
+        width: 100%;
         height: 520px;
         display: flex;
         flex-direction: column;
@@ -167,8 +167,6 @@ def get_earnings_css() -> str:
         border-radius: 12px;
         overflow: hidden;
         margin-top: 0;
-        margin-left: auto;
-        margin-right: auto;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
