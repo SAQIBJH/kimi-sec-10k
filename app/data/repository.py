@@ -290,7 +290,8 @@ class NewsRepository:
         company_ticker: Optional[str] = None,
         keyword: Optional[str] = None,
         limit: int = 100,
-        offset: int = 0
+        offset: int = 0,
+        sort_ascending: bool = False
     ) -> List[NewsArticle]:
         """
         Get news articles with optional filtering.
@@ -389,10 +390,11 @@ class NewsRepository:
             params['keyword_rel'] = clean_keyword
 
         # Order by relevance when searching, else by date
+        date_sort = "ASC" if sort_ascending else "DESC"
         if has_keyword:
             query += " ORDER BY relevance DESC"
         else:
-            query += " ORDER BY time_published_utc DESC"
+            query += f" ORDER BY time_published_utc {date_sort}"
 
         # Add limit and offset
         query += " LIMIT :limit OFFSET :offset"
@@ -453,7 +455,7 @@ class NewsRepository:
             if like_clauses:
                 like_query += " AND (" + " OR ".join(like_clauses) + ")"
 
-            like_query += " ORDER BY time_published_utc DESC"
+            like_query += f" ORDER BY time_published_utc {date_sort}"
             like_query += " LIMIT :limit OFFSET :offset"
             like_params['limit'] = limit
             like_params['offset'] = offset
@@ -953,6 +955,115 @@ class EarningsCallRepository:
         """
         results = db_manager.execute_query(query, {'ticker': ticker, 'year': year_int})
         return [f"Q{row['q']}" for row in results]
+
+
+    @staticmethod
+    @st.cache_data(ttl=600, show_spinner=False)
+    @_log_query_time
+    def get_all_available_years() -> List[int]:
+        """Get all distinct years that have transcripts across all companies (cached 10 min)."""
+        query = """
+            SELECT DISTINCT year
+            FROM coreiq_av_earnings_call_transcripts
+            WHERE has_transcript = 1
+            ORDER BY year DESC
+        """
+        results = db_manager.execute_query(query, {})
+        return [row['year'] for row in results]
+
+    @staticmethod
+    @st.cache_data(ttl=120, show_spinner=False)
+    @_log_query_time
+    def search_transcripts_fulltext(
+        keyword: str,
+        ticker: Optional[str] = None,
+        year: Optional[int] = None,
+        quarter: Optional[str] = None,
+        limit: int = 50
+    ) -> List[Dict]:
+        """
+        Cross-transcript keyword search using MySQL FULLTEXT index.
+
+        Uses the existing idx_transcript_fulltext_search FULLTEXT index for
+        sub-20ms keyword lookup across all 2,170+ transcripts. Falls back to
+        LIKE for very short keywords (<3 chars) or stopwords.
+
+        Returns raw dicts with: id, ticker, year, quarter, q, transcript_text
+        """
+        keyword = keyword.strip()
+        if not keyword:
+            return []
+
+        params: Dict = {}
+
+        # FULLTEXT boolean mode with prefix wildcard (3+ chars)
+        if len(keyword) >= 3:
+            # Build boolean-mode query: single word → +word*, multi-word → +"w1" +"w2"
+            words = keyword.split()
+            if len(words) == 1:
+                ft_kw = f'+{words[0]}*'
+            else:
+                ft_kw = ' '.join(f'+"{w}"' for w in words if w)
+            base_query = """
+                SELECT id, ticker, year, quarter, q, transcript_text
+                FROM coreiq_av_earnings_call_transcripts
+                WHERE MATCH(transcript_text) AGAINST (:kw IN BOOLEAN MODE)
+                  AND has_transcript = 1
+            """
+            params['kw'] = ft_kw
+        else:
+            # Short keyword: LIKE fallback (no index, but rare)
+            base_query = """
+                SELECT id, ticker, year, quarter, q, transcript_text
+                FROM coreiq_av_earnings_call_transcripts
+                WHERE transcript_text LIKE :kw
+                  AND has_transcript = 1
+            """
+            params['kw'] = f'%{keyword}%'
+
+        if ticker and ticker != 'ALL':
+            base_query += " AND ticker = :ticker"
+            params['ticker'] = ticker
+
+        if year and str(year) != 'ALL':
+            base_query += " AND year = :year"
+            params['year'] = int(year) if isinstance(year, str) else year
+
+        if quarter and quarter != 'ALL':
+            q_int = EarningsCallRepository._parse_quarter_param(quarter)
+            if q_int:
+                base_query += " AND q = :quarter_q"
+                params['quarter_q'] = q_int
+
+        base_query += " ORDER BY year DESC, q DESC LIMIT :limit"
+        params['limit'] = limit
+
+        results = db_manager.execute_query(base_query, params)
+
+        # FULLTEXT stopword fallback: if no results and keyword ≥ 3 chars, try LIKE
+        if not results and len(keyword) >= 3:
+            fallback = """
+                SELECT id, ticker, year, quarter, q, transcript_text
+                FROM coreiq_av_earnings_call_transcripts
+                WHERE transcript_text LIKE :kw AND has_transcript = 1
+            """
+            fb_params: Dict = {'kw': f'%{keyword}%'}
+            if ticker and ticker != 'ALL':
+                fallback += " AND ticker = :ticker"
+                fb_params['ticker'] = ticker
+            if year and str(year) != 'ALL':
+                fallback += " AND year = :year"
+                fb_params['year'] = int(year) if isinstance(year, str) else year
+            if quarter and quarter != 'ALL':
+                q_int = EarningsCallRepository._parse_quarter_param(quarter)
+                if q_int:
+                    fallback += " AND q = :quarter_q"
+                    fb_params['quarter_q'] = q_int
+            fallback += " ORDER BY year DESC, q DESC LIMIT :limit"
+            fb_params['limit'] = limit
+            results = db_manager.execute_query(fallback, fb_params)
+
+        return [dict(r) for r in results]
 
 
 class BalanceSheetRepository:
