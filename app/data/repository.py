@@ -93,7 +93,7 @@ class CompanyRepository:
         balance sheet, cash flow, company overview, and earnings calls.
         """
         query = """
-            SELECT
+            SELECT DISTINCT
                 c.ticker,
                 COALESCE(c.name_coresight, c.name) as display_name
             FROM coreiq_companies c
@@ -106,10 +106,15 @@ class CompanyRepository:
             ORDER BY display_name
         """
         results = db_manager.execute_query(query)
-        return [
-            {'ticker': row['ticker'], 'name': row['display_name']}
-            for row in results
-        ]
+        # Safety net: deduplicate by ticker in Python (in case DB has dupes)
+        seen = set()
+        companies = []
+        for row in results:
+            t = row['ticker']
+            if t not in seen:
+                seen.add(t)
+                companies.append({'ticker': t, 'name': row['display_name']})
+        return companies
 
 
 class IncomeStatementRepository:

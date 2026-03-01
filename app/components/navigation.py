@@ -644,9 +644,9 @@ def render_company_header(company_name: str, ticker: str, exchange: str = "NYSE"
         selected_ticker = company_options[selected]
         # Update URL with new ticker - this automatically triggers a rerun
         st.query_params["ticker"] = selected_ticker
-        # Note: st.rerun() is not needed here because:
-        # 1. Streamlit automatically reruns after callbacks complete
-        # 2. Changing query_params also triggers a rerun
+        # Also update active_ticker so the cross-page sync logic doesn't
+        # override the new selection with the stale old ticker
+        st.session_state.active_ticker = selected_ticker
     
     # The selectbox is positioned via CSS to align with the header
     st.selectbox(
