@@ -506,18 +506,27 @@ def get_earnings_css() -> str:
 # =============================================================================
 
 @st.cache_data(ttl=600, show_spinner=False)
-def parse_transcript(transcript_text: str) -> List[Dict]:
+def parse_transcript(transcript_text: str, cache_version: int = 3) -> List[Dict]:
     """
     Parse transcript text into speaker segments.
 
     Returns List[Dict] with keys 'speaker' and 'text' — plain dicts are
     picklable so st.cache_data works correctly across Streamlit reruns.
+    cache_version: cache-buster — increment to force re-processing.
     """
     if not transcript_text:
         return []
 
+    import html
+    # Unescape HTML entities (e.g. &lt;div&gt; -> <div>)
+    text_unescaped = html.unescape(transcript_text)
+    
+    # Strip ALL HTML tags from transcript text (e.g. </div></div> at end)
+    cleaned = re.sub(r'<[^>]+>', '', text_unescaped)
+    cleaned = cleaned.strip()
+
     # Split into paragraphs
-    paragraphs = re.split(r'\n\s*\n', transcript_text.strip())
+    paragraphs = re.split(r'\n\s*\n', cleaned)
 
     segments = []
     current_speaker = None
@@ -544,8 +553,8 @@ def parse_transcript(transcript_text: str) -> List[Dict]:
     if current_speaker and current_text:
         segments.append({'speaker': current_speaker, 'text': ' '.join(current_text)})
 
-    if not segments and transcript_text.strip():
-        segments.append({'speaker': 'Transcript', 'text': transcript_text.strip()})
+    if not segments and cleaned:
+        segments.append({'speaker': 'Transcript', 'text': cleaned})
 
     return segments
 
@@ -813,9 +822,14 @@ def render_earnings_calls(active_ticker: str = None):
     else:
         quarter_options = ['ALL', 'Q1', 'Q2', 'Q3', 'Q4']
 
+    # Default to latest available quarter (last in sorted list)
     if "ec_quarter" not in st.session_state or st.session_state.ec_quarter not in quarter_options:
-        # Default to first real quarter (skip 'ALL')
-        st.session_state.ec_quarter = quarter_options[1] if len(quarter_options) > 1 else quarter_options[0]
+        st.session_state.ec_quarter = quarter_options[-1] if len(quarter_options) > 1 else quarter_options[0]
+    else:
+        # Even if ec_quarter exists, default to latest on fresh page load
+        # (user can still override via dropdown)
+        if st.session_state.get('_ec_quarter_user_set') != True:
+            st.session_state.ec_quarter = quarter_options[-1] if len(quarter_options) > 1 else quarter_options[0]
 
     # =======================================================================
     # HEADER WITH TITLE AND FILTERS
@@ -848,7 +862,8 @@ def render_earnings_calls(active_ticker: str = None):
         else:
             q_opts = ['ALL', 'Q1', 'Q2', 'Q3', 'Q4']
 
-        st.session_state.ec_quarter = q_opts[1] if len(q_opts) > 1 else q_opts[0]
+        st.session_state.ec_quarter = q_opts[-1] if len(q_opts) > 1 else q_opts[0]
+        st.session_state._ec_quarter_user_set = False
 
         save_earnings_calls_state()
 
@@ -863,12 +878,14 @@ def render_earnings_calls(active_ticker: str = None):
         else:
             q_opts = ['ALL', 'Q1', 'Q2', 'Q3', 'Q4']
 
-        st.session_state.ec_quarter = q_opts[1] if len(q_opts) > 1 else q_opts[0]
+        st.session_state.ec_quarter = q_opts[-1] if len(q_opts) > 1 else q_opts[0]
+        st.session_state._ec_quarter_user_set = False
 
         save_earnings_calls_state()
 
     def on_quarter_change():
         st.session_state.ec_quarter = st.session_state.ec_quarter_select
+        st.session_state._ec_quarter_user_set = True
         save_earnings_calls_state()
 
     # =======================================================================

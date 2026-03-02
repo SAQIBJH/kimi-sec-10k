@@ -77,17 +77,17 @@ class DatabaseManager:
                 max_overflow=self._config.max_overflow,
                 pool_timeout=self._config.pool_timeout,
                 pool_recycle=self._config.pool_recycle,
-                echo=config.debug,
+                echo=False,  # Disable SQL query logging to reduce log noise
                 connect_args=connect_args,
             )
             self._session_factory = sessionmaker(bind=self._engine)
             
             # Test the connection immediately
             try:
-                logger.info(f"Testing database connection to: {self._config.database} as {self._config.user}@{self._config.host}:{self._config.port}")
+                logger.debug(f"Testing database connection to: {self._config.database} as {self._config.user}@{self._config.host}:{self._config.port}")
                 with self._engine.connect() as conn:
                     conn.execute(text("SELECT 1"))
-                logger.info(f"✓ Database connection successful: {self._config.database}")
+                logger.debug(f"✓ Database connection successful: {self._config.database}")
             except Exception as test_err:
                 logger.error(f"Database connection test failed: {test_err}")
                 logger.error(f"Connection details: host={self._config.host}, "

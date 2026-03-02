@@ -39,8 +39,8 @@ def _check_existing_auth():
             else:
                 data = raw_data
 
-            # Check required fields
-            if data.get("user_email") and data.get("token"):
+            # Check required fields (new auth_manager stores session_id, not token)
+            if data.get("user_email") and data.get("session_id"):
                 # Restore to session state
                 st.session_state.auth_data = data
                 st.session_state.authenticated = True

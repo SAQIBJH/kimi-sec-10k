@@ -185,7 +185,9 @@ class AuthManager:
             
             controller = self._get_controller()
             controller.set(COOKIE_NAME, cookie_value, **cookie_params)
-            
+            # Allow the frontend time to process the Set-Cookie command
+            # before any page navigation (CookieController is async)
+            sleep(1.5)
             return True
             
         except Exception as e:
@@ -221,7 +223,24 @@ class AuthManager:
         Uses st.rerun() retry to handle async CookieController mount on refresh.
         SECURITY: st.stop() is called after redirect/rerun as a safety net
                   to guarantee execution NEVER continues past this point.
+        
+        DEBUG MODE: Auth is bypassed when APP_ENV=LOCAL and DEBUG=true
         """
+        # DEBUG MODE BYPASS: Allow access without auth in local debug mode
+        app_env = os.getenv("APP_ENV", "").upper()
+        debug_mode = os.getenv("DEBUG", "").lower() in ("true", "1", "yes")
+        if app_env == "LOCAL" and debug_mode:
+            # Set mock auth data for testing
+            if not st.session_state.get("authenticated"):
+                st.session_state.auth_data = {
+                    "session_id": "local-debug-session",
+                    "user_email": "local@test.com",
+                    "user_display_name": "Local Test User",
+                    "login_at": datetime.now(timezone.utc).isoformat()
+                }
+                st.session_state.authenticated = True
+            return st.session_state.get("auth_data")
+        
         # Initialize retry counter on first run
         if "_auth_retry_count" not in st.session_state:
             st.session_state._auth_retry_count = 0
@@ -234,9 +253,9 @@ class AuthManager:
         # Cookie not available yet — CookieController may still be mounting.
         # Retry by calling st.rerun() to give the frontend another render cycle.
         # sleep() gives the frontend time to mount the component before retrying.
-        if st.session_state._auth_retry_count < 3:
+        if st.session_state._auth_retry_count < 5:
             st.session_state._auth_retry_count += 1
-            sleep(0.5)
+            sleep(1.0)
             st.rerun()
             st.stop()  # Safety net: guarantee execution halts
             return None
@@ -294,21 +313,16 @@ class AuthManager:
     def logout(self):
         """Logout user - clear cookie and session."""
         try:
-            # Clear cookie by setting expired date (same as auth_utils)
+            # Remove cookie — sleep BEFORE remove so CookieController has
+            # time to mount on fresh page loads (?action=logout); the
+            # component is async and remove() silently fails if called early.
             try:
-                past = datetime.now(timezone.utc) - timedelta(days=1)
                 domain = get_current_domain()
-                
-                cookie_params = {
-                    "expires": past,
-                    "path": "/",
-                    'domain': domain,
-                }
-                
-                # Expire cookie by setting empty value with past date
                 controller = self._get_controller()
-                controller.set(COOKIE_NAME, "", **cookie_params)
-                logger.info(f"Cookie cleared with domain: {domain}")
+                sleep(2.0)
+                controller.remove(COOKIE_NAME, path="/", domain=domain or None)
+                sleep(0.5)  # Allow frontend to process the removal
+                logger.info(f"Cookie removed with domain: {domain}")
             except Exception as e:
                 logger.warning(f"Cookie clear warning: {e}")
             

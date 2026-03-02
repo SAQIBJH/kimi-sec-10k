@@ -94,6 +94,22 @@ def main():
 
     /* Dropdown icon */
     div[data-testid="stSelectbox"] svg { color: #666666 !important; }
+
+    /* View button - red filled style for col1 (View by Company) */
+    [data-testid="stColumn"]:nth-of-type(2) div[data-testid="stButton"] > button {
+        background-color: #D62E2F !important;
+        color: white !important;
+        width: 100% !important;
+        height: 41px !important;
+        font-family: 'Montserrat', sans-serif !important;
+        font-weight: 700 !important;
+        font-size: 16px !important;
+        border-radius: 8px !important;
+        border: none !important;
+    }
+    [data-testid="stColumn"]:nth-of-type(2) div[data-testid="stButton"] > button:hover {
+        background-color: #B71C1C !important;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -122,16 +138,8 @@ def main():
         # No need to save ticker to local storage - it will be passed via query params
         save_market_data_state()
         if company:
-            st.markdown(f'''
-                <a href="/market_data?ticker={company}" target="_self" style="background-color: #D62E2F; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box;">
-                    View
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
-                        <path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>
-                        <path d="M14 4h6v6"/>
-                        <path d="M21 3 12 12"/>
-                    </svg>
-                </a>
-            ''', unsafe_allow_html=True)
+            if st.button("View  ↗", key="view_company_btn", use_container_width=True):
+                st.switch_page("pages/market_data.py")
         else:
             st.markdown('''
                 <div style="background-color: #cccccc; color: white; font-family: Montserrat, sans-serif; font-weight: 700; font-size: 16px; border-radius: 8px; padding: 8px 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; height: 41px; box-sizing: border-box; cursor: not-allowed;">
