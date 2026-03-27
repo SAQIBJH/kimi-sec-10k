@@ -276,7 +276,9 @@ def run_step(step_num: int, ticker: str, year: int, form: str) -> Tuple[bool, st
 
         elif step_num == 2:
             from scripts.load_filings_to_db import scan_and_load
-            scan_and_load(filter_ticker=ticker, filter_year=str(year), filter_doc_type=form)
+            # For 10-Q: dirs are 10-Q-Q1/Q2/Q3 — don't filter by exact doc_type
+            doc_filter = None if form == '10-Q' else form
+            scan_and_load(filter_ticker=ticker, filter_year=str(year), filter_doc_type=doc_filter)
             return True, ""
 
         elif step_num == 3:
@@ -362,7 +364,7 @@ def run_all(args):
             sys.exit(1)
 
     years     = args.years
-    form_type = DEFAULT_FORM
+    form_type = getattr(args, 'form', DEFAULT_FORM)
     steps     = list(range(args.from_step, 8))  # steps from_step → 7
 
     print("\n" + "═" * 60)
@@ -500,6 +502,8 @@ Examples:
     parser.add_argument("--ticker",       type=str,  help="Process only this ticker")
     parser.add_argument("--years",        type=int,  nargs="+", default=DEFAULT_YEARS,
                         help=f"Fiscal years to process (default: {DEFAULT_YEARS})")
+    parser.add_argument("--form",         type=str,  default=DEFAULT_FORM,
+                        help=f"Filing form type: 10-K or 10-Q (default: {DEFAULT_FORM})")
     parser.add_argument("--from-step",   type=int,  default=1, choices=range(1, 8),
                         help="Start from this step number (default: 1)")
     parser.add_argument("--retry-failed", action="store_true",

@@ -63,3 +63,6 @@ attrs>=23.0.0  # Used by: app/components/companyProfile.py
 # ═══════════════════════════════════════════════════════════════════════════════
 # NOTE: forex-python REMOVED - not used in code. Forex rates fetched from DB.
 # ═══════════════════════════════════════════════════════════════════════════════
+
+azure-storage-blob>=12.19.0
+azure-core>=1.30.0

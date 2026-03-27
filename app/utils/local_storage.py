@@ -38,10 +38,10 @@ class UserFilterState:
     sec_filing: Optional[str] = None
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'UserFilterState':
         return cls(**data)
@@ -52,43 +52,43 @@ class LocalStorageManager:
     Global utility for managing local storage operations.
     Provides safe get/set/update operations with type validation.
     """
-    
+
     def __init__(self):
         self._cache: Dict[str, Any] = {}
         self._initialized = False
-    
+
     def _get_from_st_state(self, key: str) -> Optional[Any]:
         """Retrieve value from streamlit session state."""
         storage_key = f"ls_{key}"
         if storage_key in st.session_state:
             return st.session_state[storage_key]
         return None
-    
+
     def _set_to_st_state(self, key: str, value: Any) -> None:
         """Store value in streamlit session state."""
         storage_key = f"ls_{key}"
         st.session_state[storage_key] = value
         self._cache[key] = value
-    
+
     def get(
-        self, 
-        key: StorageKey | str, 
+        self,
+        key: StorageKey | str,
         default: Any = None,
         validate_type: Optional[type] = None
     ) -> Any:
         """
         Safely retrieve data from local storage.
-        
+
         Args:
             key: Storage key (enum or string)
             default: Default value if key not found
             validate_type: Optional type to validate against
-            
+
         Returns:
             Stored value or default
         """
         key_str = key.value if isinstance(key, StorageKey) else key
-        
+
         try:
             # Check cache first
             if key_str in self._cache:
@@ -98,38 +98,38 @@ class LocalStorageManager:
                 if value is None:
                     return default
                 self._cache[key_str] = value
-            
+
             # Type validation
             if validate_type is not None and value is not None:
                 if not isinstance(value, validate_type):
                     logger.warning(f"Type mismatch for key {key_str}: expected {validate_type}, got {type(value)}")
                     return default
-            
+
             return value
-            
+
         except Exception as e:
             logger.error(f"Error retrieving local storage key {key_str}: {e}")
             return default
-    
+
     def set(
-        self, 
-        key: StorageKey | str, 
+        self,
+        key: StorageKey | str,
         value: Any,
         serializer: Optional[Callable[[Any], str]] = None
     ) -> bool:
         """
         Safely store data in local storage.
-        
+
         Args:
             key: Storage key (enum or string)
             value: Value to store
             serializer: Optional custom serializer
-            
+
         Returns:
             True if successful, False otherwise
         """
         key_str = key.value if isinstance(key, StorageKey) else key
-        
+
         try:
             # Serialize if needed
             if serializer is not None:
@@ -138,48 +138,48 @@ class LocalStorageManager:
                 value = value.isoformat()
             elif isinstance(value, (dict, list)):
                 value = json.dumps(value)
-            
+
             self._set_to_st_state(key_str, value)
             logger.debug(f"Stored value for key: {key_str}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error storing local storage key {key_str}: {e}")
             return False
-    
+
     def update(
-        self, 
-        key: StorageKey | str, 
+        self,
+        key: StorageKey | str,
         updater: Callable[[Any], Any],
         default: Any = None
     ) -> bool:
         """
         Update existing value using a transformer function.
-        
+
         Args:
             key: Storage key
             updater: Function that receives current value and returns new value
             default: Default value if key doesn't exist
-            
+
         Returns:
             True if successful, False otherwise
         """
         current = self.get(key, default)
         new_value = updater(current)
         return self.set(key, new_value)
-    
+
     def delete(self, key: StorageKey | str) -> bool:
         """
         Remove a key from local storage.
-        
+
         Args:
             key: Storage key to remove
-            
+
         Returns:
             True if successful, False otherwise
         """
         key_str = key.value if isinstance(key, StorageKey) else key
-        
+
         try:
             storage_key = f"ls_{key_str}"
             if storage_key in st.session_state:
@@ -190,7 +190,7 @@ class LocalStorageManager:
         except Exception as e:
             logger.error(f"Error deleting local storage key {key_str}: {e}")
             return False
-    
+
     def clear(self) -> bool:
         """Clear all local storage data."""
         try:
@@ -202,7 +202,7 @@ class LocalStorageManager:
         except Exception as e:
             logger.error(f"Error clearing local storage: {e}")
             return False
-    
+
     def get_filter_state(self) -> UserFilterState:
         """Get user's filter state from local storage."""
         data = self.get(StorageKey.FILTER_STATE, {})
@@ -212,25 +212,25 @@ class LocalStorageManager:
             except json.JSONDecodeError:
                 data = {}
         return UserFilterState.from_dict(data)
-    
+
     def save_filter_state(self, state: UserFilterState) -> bool:
         """Save user's filter state to local storage."""
         return self.set(StorageKey.FILTER_STATE, state.to_dict())
-    
+
     def sync_to_session_state(self) -> None:
         """
         Sync local storage values to streamlit session state.
         Call this at app initialization.
         """
         filter_state = self.get_filter_state()
-        
+
         # Map to session state with standard keys
         st.session_state.sec_filing = filter_state.sec_filing
         st.session_state.start_date = filter_state.start_date
         st.session_state.end_date = filter_state.end_date
-        
+
         logger.debug("Synced local storage to session state")
-    
+
     def sync_from_session_state(self) -> bool:
         """
         Save current session state to local storage.

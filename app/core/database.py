@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 
-from .config import config, DatabaseConfig
+from .config import config
 
 logger = logging.getLogger(__name__)
 
@@ -56,9 +56,20 @@ class DatabaseManager:
     
     def connect(self) -> None:
         """
-        Initialize database connection pool.
+        Initialize database connection pool with SSL and connection validation.
         """
         try:
+            ssl_enabled = self._config.ssl_enabled
+            # Get actual connect_args (triggers late-binding if needed)
+            connect_args = self._config.connect_args
+            
+            if ssl_enabled:
+                # Log the actual CA path being used (after late-binding)
+                actual_ca = connect_args.get('ssl', {}).get('ca') if connect_args else None
+                logger.info(f"SSL enabled — using CA: {actual_ca}")
+            else:
+                logger.debug("SSL disabled — connecting without SSL")
+
             self._engine = create_engine(
                 self._config.connection_string,
                 poolclass=QueuePool,
@@ -66,10 +77,30 @@ class DatabaseManager:
                 max_overflow=self._config.max_overflow,
                 pool_timeout=self._config.pool_timeout,
                 pool_recycle=self._config.pool_recycle,
-                echo=config.debug,
+                echo=False,  # Disable SQL query logging to reduce log noise
+                connect_args=connect_args,
             )
             self._session_factory = sessionmaker(bind=self._engine)
-            logger.info("Database connection pool initialized successfully")
+            
+            # Test the connection immediately
+            try:
+                logger.debug(f"Testing database connection to: {self._config.database} as {self._config.user}@{self._config.host}:{self._config.port}")
+                with self._engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                logger.debug(f"✓ Database connection successful: {self._config.database}")
+            except Exception as test_err:
+                logger.error(f"Database connection test failed: {test_err}")
+                logger.error(f"Connection details: host={self._config.host}, "
+                           f"port={self._config.port}, database={self._config.database}, "
+                           f"user={self._config.user}, ssl_enabled={self._config.ssl_enabled}")
+                logger.error(f"Hint: User '{self._config.user}' may not have access to database '{self._config.database}'")
+                logger.error(f"      Check grants with: SHOW GRANTS FOR '{self._config.user}'@'%';")
+                raise DatabaseConnectionError(
+                    f"Database connection test failed. Check credentials, network access, "
+                    f"and SSL configuration. Error: {test_err}"
+                )
+        except DatabaseConnectionError:
+            raise
         except Exception as e:
             logger.error(f"Failed to initialize database connection: {e}")
             raise DatabaseConnectionError(f"Database connection failed: {e}")

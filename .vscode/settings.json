@@ -1,4 +1,63 @@
 {
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "python.terminal.activateEnvInCurrentTerminal": true,
+    "python.analysis.extraPaths": [
+        "${workspaceFolder}/app"
+    ],
+    "python.analysis.include": [
+        "app/**/*.py"
+    ],
+    "python.analysis.exclude": [
+        "**/.venv/**",
+        "**/__pycache__/**",
+        "**/.git/**"
+    ],
+    "python.analysis.typeCheckingMode": "off",
+    "python.analysis.indexing": false,
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportGeneralTypeIssues": "none",
+        "reportAttributeAccessIssue": "none",
+        "reportIndexIssue": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportOptionalSubscript": "none",
+        "reportOperatorIssue": "none",
+        "reportReturnType": "none",
+        "reportArgumentType": "none",
+        "reportCallIssue": "none",
+        "reportAssignmentType": "none",
+        "reportMissingImports": "none",
+        "reportMissingModuleSource": "none"
+    },
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.autoSearchPaths": true,
+    "python.analysis.packageIndexDepths": [
+        {
+            "name": "sklearn",
+            "depth": 2
+        },
+        {
+            "name": "matplotlib",
+            "depth": 2
+        },
+        {
+            "name": "scipy",
+            "depth": 2
+        },
+        {
+            "name": "django",
+            "depth": 2
+        },
+        {
+            "name": "flask",
+            "depth": 2
+        },
+        {
+            "name": "fastapi",
+            "depth": 2
+        }
+    ],
     "chat.mcp.serverSampling": {
         "kimi-sec-10k-1/.vscode/mcp.json: figma": {
             "allowedModels": [

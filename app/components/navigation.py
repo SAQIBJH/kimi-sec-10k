@@ -38,7 +38,8 @@ def render_header(full_width: bool = True, current_page: str = "market_data",tic
     is_company_profile = current_page == "company_profile"
     is_earnings_calls = current_page == "earnings_calls"
 
-    actual_ticker = st.query_params.get("ticker", ticker) or ticker
+    # Priority: session state active_ticker > URL query param > function argument
+    actual_ticker = st.session_state.get("active_ticker") or st.query_params.get("ticker", ticker) or ticker
     
     # Build header HTML - EXACT Figma specifications
     header_html = '''<style>
@@ -115,15 +116,17 @@ def render_header(full_width: bool = True, current_page: str = "market_data",tic
     line-height: 1;
     padding: 8px 18px;
     border-radius: 6px;
-    border: 1px solid #000;
+    border: 1px solid #d62e2f;
     background-color: white !important;
     transition: all 0.18s ease;
     margin-right: 40px;
+    cursor: pointer;
   }
 
   .logout-btn:hover {
     background-color: #d62e2f !important;
     color: #ffffff;
+    border-color: transparent;
     box-shadow: 0 2px 6px rgba(214, 46, 47, 0.25);
   }
 
@@ -610,7 +613,7 @@ def render_company_header(company_name: str, ticker: str, exchange: str = "NYSE"
                 </span>
             </div>
         </div>
-        <a href="/company_filings" target="_self" class="company-documents-btn">
+        <a href="/company_filings?ticker={ticker}" target="_self" class="company-documents-btn">
             <span class="text">
               <span>Company</span>
               <span>Documents</span>
@@ -641,9 +644,9 @@ def render_company_header(company_name: str, ticker: str, exchange: str = "NYSE"
         selected_ticker = company_options[selected]
         # Update URL with new ticker - this automatically triggers a rerun
         st.query_params["ticker"] = selected_ticker
-        # Note: st.rerun() is not needed here because:
-        # 1. Streamlit automatically reruns after callbacks complete
-        # 2. Changing query_params also triggers a rerun
+        # Also update active_ticker so the cross-page sync logic doesn't
+        # override the new selection with the stale old ticker
+        st.session_state.active_ticker = selected_ticker
     
     # The selectbox is positioned via CSS to align with the header
     st.selectbox(

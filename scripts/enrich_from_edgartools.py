@@ -31,17 +31,42 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Sections to extract from each filing, in priority order.
+# 10-K sections:
 # part_ii_item_8 = Financial Statements & Notes (primary financial data)
 # part_ii_item_7 = MD&A (management discussion with key metric commentary)
 # part_i_item_1  = Business Description (segment definitions, employee count)
 # part_i_item_2  = Properties (store counts, lease info)
-TARGET_SECTIONS = [
+TARGET_SECTIONS_10K = [
     "part_ii_item_8",
     "part_ii_item_7",
     "part_i_item_1",
     "part_i_item_2",
     "part_ii_item_7a",
 ]
+
+# 10-Q sections (different Part/Item numbering):
+# part_i_item_1  = Financial Statements (quarterly)
+# part_i_item_2  = MD&A (quarterly)
+# part_i_item_3  = Quantitative/Qualitative Market Risk
+# part_ii_item_1 = Legal Proceedings
+# part_ii_item_1a = Risk Factors
+TARGET_SECTIONS_10Q = [
+    "part_i_item_1",
+    "part_i_item_2",
+    "part_i_item_3",
+    "part_ii_item_1",
+    "part_ii_item_1a",
+]
+
+# Default for backwards compatibility
+TARGET_SECTIONS = TARGET_SECTIONS_10K
+
+
+def get_target_sections(doc_type: str) -> list:
+    """Return the appropriate section list based on document type."""
+    if doc_type and "10-Q" in doc_type.upper().replace("10Q", "10-Q"):
+        return TARGET_SECTIONS_10Q
+    return TARGET_SECTIONS_10K
 
 # Maximum chars to store per section (keeps cache files manageable)
 MAX_SECTION_CHARS = 150_000
@@ -72,8 +97,12 @@ def discover_filings(ticker_filter=None, year_filter=None, doc_filter=None):
                 if not doc_dir.is_dir():
                     continue
                 doc_type = doc_dir.name
-                if doc_filter and doc_type.upper() != doc_filter.upper():
-                    continue
+                if doc_filter:
+                    # Support matching "10-Q" against "10-Q-Q1", "10-Q-Q2" etc.
+                    filter_upper = doc_filter.upper()
+                    doc_upper = doc_type.upper()
+                    if filter_upper != doc_upper and not doc_upper.startswith(filter_upper):
+                        continue
 
                 html_file = doc_dir / "filing.html"
                 if html_file.exists():
@@ -82,7 +111,7 @@ def discover_filings(ticker_filter=None, year_filter=None, doc_filter=None):
     return found
 
 
-def extract_sections_from_html(html_path: Path) -> dict:
+def extract_sections_from_html(html_path: Path, doc_type: str = "") -> dict:
     """
     Use EdgarTools HTMLParser to extract key SEC sections from a local filing.
 
@@ -106,8 +135,11 @@ def extract_sections_from_html(html_path: Path) -> dict:
     except (AttributeError, Exception):
         pass  # older edgartools version — try anyway
 
+    # Select appropriate section list based on doc type
+    target_sections = get_target_sections(doc_type)
+
     # Extract each target section
-    for section_key in TARGET_SECTIONS:
+    for section_key in target_sections:
         # If we know available sections and this one isn't listed, skip
         if available and section_key not in available:
             continue
@@ -155,7 +187,7 @@ def process_filing(ticker: str, fiscal_year: int, doc_type: str,
     print(f"  [{ticker} {fiscal_year} {doc_type}] "
           f"Extracting from {html_path.name}...")
 
-    sections = extract_sections_from_html(html_path)
+    sections = extract_sections_from_html(html_path, doc_type=doc_type)
 
     if not sections:
         print(f"    WARNING: No section text extracted — skipping")

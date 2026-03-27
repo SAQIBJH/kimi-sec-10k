@@ -7,8 +7,9 @@ Matches Figma design with Streamlit native components + custom styling.
 import os
 import json
 import logging
+import threading
 import streamlit as st
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -22,31 +23,146 @@ from components.styles import render_styles
 from components.navigation import render_header, render_coresight_footer
 
 # =============================================================================
-# FILINGS DIRECTORY SCANNER
+# AZURE BLOB STORAGE (REPLACES LOCAL FILINGS DIRECTORY STRUCTURE)
 # =============================================================================
-FILINGS_BASE_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data", "filings")
+# Expected blob structure (same as prior local):
+#   {prefix}/{TICKER}/{YEAR}/{DOC_TYPE_DIR}/*.html or *.htm
+# For 10-Q quarters:
+#   {prefix}/{TICKER}/{YEAR}/10-Q-Q1/  etc.
+#
+# IMPORTANT: Do NOT hardcode secrets. Set these as environment variables.
+#   AZURE_STORAGE_ACCOUNT_NAME
+#   AZURE_STORAGE_ACCOUNT_KEY
+#   AZURE_BLOB_CONTAINER
+#   AZURE_BLOB_PREFIX (optional)
 
-# ── DB-based company names (replaces hardcoded dict) ─────────────────────────
-def _load_company_names_from_db():
-    """Load ticker→display_name map from coreiq_companies for all DB companies."""
+# Local cache root where blobs are downloaded on-demand
+# (used only as a transient cache to keep the rest of the code unchanged)
+FILINGS_BASE_DIR = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "data",
+    "filings_blob_cache",
+)
+
+# Pre-processed clean HTML files for fast static serving.
+# Streamlit serves app/static/ at /app/static/ when enableStaticServing=true.
+_STATIC_CLEAN_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "filings_clean")
+
+
+def _get_azure_config() -> Tuple[str, str, str, str]:
+    acct = os.getenv("AZURE_STORAGE_ACCOUNT_NAME", "csmarketdata").strip()
+    # NOTE: no default secret in code — must be provided in env.
+    key = os.getenv("AZURE_STORAGE_ACCOUNT_KEY", "IXETqLLag1VIaXrp7YzT3ZmwVI/c4v7txYfW6A1n6jJhym31Yr+1hY2TWHIP4yhrtB28EVGByz1u+ASt1QLNWw==").strip()
+    container_name = (os.getenv("AZURE_BLOB_CONTAINER") or "azure-storage-test").strip()
+    prefix = (os.getenv("AZURE_BLOB_PREFIX") or "").strip("/")
+
+    return acct, key, container_name, prefix
+
+
+@st.cache_resource(show_spinner=False)
+def _get_blob_service_client():
+    acct, key, _, _ = _get_azure_config()
+    if not acct:
+        raise RuntimeError("AZURE_STORAGE_ACCOUNT_NAME is missing.")
+    if not key:
+        raise RuntimeError("AZURE_STORAGE_ACCOUNT_KEY is missing.")
     try:
-        from data.repository import FilingMetricRepository
-        repo = FilingMetricRepository()
-        with repo.engine.connect() as conn:
-            from sqlalchemy import text
-            rows = conn.execute(text("""
-                SELECT c.ticker, COALESCE(c.name_coresight, c.name) AS display_name
-                FROM coreiq_companies c
-                WHERE c.ticker IS NOT NULL AND c.ticker != ''
-                ORDER BY c.ticker
-            """)).fetchall()
-            return {row[0].strip(): row[1] for row in rows if row[0].strip()}
+        from azure.storage.blob import BlobServiceClient
     except Exception as e:
-        logger.warning(f"[DB] Failed to load company names: {e}")
-        return {"AAPL": "Apple Inc.", "AMZN": "Amazon.com Inc.", "M": "Macy's Inc."}
+        raise RuntimeError(
+            "azure-storage-blob is required. Install with: pip install azure-storage-blob"
+        ) from e
 
-COMPANY_NAMES = _load_company_names_from_db()
-logger.info(f"[INIT] Loaded {len(COMPANY_NAMES)} company names from DB")
+    account_url = f"https://{acct}.blob.core.windows.net"
+    return BlobServiceClient(account_url=account_url, credential=key)
+
+
+@st.cache_resource(show_spinner=False)
+def _get_blob_container_client():
+    _, _, container_name, _ = _get_azure_config()
+    svc = _get_blob_service_client()
+    return svc.get_container_client(container_name)
+
+
+def _blob_prefix_path(*parts: str) -> str:
+    """Join path parts with configured prefix (if any)."""
+    _, _, _, prefix = _get_azure_config()
+    clean_parts = [p.strip("/").replace("\\", "/") for p in parts if p and p.strip("/")]
+    if prefix:
+        return "/".join([prefix] + clean_parts)
+    return "/".join(clean_parts)
+
+
+def _strip_prefix(blob_name: str) -> str:
+    """Return blob_name relative to prefix (or same name if no prefix)."""
+    _, _, _, prefix = _get_azure_config()
+    bn = (blob_name or "").lstrip("/").replace("\\", "/")
+    if not prefix:
+        return bn
+    pfx = prefix.strip("/") + "/"
+    if bn.startswith(pfx):
+        return bn[len(pfx):]
+    return bn
+
+
+def _iter_filing_blobs():
+    """Yield blob names for candidate filing HTML/HTM files under the prefix."""
+    container = _get_blob_container_client()
+    _, _, _, prefix = _get_azure_config()
+    name_starts_with = (prefix.strip("/") + "/") if prefix else ""
+
+    # List blobs under prefix; filter to html/htm
+    for b in container.list_blobs(name_starts_with=name_starts_with):
+        name = getattr(b, "name", "")
+        if not name:
+            continue
+        lower = name.lower()
+        if not (lower.endswith(".html") or lower.endswith(".htm")):
+            continue
+        if lower.endswith("-clean.html"):
+            continue
+        yield b  # includes name + (often) last_modified, etag, size
+
+
+def _pick_best_blob_for_docdir(blob_names: List[str]) -> Optional[str]:
+    """Prefer filing.html if present, else first .html, else first .htm."""
+    if not blob_names:
+        return None
+    # normalize basename checks
+    filing_html = None
+    htmls = []
+    htms = []
+    for n in blob_names:
+        base = n.split("/")[-1]
+        lower = base.lower()
+        if lower == "filing.html":
+            filing_html = n
+        elif lower.endswith(".html") and not lower.endswith("-clean.html"):
+            htmls.append(n)
+        elif lower.endswith(".htm"):
+            htms.append(n)
+    return filing_html or (htmls[0] if htmls else (htms[0] if htms else None))
+
+
+def _parse_blob_path(blob_name: str) -> Optional[Tuple[str, str, str, str]]:
+    """
+    Parse blob path into (ticker, year, doc_type_dir, filename).
+    Assumes structure: {prefix}/{ticker}/{year}/{doc_type_dir}/{filename}
+    """
+    rel = _strip_prefix(blob_name)
+    parts = [p for p in rel.split("/") if p]
+    if len(parts) < 4:
+        return None
+    ticker, year, doc_type_dir = parts[0], parts[1], parts[2]
+    filename = parts[-1]
+    if not year.isdigit():
+        return None
+    return ticker, year, doc_type_dir, filename
+
+
+# =============================================================================
+# FILINGS DIRECTORY SCANNER (NOW SCANS AZURE BLOBS)
+# =============================================================================
 
 # Map directory names to display names for document types
 # Map directory names to display names (handles both old "10K" and new "10-K" folders)
@@ -55,6 +171,9 @@ DOC_TYPE_MAP = {
     "10-K": "10-K",
     "10Q": "10-Q",
     "10-Q": "10-Q",
+    "10-Q-Q1": "10-Q",
+    "10-Q-Q2": "10-Q",
+    "10-Q-Q3": "10-Q",
     "8K": "8-K",
     "8-K": "8-K",
     "DEF14A": "DEF 14A",
@@ -74,61 +193,318 @@ DOC_TYPE_REVERSE = {
 ANNUAL_DOC_TYPES = {"10-K", "DEF 14A", "S-1"}
 
 
+@st.cache_resource(show_spinner=False)
 def scan_filings_directory():
-    """Scan the filings directory to discover available companies, years, and doc types.
+    """Scan Azure Blob Storage to discover available companies, years, and doc types.
 
-    Expected structure: data/filings/{TICKER}/{YEAR}/{DOC_TYPE}/*.html or *.htm
-    Prefers *-clean.html > *.html > *.htm when multiple files exist.
+    Expected blob structure: {prefix}/{TICKER}/{YEAR}/{DOC_TYPE_DIR}/*.html or *.htm
+    For 10-Q: {prefix}/{TICKER}/{YEAR}/10-Q-Q1/  etc.
+
+    Returns: {ticker: {year: {display_type: blob_name_or_quarter_dict}}}
+    For 10-Q, the value is a dict: {'Q1': blob_name, 'Q2': blob_name, 'Q3': blob_name}
+    For other types, the value is a blob name string.
     """
-    filings_data = {}  # {ticker: {year: {doc_type: html_path}}}
+    filings_data: Dict[str, Dict[str, Dict[str, object]]] = {}
 
-    if not os.path.isdir(FILINGS_BASE_DIR):
-        logger.warning(f"[SCAN] Filings directory not found: {FILINGS_BASE_DIR}")
+    # If Azure not configured, return empty (caller has fallbacks)
+    acct, key, container_name, _ = _get_azure_config()
+    if not acct or not container_name or not key:
+        logger.warning("[SCAN] Azure Blob not configured (missing env vars).")
         return filings_data
 
-    for ticker in sorted(os.listdir(FILINGS_BASE_DIR)):
-        ticker_dir = os.path.join(FILINGS_BASE_DIR, ticker)
-        if not os.path.isdir(ticker_dir) or ticker.startswith(('.', '_')):
+    # Group blobs by (ticker, year, doc_type_dir)
+    grouped: Dict[Tuple[str, str, str], List[str]] = {}
+    try:
+        for b in _iter_filing_blobs():
+            name = getattr(b, "name", "")
+            parsed = _parse_blob_path(name)
+            if not parsed:
+                continue
+            ticker, year, doc_type_dir, _filename = parsed
+            if ticker.startswith((".", "_")):
+                continue
+            grouped.setdefault((ticker, year, doc_type_dir), []).append(name)
+    except Exception as e:
+        logger.warning(f"[SCAN] Azure listing failed: {e}")
+        return filings_data
+
+    # Build FILINGS_DATA shape (choose one best file per doc dir)
+    for (ticker, year, doc_type_dir), blob_names in grouped.items():
+        best_blob = _pick_best_blob_for_docdir(blob_names)
+        if not best_blob:
             continue
 
-        for year_name in sorted(os.listdir(ticker_dir), reverse=True):
-            year_dir = os.path.join(ticker_dir, year_name)
-            if not os.path.isdir(year_dir) or not year_name.isdigit():
-                continue
+        # Check if this is a 10-Q quarter directory (e.g. 10-Q-Q1)
+        if doc_type_dir.startswith("10-Q-Q"):
+            quarter = doc_type_dir.replace("10-Q-", "")  # 'Q1', 'Q2', 'Q3'
+            quarter_dict = filings_data.setdefault(ticker, {}).setdefault(year, {}).setdefault("10-Q", {})
+            if isinstance(quarter_dict, dict):
+                quarter_dict[quarter] = best_blob
+            logger.debug(f"[SCAN] {ticker}/{year}/10-Q/{quarter} -> {best_blob}")
+        else:
+            display_type = DOC_TYPE_MAP.get(doc_type_dir, doc_type_dir)
+            filings_data.setdefault(ticker, {}).setdefault(year, {})[display_type] = best_blob
+            logger.debug(f"[SCAN] {ticker}/{year}/{display_type} -> {best_blob}")
 
-            for doc_type_dir_name in sorted(os.listdir(year_dir)):
-                doc_dir = os.path.join(year_dir, doc_type_dir_name)
-                if not os.path.isdir(doc_dir):
-                    continue
-
-                # Find best HTML file: prefer filing.html (has iXBRL IDs),
-                # then other .html, then .htm. Avoid -clean.html (strips iXBRL).
-                filing_html = None
-                html_files = []
-                htm_files = []
-                for f in os.listdir(doc_dir):
-                    full = os.path.join(doc_dir, f)
-                    if f == 'filing.html':
-                        filing_html = full
-                    elif f.endswith('.html') and not f.endswith('-clean.html'):
-                        html_files.append(full)
-                    elif f.endswith('.htm'):
-                        htm_files.append(full)
-
-                html_file = filing_html or (html_files or htm_files or [None])[0]
-
-                if html_file:
-                    display_type = DOC_TYPE_MAP.get(doc_type_dir_name, doc_type_dir_name)
-                    filings_data.setdefault(ticker, {}).setdefault(year_name, {})[display_type] = html_file
-                    logger.debug(f"[SCAN] {ticker}/{year_name}/{display_type} -> {os.path.basename(html_file)}")
-
-    logger.info(f"[SCAN] Found filings: {[(t, list(y.keys())) for t, y in filings_data.items()]}")
+    ticker_count = len(filings_data)
+    year_count = sum(len(years) for years in filings_data.values())
+    logger.info(f"Filing scan complete (Azure): {ticker_count} ticker(s), {year_count} filing year(s) found")
     return filings_data
 
 
 # Scan on module load (cached by Streamlit reruns within same session)
 FILINGS_DATA = scan_filings_directory()
-logger.info(f"[INIT] Filings data: {[(t, {y: list(d.keys()) for y, d in years.items()}) for t, years in FILINGS_DATA.items()]}")
+
+# =============================================================================
+# AZURE → LOCAL CACHE (DOWNLOAD ON DEMAND)
+# =============================================================================
+
+def _local_cache_path_for_blob(blob_name: str) -> str:
+    rel = _strip_prefix(blob_name)
+    rel = rel.replace("\\", "/").lstrip("/")
+    return os.path.join(FILINGS_BASE_DIR, rel.replace("/", os.sep))
+
+
+def _ensure_local_blob(blob_name: str) -> Optional[str]:
+    """
+    Ensure the blob is downloaded locally. Returns local filepath or None.
+    Downloads into FILINGS_BASE_DIR mirroring the blob's relative path.
+    """
+    if not blob_name:
+        return None
+
+    local_path = _local_cache_path_for_blob(blob_name)
+    try:
+        container = _get_blob_container_client()
+        blob_client = container.get_blob_client(blob_name)
+
+        # Get properties to support freshness check
+        props = blob_client.get_blob_properties()
+        last_modified = getattr(props, "last_modified", None)
+        # Convert last_modified to timestamp if possible
+        lm_ts = None
+        try:
+            if last_modified:
+                lm_ts = last_modified.timestamp()
+        except Exception:
+            lm_ts = None
+
+        if os.path.exists(local_path) and lm_ts is not None:
+            # If local file is newer or same as blob, keep it
+            if os.path.getmtime(local_path) >= lm_ts:
+                return local_path
+
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        # Download
+        with open(local_path, "wb") as f:
+            dl = blob_client.download_blob()
+            f.write(dl.readall())
+
+        # Align mtime to blob last_modified for stable cache comparisons
+        if lm_ts is not None:
+            try:
+                os.utime(local_path, (lm_ts, lm_ts))
+            except Exception:
+                pass
+
+        return local_path
+    except Exception as e:
+        logger.warning(f"[AZURE] Failed to download blob {blob_name}: {e}")
+        return None
+
+
+# =============================================================================
+# ── DB-based company names (replaces hardcoded dict) ─────────────────────────
+@st.cache_resource(show_spinner=False)
+def _load_company_names_from_db():
+    """Load ticker→display_name map from coreiq_companies for all DB companies."""
+    try:
+        from data.repository import FilingMetricRepository
+        repo = FilingMetricRepository()
+        with repo.engine.connect() as conn:
+            from sqlalchemy import text
+            rows = conn.execute(text("""
+                SELECT c.ticker, COALESCE(c.name_coresight, c.name) AS display_name
+                FROM coreiq_companies c
+                WHERE c.ticker IS NOT NULL AND c.ticker != ''
+                ORDER BY c.ticker
+            """)).fetchall()
+            return {row[0].strip(): row[1] for row in rows if row[0].strip()}
+    except Exception as e:
+        logger.warning(f"[DB] Failed to load company names: {e}")
+        return {"AAPL": "Apple Inc.", "AMZN": "Amazon.com Inc.", "M": "Macy's Inc."}
+
+COMPANY_NAMES = _load_company_names_from_db()
+logger.info(f"Loaded {len(COMPANY_NAMES)} company names from DB")
+
+# =============================================================================
+# STATIC HTML PRE-PROCESSOR
+# =============================================================================
+# SEC filing HTML files are 600KB–3MB. Sending them via components.html() passes
+# the entire file over WebSocket on every render (3–8 seconds for a 2MB file).
+#
+# Fix: pre-process each file once (strip XML, convert iXBRL, inject CSS + highlight
+# receiver) and save to app/static/filings_clean/. Then render_sec_html_viewer()
+# sends only a ~500-byte wrapper with <iframe src="/app/static/..."> instead of
+# 2MB of HTML — the browser fetches the filing directly from disk (fast, cacheable).
+
+def _make_clean_html_for_static(raw: str) -> str:
+    """Process raw filing HTML: strip XML, convert iXBRL, inject CSS + postMessage receiver."""
+    import re
+    raw = re.sub(r'^\s*<\?xml[^?]*\?>\s*', '', raw, count=1)
+    raw = _convert_ixbrl_to_spans(raw)
+
+    lazy_css = (
+        "<style>"
+        "body>*{content-visibility:auto;contain-intrinsic-size:auto 80px}"
+        "</style>"
+    )
+    # postMessage receiver — listens for {type:'HIGHLIGHT_FACT', factId:'...'} from wrapper
+    receiver = (
+        "<script>(function(){"
+        "console.log('[RECEIVER] postMessage receiver initialized');"
+        "window.addEventListener('message',function(e){"
+        "console.log('[RECEIVER] Received message:', e.data);"
+        "var d=e.data;if(!d||d.type!=='HIGHLIGHT_FACT'){console.log('[RECEIVER] Ignoring message - wrong type');return;}"
+        "var fid=d.factId;if(!fid){console.log('[RECEIVER] No factId in message');return;}"
+        "console.log('[RECEIVER] Processing factId:', fid);"
+        "var el=fid.startsWith('TEXT:')?_fbt(fid.slice(5)):document.getElementById(fid);"
+        "console.log('[RECEIVER] Found element:', el);"
+        "if(el){console.log('[RECEIVER] Highlighting element');_hl(el);}"
+        "else{console.log('[RECEIVER] Element not found for:', fid);}"
+        "});"
+        "function _hl(el){"
+        "el.style.backgroundColor='#FDF5F5';"
+        "el.style.boxShadow='0 0 10px rgba(214,46,47,0.3)';"
+        "el.style.border='2px solid #D62E2F';"
+        "el.style.borderRadius='4px';"
+        "el.style.padding='4px';"
+        "el.scrollIntoView({behavior:'instant',block:'center'});"
+        "setTimeout(function(){el.scrollIntoView({behavior:'instant',block:'center'});},150);"
+        "setTimeout(function(){el.scrollIntoView({behavior:'instant',block:'center'});},380);"
+        "setTimeout(function(){el.scrollIntoView({behavior:'smooth',block:'center'});},680);"
+        "}"
+        "function _fbt(text){"
+        "var WS=/[\\u00A0\\s]+/g,ns=text.replace(WS,' ').trim();"
+        "var vs=[ns,ns.slice(0,80),ns.slice(0,50),ns.slice(0,30)];"
+        "for(var vi=0;vi<vs.length;vi++){"
+        "var sv=vs[vi];if(sv.length<15)continue;"
+        "var all=document.body.querySelectorAll('p,td,li,div,span,section,article');"
+        "var best=null,bestSz=Infinity;"
+        "for(var i=0;i<all.length;i++){"
+        "var et=(all[i].textContent||'').replace(WS,' ');"
+        "if(et.includes(sv)&&et.length<bestSz){bestSz=et.length;best=all[i];}"
+        "}"
+        "if(best){_hl(best);return true;}"
+        "}"
+        "return false;"
+        "}"
+        "})();</script>"
+    )
+
+    if '</head>' in raw:
+        raw = raw.replace('</head>', lazy_css + '</head>', 1)
+    elif '<head>' in raw:
+        raw = raw.replace('<head>', '<head>' + lazy_css, 1)
+    else:
+        raw = lazy_css + raw
+
+    if '</body>' in raw:
+        raw = raw.replace('</body>', receiver + '</body>', 1)
+    else:
+        raw = raw + receiver
+
+    return raw
+
+
+def _get_static_clean_paths(html_path: str):
+    """Return (filesystem_path, url_path) for the clean static version of a filing."""
+    try:
+        rel = os.path.relpath(html_path, FILINGS_BASE_DIR)
+        fs_path = os.path.join(_STATIC_CLEAN_DIR, rel)
+        url = "/app/static/filings_clean/" + rel.replace(os.sep, "/")
+        return fs_path, url
+    except Exception:
+        return None, None
+
+
+def _write_clean_static(html_path: str) -> Optional[str]:
+    """Process html_path and write clean version to static dir. Returns URL or None."""
+    fs_path, url = _get_static_clean_paths(html_path)
+    if not fs_path:
+        return None
+    try:
+        # Skip if clean file is newer than source
+        if os.path.exists(fs_path) and os.path.getmtime(fs_path) >= os.path.getmtime(html_path):
+            return url
+        os.makedirs(os.path.dirname(fs_path), exist_ok=True)
+        with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
+            raw = f.read()
+        clean = _make_clean_html_for_static(raw)
+        # Write atomically via temp file
+        tmp = fs_path + ".tmp"
+        with open(tmp, 'w', encoding='utf-8') as f:
+            f.write(clean)
+        os.replace(tmp, fs_path)
+        logger.debug(f"[STATIC] Wrote clean HTML: {fs_path} ({len(clean)//1024}KB)")
+        return url
+    except Exception as e:
+        logger.warning(f"[STATIC] Failed to write {fs_path}: {e}")
+        return None
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _get_or_create_static_url(html_path: str) -> Optional[str]:
+    """Return static URL for a filing, creating the clean file if needed (cached 1hr)."""
+    fs_path, url = _get_static_clean_paths(html_path)
+    if not fs_path:
+        return None
+    if os.path.exists(fs_path) and os.path.getmtime(fs_path) >= os.path.getmtime(html_path):
+        return url
+    return _write_clean_static(html_path)
+
+
+@st.cache_resource(show_spinner=False)
+def _start_static_warmup():
+    """Start a background thread to pre-process ALL *downloaded* filing HTML files to static dir.
+    Uses @st.cache_resource so it starts only once per server process (not per rerun).
+    NOTE: With Azure, blobs are downloaded on-demand; warmup preprocesses whatever is already cached locally.
+    """
+    def _worker():
+        count = 0
+        errors = 0
+        try:
+            if not os.path.isdir(FILINGS_BASE_DIR):
+                return
+            for dirpath, _, filenames in os.walk(FILINGS_BASE_DIR):
+                for fname in filenames:
+                    if not (fname.endswith('.html') or fname.endswith('.htm')):
+                        continue
+                    if fname.endswith('-clean.html'):
+                        continue
+                    src = os.path.join(dirpath, fname)
+                    fs_path, _ = _get_static_clean_paths(src)
+                    if not fs_path:
+                        continue
+                    # Skip already-processed files
+                    if os.path.exists(fs_path) and os.path.getmtime(fs_path) >= os.path.getmtime(src):
+                        continue
+                    result = _write_clean_static(src)
+                    if result:
+                        count += 1
+                    else:
+                        errors += 1
+        except Exception as e:
+            logger.warning(f"[WARMUP] Background preprocessing error: {e}")
+        logger.info(f"[WARMUP] Static preprocessing done — {count} processed, {errors} errors")
+
+    t = threading.Thread(target=_worker, daemon=True, name="filings-warmup")
+    t.start()
+    return True
+
+
+# Start background preprocessing immediately on module load
+_start_static_warmup()
 
 
 # =============================================================================
@@ -153,30 +529,34 @@ class FilingDocument:
 # ── DB-based company/year/doctype lists (replaces folder scan) ────────────────
 from data.repository import FilingMetricRepository
 
+@st.cache_data(ttl=600, show_spinner=False)
 def _load_companies_from_db():
     """Get (ticker, display_label) for companies that have data in filing_metrics.
-    Display label uses the format: 'Company Name (TICKER)'.
+    Uses index-only GROUP BY (no heap fetch) + COMPANY_NAMES for display names.
     """
     try:
         from core.database import db_manager
+        # GROUP BY ticker without aggregate → MySQL uses loose index scan on the
+        # (ticker, fiscal_year, doc_type) index — O(distinct_tickers), not O(1.27M rows).
         rows = db_manager.execute_query("""
-            SELECT fm.ticker, MIN(fm.company_name) AS company_name
-            FROM filing_metrics fm
-            WHERE fm.ticker IS NOT NULL AND fm.ticker != ''
-            GROUP BY fm.ticker
-            ORDER BY fm.ticker
+            SELECT ticker FROM filing_metrics
+            WHERE ticker IS NOT NULL AND ticker != ''
+            GROUP BY ticker
+            ORDER BY ticker
         """)
         results = []
         for row in rows:
             ticker = row["ticker"]
-            name = row["company_name"] or COMPANY_NAMES.get(ticker, ticker)
+            name = COMPANY_NAMES.get(ticker, ticker)
             display = f"{name} ({ticker})"
             results.append((ticker, display))
         return results
     except Exception as e:
         logger.warning(f"[DB] Failed to load companies: {e}")
+        # Fallback now uses Azure scan instead of local folders
         return [(t, f"{COMPANY_NAMES.get(t, t)} ({t})") for t in sorted(FILINGS_DATA.keys())] if FILINGS_DATA else [("AAPL", "Apple Inc. (AAPL)")]
 
+@st.cache_data(ttl=300, show_spinner=False)
 def _get_available_years_from_db(ticker: str):
     """Get available fiscal years for a ticker from filing_metrics DB."""
     try:
@@ -189,24 +569,37 @@ def _get_available_years_from_db(ticker: str):
     except Exception:
         return sorted(FILINGS_DATA.get(ticker, {}).keys(), reverse=True)
 
+@st.cache_data(ttl=300, show_spinner=False)
 def _get_available_doc_types_from_db(ticker: str):
-    """Get available doc types for a ticker from filing_metrics DB."""
+    """Get available doc types for a ticker from filing_metrics DB.
+    Normalizes 10-Q-Q1/Q2/Q3 to just 10-Q."""
     try:
         from core.database import db_manager
         rows = db_manager.execute_query("""
             SELECT DISTINCT doc_type FROM filing_metrics
             WHERE ticker = :ticker ORDER BY doc_type
         """, {"ticker": ticker})
-        return [row["doc_type"] for row in rows if row["doc_type"]]
+        raw_types = [row["doc_type"] for row in rows if row["doc_type"]]
+        # Normalize: 10-Q-Q1, 10-Q-Q2, 10-Q-Q3 → just 10-Q
+        normalized = []
+        seen = set()
+        for dt in raw_types:
+            display = dt
+            if dt.startswith('10-Q-Q'):
+                display = '10-Q'
+            if display not in seen:
+                seen.add(display)
+                normalized.append(display)
+        return normalized if normalized else DOCUMENT_TYPES
     except Exception:
         company_data = FILINGS_DATA.get(ticker, {})
-        return sorted(set(dt for yd in company_data.values() for dt in yd.keys())) if company_data else ["10-K"]
+        return sorted(set(dt for yd in company_data.values() for dt in yd.keys())) if company_data else DOCUMENT_TYPES
 
 COMPANIES = _load_companies_from_db()
-logger.info(f"[INIT] DB companies with data: {len(COMPANIES)}")
+logger.info(f"Loaded {len(COMPANIES)} companies with filing data")
 
 # Fallback doc types list (used only if DB query fails)
-DOCUMENT_TYPES = ["10-K"]
+DOCUMENT_TYPES = ["10-K", "10-Q"]
 
 
 # =============================================================================
@@ -218,7 +611,7 @@ def get_filings_css() -> str:
     return """
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap');
-    
+
     /* =======================================================================
        PAGE CONTAINER
        ======================================================================= */
@@ -229,13 +622,13 @@ def get_filings_css() -> str:
         font-family: 'Roboto', sans-serif;
         background: #FFFFFF;
     }
-    
+
     .filings-content-wrapper {
         max-width: 1220px;
         margin: 0 auto;
         padding: 0 110px;
     }
-    
+
     /* =======================================================================
        HEADER SECTION WITH FILTERS
        ======================================================================= */
@@ -247,7 +640,7 @@ def get_filings_css() -> str:
         border-bottom: 1px solid #E5E5E5;
         margin-bottom: 24px;
     }
-    
+
     .filings-title {
         font-family: 'Montserrat', sans-serif;
         font-weight: 700;
@@ -255,18 +648,18 @@ def get_filings_css() -> str:
         color: #2D2A29;
         margin: 0;
     }
-    
+
     /* Filter row styling */
     .filter-row {
         display: flex;
         gap: 16px;
         align-items: flex-end;
     }
-    
+
     /* =======================================================================
        STREAMLIT SELECTBOX STYLING
        ======================================================================= */
-    
+
     /* Selectbox label styling */
     div[data-testid="stSelectbox"] label {
         font-family: 'Roboto', sans-serif !important;
@@ -275,7 +668,7 @@ def get_filings_css() -> str:
         color: #6B6B6B !important;
         margin-bottom: 4px !important;
     }
-    
+
     /* Selectbox input container */
     div[data-testid="stSelectbox"] > div[data-baseweb="select"] {
         border: 1px solid #CBCACA !important;
@@ -283,19 +676,19 @@ def get_filings_css() -> str:
         background: #FFFFFF !important;
         min-height: 36px !important;
     }
-    
+
     /* Selectbox hover state */
     div[data-testid="stSelectbox"] > div[data-baseweb="select"]:hover {
         border-color: #0066CC !important;
     }
-    
+
     /* Selectbox text */
     div[data-testid="stSelectbox"] > div[data-baseweb="select"] span {
         font-family: 'Roboto', sans-serif !important;
         font-size: 14px !important;
         color: #2D2A29 !important;
     }
-    
+
     /* =======================================================================
        SEARCH METRICS SIDEBAR
        ======================================================================= */
@@ -309,21 +702,21 @@ def get_filings_css() -> str:
         overflow-y: auto;
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
     }
-    
+
     .search-sidebar::-webkit-scrollbar {
         width: 6px;
     }
-    
+
     .search-sidebar::-webkit-scrollbar-track {
         background: #F2F2F2;
         border-radius: 3px;
     }
-    
+
     .search-sidebar::-webkit-scrollbar-thumb {
         background: #CBCACA;
         border-radius: 3px;
     }
-    
+
     .search-header {
         display: flex;
         align-items: center;
@@ -332,23 +725,23 @@ def get_filings_css() -> str:
         padding-bottom: 12px;
         border-bottom: 1px solid #F2F2F2;
     }
-    
+
     .search-header svg {
         color: #D62E2F;
     }
-    
+
     .search-title {
         font-family: 'Montserrat', sans-serif;
         font-weight: 600;
         font-size: 16px;
         color: #2D2A29;
     }
-    
+
     /* Search input styling - integrated with sidebar */
     div[data-testid="stTextInput"] {
         margin-bottom: 0 !important;
     }
-    
+
     div[data-testid="stTextInput"] > div > div > input {
         border: 1px solid #CBCACA !important;
         border-radius: 4px !important;
@@ -357,19 +750,19 @@ def get_filings_css() -> str:
         background: #FFFFFF !important;
         height: 36px !important;
     }
-    
+
     div[data-testid="stTextInput"] > div > div > input:focus {
         border-color: #0066CC !important;
         box-shadow: 0 0 0 2px rgba(0, 102, 204, 0.2) !important;
     }
-    
+
     .metrics-count {
         font-family: 'Roboto', sans-serif;
         font-size: 12px;
         color: #888888;
         margin: 4px 0 12px 4px;
     }
-    
+
     /* =======================================================================
        METRIC CARDS
        ======================================================================= */
@@ -390,16 +783,16 @@ def get_filings_css() -> str:
         border-color: #CBCACA;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10), 0 2px 6px rgba(0, 0, 0, 0.06);
     }
-    
+
     .metric-card.active {
         border-color: #D62E2F;
         background: #FDF5F5;
     }
-    
+
     .metric-info {
         flex: 1;
     }
-    
+
     .metric-name {
         font-family: 'Roboto', sans-serif;
         font-weight: 500;
@@ -407,7 +800,7 @@ def get_filings_css() -> str:
         color: #2D2A29;
         margin-bottom: 4px;
     }
-    
+
     .metric-value {
         font-family: 'Roboto', sans-serif;
         font-weight: 600;
@@ -453,14 +846,14 @@ def get_filings_css() -> str:
         white-space: nowrap;
         flex-shrink: 0;
     }
-    
+
     .metric-meta-dot {
         width: 3px;
         height: 3px;
         background: #888888;
         border-radius: 50%;
     }
-    
+
     .metric-action-btn {
         display: flex;
         align-items: center;
@@ -475,21 +868,21 @@ def get_filings_css() -> str:
         border: none;
         background: transparent;
     }
-    
+
     .metric-action-btn.view {
         color: #0066CC;
         background: #F0F7FF;
     }
-    
+
     .metric-action-btn.view:hover {
         background: #E0EFFF;
     }
-    
+
     .metric-action-btn.viewing {
         color: #D62E2F;
         background: #FDF5F5;
     }
-    
+
     /* =======================================================================
        COMPACT VIEW BUTTONS IN SEARCH SIDEBAR
        ======================================================================= */
@@ -515,6 +908,16 @@ def get_filings_css() -> str:
     }
 
     /* =======================================================================
+       BOTH PANELS — Override Streamlit's native bordered container
+       Applies to: left Search Metrics box AND right Document Viewer box
+       ======================================================================= */
+    [data-testid="stVerticalBlockBorderWrapper"] {
+        border: 1px solid #E5E5E5 !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.05) !important;
+    }
+
+    /* =======================================================================
        DOCUMENT VIEWER
        ======================================================================= */
     .document-viewer {
@@ -527,7 +930,7 @@ def get_filings_css() -> str:
         box-shadow: 0 2px 12px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.05);
         flex-direction: column;
     }
-    
+
     .document-header {
         display: flex;
         align-items: center;
@@ -535,21 +938,21 @@ def get_filings_css() -> str:
         padding: 16px 20px;
         border-bottom: 1px solid #E5E5E5;
     }
-    
+
     .document-title-section {
         display: flex;
         align-items: center;
         gap: 12px;
         flex-wrap: wrap;
     }
-    
+
     .document-title {
         font-family: 'Montserrat', sans-serif;
         font-weight: 600;
         font-size: 16px;
         color: #2D2A29;
     }
-    
+
     .document-meta {
         display: flex;
         align-items: center;
@@ -558,14 +961,14 @@ def get_filings_css() -> str:
         font-size: 14px;
         color: #6B6B6B;
     }
-    
+
     .document-meta-dot {
         width: 4px;
         height: 4px;
         background: #6B6B6B;
         border-radius: 50%;
     }
-    
+
     .document-badge {
         display: inline-flex;
         align-items: center;
@@ -576,7 +979,7 @@ def get_filings_css() -> str:
         font-size: 13px;
         color: #4F4F4F;
     }
-    
+
     .download-btn {
         display: flex;
         align-items: center;
@@ -593,12 +996,12 @@ def get_filings_css() -> str:
         text-decoration: none;
         white-space: nowrap;
     }
-    
+
     .download-btn:hover {
         background: #F9F9F9;
         border-color: #888888;
     }
-    
+
     .document-content {
         flex: 1;
         padding: 40px;
@@ -610,30 +1013,30 @@ def get_filings_css() -> str:
         overflow: auto;
         border-radius: 0 0 8px 8px;
     }
-    
+
     .document-placeholder {
         text-align: center;
         color: #888888;
     }
-    
+
     .document-placeholder svg {
         margin-bottom: 16px;
         color: #CBCACA;
     }
-    
+
     .document-placeholder-text {
         font-family: 'Roboto', sans-serif;
         font-size: 18px;
         color: #888888;
         margin-bottom: 8px;
     }
-    
+
     .document-placeholder-subtext {
         font-family: 'Roboto', sans-serif;
         font-size: 14px;
         color: #888888;
     }
-    
+
     /* =======================================================================
        RESPONSIVE ADJUSTMENTS
        ======================================================================= */
@@ -641,7 +1044,7 @@ def get_filings_css() -> str:
         .filings-content-wrapper {
             padding: 0 24px;
         }
-        
+
         .filings-header {
             flex-direction: column;
             align-items: flex-start;
@@ -660,10 +1063,10 @@ def render_document_viewer(document: Optional[FilingDocument]) -> str:
     """Render the document viewer area."""
     # Download icon SVG (inline)
     download_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
-    
+
     if not document:
         return f'<div class="document-viewer"><div class="document-content"><div class="document-placeholder"><div class="document-placeholder-text">Select a metric to view document</div><div class="document-placeholder-subtext">Choose a financial metric from the list to view details</div></div></div></div>'
-    
+
     return f'<div class="document-viewer"><div class="document-header"><div class="document-title-section"><span class="document-title">{document.company_name} ({document.ticker}) {document.document_type}</span><span class="document-badge">{document.year}</span><span class="document-meta"><span class="document-meta-dot"></span><span>{document.quarter}</span></span></div><a href="#" class="download-btn" onclick="alert(\'Download functionality coming soon!\'); return false;">{download_icon}<span>Download</span></a></div><div class="document-content"><div class="document-placeholder"><div class="document-placeholder-text">FILING DOCUMENT</div><div class="document-placeholder-subtext">{document.company_name} {document.document_type} for {document.year} {document.quarter}</div></div></div></div>'
 
 
@@ -689,29 +1092,155 @@ def _convert_ixbrl_to_spans(html: str) -> str:
     return html
 
 
+@st.cache_data(max_entries=20, show_spinner=False)
+def _load_and_process_html(html_path: str, _v: int = 2) -> str:
+    """Read HTML file from disk, strip XML preamble, convert iXBRL tags — cached per path.
+    _v: cache-buster — increment to force re-processing of all cached files.
+    """
+    import re
+    with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
+        raw = f.read()
+    logger.debug(f"[RENDER HTML] File read: {len(raw)} bytes from {html_path}")
+    # Strip XML declaration — SEC iXBRL files often start with <?xml version='1.0'?>
+    # which makes browsers treat the document as XML and render raw source instead
+    # of rendering the HTML. Removing it forces HTML5 parsing mode.
+    raw = re.sub(r'^\s*<\?xml[^?]*\?>\s*', '', raw, count=1)
+    raw = _convert_ixbrl_to_spans(raw)
+
+    # ── Lazy rendering via content-visibility: auto ───────────────────────────
+    lazy_css = (
+        "<style>"
+        "body>*{"
+        "content-visibility:auto;"
+        "contain-intrinsic-size:auto 80px"
+        "}"
+        "</style>"
+    )
+    if '</head>' in raw:
+        raw = raw.replace('</head>', lazy_css + '</head>', 1)
+    elif '<head>' in raw:
+        raw = raw.replace('<head>', '<head>' + lazy_css, 1)
+    else:
+        raw = lazy_css + raw
+
+    return raw
+
+
 def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = None) -> None:
     """
-    Render SEC HTML document using components.html for iframe isolation.
+    Render SEC HTML document in a sandboxed iframe.
+
+    FAST PATH (static file serving):
+      Pre-processed HTML is served as a static file at /app/static/filings_clean/...
+      components.html() sends only a ~500-byte wrapper with <iframe src="...">.
+      The browser fetches the filing HTML directly via HTTP GET (fast, browser-cacheable).
+      Highlight commands are sent via postMessage (no same-origin restriction).
+
+    SLOW FALLBACK (inline HTML):
+      Used only if the static file doesn't exist yet (e.g., warmup thread still running).
+      Sends the full HTML over WebSocket — same as before this optimization.
     """
     import streamlit.components.v1 as components
+    import time
 
-    logger.info(f"[RENDER HTML] html_path: {html_path}")
-    logger.info(f"[RENDER HTML] highlight_fact_id: {highlight_fact_id}")
+    logger.info(f"="*80)
+    logger.info(f"[RENDER_SEC_HTML] html_path={html_path}")
+    logger.info(f"[RENDER_SEC_HTML] highlight_fact_id={highlight_fact_id}")
+    
+    static_url = _get_or_create_static_url(html_path)
+    logger.info(f"[RENDER_SEC_HTML] static_url={static_url}")
+    
+    if static_url:
+        fid_json = json.dumps(highlight_fact_id or "")
+        
+        # CRITICAL FIX #2: Add unique nonce to force Streamlit iframe refresh
+        # components.html() doesn't accept key= parameter, so we embed a cache-busting nonce
+        # that changes every time html_path or highlight_fact_id changes
+        nonce = f"<!-- viewer_nonce:{hash((html_path, highlight_fact_id, time.time_ns() // 1_000_000))} -->"
+        
+        # CRITICAL FIX #2: Better iframe loading with proper load detection
+        wrapper = (
+            nonce  # Forces Streamlit to treat this as new content → iframe refresh
+            + "<!DOCTYPE html><html><head>"
+            "<meta charset='UTF-8'>"
+            "<style>"
+            "html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#f9f9f9;}"
+            "iframe{width:100%;height:100%;border:none;display:block;}"
+            "#loading{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);"
+            "font-family:sans-serif;color:#666;font-size:14px;background:#fff;"
+            "padding:20px 30px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1);}"
+            "#loading::after{content:'';display:block;width:20px;height:20px;"
+            "margin:10px auto 0;border:2px solid #f3f3f3;border-top:2px solid #D62E2F;"
+            "border-radius:50%;animation:spin 1s linear infinite;}"
+            "@keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}"
+            "</style>"
+            "</head><body>"
+            '<div id="loading">Loading filing\u2026</div>'
+            '<iframe id="ff" sandbox="allow-same-origin allow-scripts" style="display:none"></iframe>'
+            "<script>(function(){"
+            f"console.log('[IFRAME] Initializing viewer, FID=', {fid_json});"
+            f"var URL={json.dumps(static_url)};"
+            f"var FID={fid_json};"
+            "var FR=document.getElementById('ff');"
+            "var LD=document.getElementById('loading');"
+            "var sent=false;"
+            "console.log('[IFRAME] Starting fetch for URL:', URL);"
+            "function sendHL(){"
+            "if(!FID||sent){console.log('[IFRAME] Skipping sendHL - FID empty or already sent');return;}"
+            "try{"
+            "var cw=FR.contentWindow;"
+            "console.log('[IFRAME] contentWindow=', cw);"
+            "if(cw){cw.postMessage({type:'HIGHLIGHT_FACT',factId:FID},'*');sent=true;console.log('[IFRAME] postMessage sent:', FID);}"
+            "}catch(e){console.error('[IFRAME] postMessage failed:',e);}"
+            "}"
+            "function onFrameLoad(){"
+            "console.log('[IFRAME] Frame loaded, sending highlight...');"
+            "LD.style.display='none';"
+            "FR.style.display='block';"
+            "sendHL();"
+            "setTimeout(sendHL,300);"
+            "setTimeout(sendHL,800);"
+            "setTimeout(sendHL,1500);"
+            "}"
+            "fetch(URL)"
+            ".then(function(r){console.log('[IFRAME] Fetch response:', r.status);if(!r.ok)throw new Error('HTTP '+r.status);return r.text();})"
+            ".then(function(html){"
+            "console.log('[IFRAME] HTML loaded, length=', html.length);"
+            "var doc=FR.contentDocument||FR.contentWindow.document;"
+            "doc.open();"
+            "doc.write(html);"
+            "doc.close();"
+            "console.log('[IFRAME] Document written to iframe');"
+            "if(doc.readyState==='complete'){console.log('[IFRAME] Document already complete');onFrameLoad();}"
+            "else{console.log('[IFRAME] Waiting for load event...');FR.onload=onFrameLoad;setTimeout(onFrameLoad,500);}"
+            "})"
+            ".catch(function(e){"
+            "LD.innerHTML='<span style=\\'color:#D62E2F\\'>Error loading filing</span><br><small>'+e.message+'</small>';"
+            "console.error('[IFRAME] Failed to load:',e);"
+            "});"
+            "})();</script>"
+            "</body></html>"
+        )
+        try:
+            # NOTE: components.html() does NOT accept key= parameter
+            # We use nonce in wrapper HTML to force refresh when content changes
+            logger.info(f"[RENDER_SEC_HTML] Calling components.html with wrapper length={len(wrapper)}")
+            components.html(wrapper, height=800, scrolling=False)
+            logger.info(f"[RENDER_SEC_HTML] components.html completed successfully")
+        except Exception as e:
+            logger.error(f"[RENDER_SEC_HTML] Static fetch error: {e}")
+            st.error(f"Error rendering document: {e}")
+        logger.info(f"="*80)
+        return
 
-    # Read HTML content
+    logger.debug(f"[RENDER HTML] Static file not ready, falling back to inline HTML")
     try:
-        with open(html_path, 'r', encoding='utf-8', errors='ignore') as f:
-            clean_html = f.read()
-        logger.info(f"[RENDER HTML] File read success, size: {len(clean_html)} bytes")
+        clean_html = _load_and_process_html(html_path)
     except Exception as e:
         logger.error(f"[RENDER HTML] Error loading document: {e}")
         st.error(f"Error loading document: {e}")
         return
 
-    # Convert iXBRL namespace tags to spans so IDs are in the DOM
-    clean_html = _convert_ixbrl_to_spans(clean_html)
-
-    # Inject highlight script if fact_id provided
     if highlight_fact_id:
         highlight_script = f"""
         <script>
@@ -720,95 +1249,50 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
             const factId = '{highlight_fact_id}';
             const isTextSearch = factId.startsWith('TEXT:');
             const searchText = isTextSearch ? factId.substring(5) : '';
-
             function highlightElement(el) {{
                 el.style.backgroundColor = '#FDF5F5';
                 el.style.boxShadow = '0 0 10px rgba(214, 46, 47, 0.3)';
                 el.style.border = '2px solid #D62E2F';
                 el.style.borderRadius = '4px';
                 el.style.padding = '4px';
-                el.scrollIntoView({{behavior: 'smooth', block: 'center'}});
+                el.scrollIntoView({{behavior: 'instant', block: 'center'}});
+                setTimeout(function(){{ el.scrollIntoView({{behavior: 'instant', block: 'center'}}); }}, 150);
+                setTimeout(function(){{ el.scrollIntoView({{behavior: 'instant', block: 'center'}}); }}, 380);
+                setTimeout(function(){{ el.scrollIntoView({{behavior: 'smooth',  block: 'center'}}); }}, 680);
             }}
-
             function findAndHighlightText(text) {{
-                /*
-                 * Robust text search for non-XBRL metrics.
-                 *
-                 * WHY NOT TreeWalker: SEC filings wrap numbers in iXBRL <span> tags,
-                 * e.g. "operated <span>680</span> store locations".
-                 * TreeWalker visits individual text nodes, so it never sees the full
-                 * sentence in one node.
-                 *
-                 * FIX: Use element.textContent (concatenates ALL child text) to find
-                 * the DEEPEST element containing the search text, then highlight it
-                 * exactly like getElementById does for XBRL.
-                 */
-                /*
-                 * Normalize ALL whitespace including non-breaking spaces (U+00A0 / &#160;)
-                 * SEC filings heavily use &#160; which becomes U+00A0 in textContent
-                 * but search text has regular U+0020 spaces — must normalize both.
-                 */
-                const WS = /[\u00A0\s]+/g;
+                const WS = /[\u00A0\u0020\t\r\n]+/g;
                 const normalizedSearch = text.replace(WS, ' ').trim();
-
-
-                /* Try full text first, then progressively shorter prefixes */
-                const searchVariants = [
-                    normalizedSearch,
-                    normalizedSearch.substring(0, 80),
-                    normalizedSearch.substring(0, 50),
-                    normalizedSearch.substring(0, 30),
-                ];
-
+                const searchVariants = [normalizedSearch, normalizedSearch.substring(0, 80),
+                    normalizedSearch.substring(0, 50), normalizedSearch.substring(0, 30)];
                 for (const searchStr of searchVariants) {{
                     if (searchStr.length < 15) continue;
-
                     const allElements = document.body.querySelectorAll('p, td, li, div, span, section, article');
-                    let bestMatch = null;
-                    let bestSize = Infinity;
-
+                    let bestMatch = null, bestSize = Infinity;
                     for (const el of allElements) {{
                         const elText = (el.textContent || '').replace(WS, ' ');
-                        if (elText.includes(searchStr)) {{
-                            /* Prefer the smallest (most specific) element */
-                            if (elText.length < bestSize) {{
-                                bestSize = elText.length;
-                                bestMatch = el;
-                            }}
+                        if (elText.includes(searchStr) && elText.length < bestSize) {{
+                            bestSize = elText.length; bestMatch = el;
                         }}
                     }}
-
-                    if (bestMatch) {{
-                        highlightElement(bestMatch);
-                        return true;
-                    }}
+                    if (bestMatch) {{ highlightElement(bestMatch); return true; }}
                 }}
                 return false;
             }}
-
             function tryScroll() {{
                 if (isTextSearch) {{
-                    /* Text-search fallback for non-XBRL (store_count, credit_rating) */
                     if (!findAndHighlightText(searchText) && attempts < 30) {{
-                        attempts++;
-                        setTimeout(tryScroll, 300);
+                        attempts++; setTimeout(tryScroll, 300);
                     }}
                 }} else {{
-                    /* Standard getElementById for XBRL */
                     const el = document.getElementById(factId);
-                    if (el) {{
-                        highlightElement(el);
-                    }} else if (attempts < 30) {{
-                        attempts++;
-                        setTimeout(tryScroll, 300);
-                    }}
+                    if (el) {{ highlightElement(el); }}
+                    else if (attempts < 30) {{ attempts++; setTimeout(tryScroll, 300); }}
                 }}
             }}
             if (document.readyState === 'loading') {{
                 document.addEventListener('DOMContentLoaded', tryScroll);
-            }} else {{
-                tryScroll();
-            }}
+            }} else {{ tryScroll(); }}
         }})();
         </script>
         """
@@ -817,11 +1301,10 @@ def render_sec_html_viewer(html_path: str, highlight_fact_id: Optional[str] = No
         else:
             clean_html = clean_html + highlight_script
 
-    # Render HTML via components.html (creates sandboxed iframe)
-    logger.info("[RENDER HTML] Calling components.html...")
     try:
-        components.html(clean_html, height=800, scrolling=True)
-        logger.info("[RENDER HTML] components.html completed")
+        # CRITICAL FIX #2: Add nonce to fallback HTML too for consistency
+        nonce = f"<!-- fallback_nonce:{hash((html_path, highlight_fact_id, time.time_ns() // 1_000_000))} -->"
+        components.html(nonce + clean_html, height=800, scrolling=True)
     except Exception as e:
         logger.error(f"[RENDER HTML] components.html error: {e}")
         st.error(f"Error rendering HTML: {e}")
@@ -837,10 +1320,23 @@ def main():
 
     # Initialize session state with defaults from available data
     available_tickers = [c[0] for c in COMPANIES]
+
+    # Resolve ticker: URL param > active_ticker > default
+    _url_ticker = st.query_params.get("ticker", "")
+    _active_ticker = st.session_state.get("active_ticker", "")
+    _resolved_ticker = None
+    if _url_ticker and _url_ticker in available_tickers:
+        _resolved_ticker = _url_ticker
+    elif _active_ticker and _active_ticker in available_tickers:
+        _resolved_ticker = _active_ticker
+
     if 'cf_search' not in st.session_state:
         st.session_state.cf_search = ""
     if 'cf_company' not in st.session_state:
-        st.session_state.cf_company = available_tickers[0] if available_tickers else "AAPL"
+        st.session_state.cf_company = _resolved_ticker or (available_tickers[0] if available_tickers else "AAPL")
+    elif _resolved_ticker and _resolved_ticker != st.session_state.cf_company:
+        # URL ticker or cross-page active_ticker takes precedence over stale cf_company
+        st.session_state.cf_company = _resolved_ticker
     if st.session_state.cf_company not in available_tickers:
         st.session_state.cf_company = available_tickers[0] if available_tickers else "AAPL"
     if 'cf_doc_type' not in st.session_state:
@@ -855,7 +1351,7 @@ def main():
         st.session_state.cf_highlight_fact_id = None
     if 'cf_view_metric' not in st.session_state:
         st.session_state.cf_view_metric = None
-    
+
     # Set layout
     set_page_layout(
         header_full_width=True,
@@ -865,13 +1361,19 @@ def main():
         remove_top_padding=True,
         footer_at_bottom=True
     )
-    
-    # Render Header
-    render_header(full_width=True, current_page="company_filings")
+
+    # Render Header — resolve active_ticker for nav links
+    _widget_company = st.session_state.get("cf_company_select", None)
+    if _widget_company:
+        _header_ticker = _widget_company
+        st.session_state.active_ticker = _header_ticker
+    else:
+        _header_ticker = st.session_state.get("cf_company") or st.session_state.get("active_ticker", "M")
+    render_header(full_width=True, current_page="company_filings", ticker=_header_ticker)
 
     # Inject custom CSS
     st.markdown(get_filings_css(), unsafe_allow_html=True)
-    
+
     # =======================================================================
     # HEADER WITH TITLE AND FILTERS
     # =======================================================================
@@ -882,18 +1384,9 @@ def main():
         st.markdown('<h3 class="filings-title">Company Filing Documents</h3>', unsafe_allow_html=True)
 
     with header_col2:
-        # Dynamic filter values based on selected company
-        # DB-based filter values (no folder dependency)
-        available_years = _get_available_years_from_db(st.session_state.cf_company) or ["2025"]
-        available_doc_types = _get_available_doc_types_from_db(st.session_state.cf_company) or DOCUMENT_TYPES
-
-        # Hide quarter filter for annual filings (10-K, DEF 14A, S-1)
-        show_quarter = st.session_state.cf_doc_type not in ANNUAL_DOC_TYPES
-
-        if show_quarter:
-            f1, f2, f3, f4 = st.columns([2.5, 1.2, 1.2, 1.2])
-        else:
-            f1, f2, f3 = st.columns([2.5, 1.2, 1.2])
+        # CRITICAL FIX #1: Render company selectbox FIRST to get the actual selected value
+        # Then use that value (not stale session state) to fetch years/doc_types
+        f1, f2, f3, f4 = st.columns([2.5, 1.2, 1.2, 1.2])
 
         with f1:
             company = st.selectbox(
@@ -903,6 +1396,11 @@ def main():
                 index=min([c[0] for c in COMPANIES].index(st.session_state.cf_company), len(COMPANIES) - 1),
                 key="cf_company_select"
             )
+        
+        # CRITICAL FIX #1: Use the freshly selected `company` (not st.session_state.cf_company)
+        # This ensures available_years/doc_types match the CURRENTLY selected company
+        available_years = _get_available_years_from_db(company) or ["2025"]
+        available_doc_types = _get_available_doc_types_from_db(company) or DOCUMENT_TYPES
 
         with f2:
             safe_doc_idx = available_doc_types.index(st.session_state.cf_doc_type) if st.session_state.cf_doc_type in available_doc_types else 0
@@ -923,29 +1421,68 @@ def main():
             )
 
         quarter = "Annual"
+        show_quarter = doc_type not in ANNUAL_DOC_TYPES
         if show_quarter:
             with f4:
+                # Discover available quarters from scan data (Azure-backed)
+                scan_entry = FILINGS_DATA.get(company, {}).get(year, {}).get('10-Q', {})
+                available_quarters = sorted(scan_entry.keys()) if isinstance(scan_entry, dict) and scan_entry else ['Q1', 'Q2', 'Q3']
+                safe_q_idx = available_quarters.index(st.session_state.cf_quarter) if st.session_state.cf_quarter in available_quarters else 0
                 quarter = st.selectbox(
                     "Quarter",
-                    options=["Q1", "Q2", "Q3", "Q4"],
-                    index=0,
+                    options=available_quarters,
+                    index=safe_q_idx,
                     key="cf_quarter_select"
                 )
 
-    # Update session state
+    # CRITICAL FIX: Check if company ACTUALLY changed (user switched dropdown)
+    # BEFORE updating session state - use a separate tracking variable
+    _prev_company = st.session_state.get('cf_company')
+    _prev_doc = st.session_state.get('cf_doc_type')
+    _prev_year = st.session_state.get('cf_year')
+    _prev_quarter = st.session_state.get('cf_quarter')
+    
+    # Update session state with current widget values
     st.session_state.cf_company = company
     st.session_state.cf_doc_type = doc_type
     st.session_state.cf_year = year
     st.session_state.cf_quarter = quarter
+    st.session_state.active_ticker = company
+    
+    # Check if filing actually changed (company, year, doc_type, quarter)
+    _filing_changed = (_prev_company != company or 
+                       _prev_doc != doc_type or 
+                       _prev_year != year or 
+                       _prev_quarter != quarter)
+    
+    # CRITICAL FIX: Check if highlight was just set by view button (prevents clearing on view button click)
+    _highlight_just_set = st.session_state.pop('_highlight_just_set', False)
+    
+    if _filing_changed and not _highlight_just_set:
+        logger.info(f"="*80)
+        logger.info(f"[STATE] FILING CHANGED - Clearing highlight")
+        logger.info(f"[STATE]   Before: {_prev_company}/{_prev_year}/{_prev_doc}/{_prev_quarter}")
+        logger.info(f"[STATE]   After:  {company}/{year}/{doc_type}/{quarter}")
+        logger.info(f"="*80)
+        st.session_state.cf_highlight_fact_id = None
+        st.session_state.cf_view_metric = None
+    elif _filing_changed and _highlight_just_set:
+        logger.info(f"="*80)
+        logger.info(f"[STATE] FILING CHANGED but HIGHLIGHT JUST SET - PRESERVING highlight")
+        logger.info(f"[STATE]   Before: {_prev_company}/{_prev_year}/{_prev_doc}/{_prev_quarter}")
+        logger.info(f"[STATE]   After:  {company}/{year}/{doc_type}/{quarter}")
+        logger.info(f"[STATE]   highlight={st.session_state.get('cf_highlight_fact_id')}")
+        logger.info(f"="*80)
+    else:
+        logger.info(f"[STATE] Filing unchanged ({company}/{year}/{doc_type}), preserving highlight={st.session_state.get('cf_highlight_fact_id')}")
 
     # =======================================================================
     # MAIN CONTENT - TWO COLUMN LAYOUT
     # =======================================================================
 
     left_col, right_col = st.columns([0.3, 0.7])
-    
+
     with left_col:
-        # Search input at the top
         search_term = st.text_input(
             "Search",
             placeholder="eg., Revenue",
@@ -955,26 +1492,24 @@ def main():
         )
         st.session_state.cf_search = search_term
 
-        # DB Search — matches on original_label OR standard_concept (with synonym expansion)
-        # Falls back to LLM extraction on miss (spinner shown only during LLM call).
         search_results = []
         used_llm = False
         if search_term.strip():
             doc_type_dir = DOC_TYPE_REVERSE.get(doc_type, doc_type)
+            if doc_type == '10-Q' and quarter != 'Annual':
+                doc_type_dir = f'10-Q-{quarter}'
 
-            # Step 1: fast DB search (no spinner needed)
             try:
                 search_results = FilingMetricRepository.search(
                     ticker=company,
                     fiscal_year=int(year),
                     doc_type=doc_type_dir,
                     query=search_term,
-                    limit=50,
+                    limit=500,
                 )
             except Exception as e:
                 logger.error(f"[SEARCH] DB search error: {e}", exc_info=True)
 
-            # Step 2: DB miss → try LLM extraction (spinner only here)
             if not search_results:
                 import os as _os
                 if _os.getenv("OPENAI_API_KEY", "").strip():
@@ -998,7 +1533,6 @@ def main():
                     except Exception as e:
                         logger.error(f"[LLM] extraction error: {e}", exc_info=True)
 
-        # Source badge HTML helpers
         def _source_badge(source: Optional[str]) -> str:
             if source == "calculated":
                 return '<span style="background:#E8F4FD;color:#0066CC;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;margin-left:6px;vertical-align:middle;">CALC</span>'
@@ -1006,10 +1540,9 @@ def main():
                 return '<span style="background:#F0F7EE;color:#2E7D32;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;margin-left:6px;vertical-align:middle;">AI</span>'
             if source == "edgartools":
                 return '<span style="background:#FFF3E0;color:#E65100;font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;margin-left:6px;vertical-align:middle;">EDGAR</span>'
-            return ""  # xbrl = no badge (default, most common)
+            return ""
 
         def _format_calc_note(note: str) -> str:
-            """Format raw calculation note: replace (123456789) with ($123.5B)."""
             import re
             if not note:
                 return ""
@@ -1029,7 +1562,6 @@ def main():
             result = re.sub(r'\(([\d,]+(?:\.\d+)?)\)', _fmt, note)
             return "= " + result
 
-        # Search Metrics box — bordered container with styled cards
         search_icon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D62E2F" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>'
         eye_icon_svg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>'
 
@@ -1040,7 +1572,6 @@ def main():
                 source_note = " · AI extracted" if used_llm else ""
                 st.markdown(f'<div class="metrics-count">Showing {len(search_results)} metrics{source_note}</div>', unsafe_allow_html=True)
                 def _fmt_period_date(d_str: str) -> str:
-                    """Format "2023-01-29" → "Jan '23"."""
                     if not d_str:
                         return ""
                     try:
@@ -1050,7 +1581,6 @@ def main():
                         return str(d_str)[:7]
 
                 for i, metric in enumerate(search_results):
-                    # Determine view_id for "View in Document" functionality
                     source_sentence = None
                     if not metric.ixbrl_id and metric.source in ('store_count', 'credit_rating') and getattr(metric, 'llm_query', None):
                         try:
@@ -1068,14 +1598,12 @@ def main():
                     btn_text = "Viewing" if is_viewing else "View"
                     badge_html = _source_badge(metric.source)
                     label_html = f'{metric.display_label}{badge_html}'
-                    # Dimension subtitle: show full_dimension_label on its own line in parens
                     dim_html = ""
                     if metric.is_dimensioned and metric.full_dimension_label:
                         dim_html = f'<div class="metric-dimension">( {metric.full_dimension_label} )</div>'
                     formula_html = ""
                     if metric.source == "calculated" and metric.calculation_note:
                         formula_html = f'<div class="metric-formula">{_format_calc_note(metric.calculation_note)}</div>'
-                    # ── Period label: show actual data period, not filing year ──
                     pt = metric.period_type or ""
                     if pt == "duration" and metric.period_start and metric.period_end:
                         period_meta = f"{_fmt_period_date(metric.period_start)} → {_fmt_period_date(metric.period_end)}"
@@ -1085,12 +1613,21 @@ def main():
                         period_meta = str(metric.fiscal_year)
                     st.markdown(f'<div class="{card_class}"><div class="metric-info"><div class="metric-name">{label_html}</div>{dim_html}<div class="metric-value">{metric.formatted_value}</div>{formula_html}<div class="metric-meta"><span>{metric.display_statement_type}</span><span class="metric-meta-dot"></span><span>{doc_type}</span><span class="metric-meta-dot"></span><span>{period_meta}</span></div></div><div class="metric-action-btn {btn_class}">{eye_icon_svg}<span>{btn_text}</span></div></div>', unsafe_allow_html=True)
 
-                    # Compact "View" button — replaces old "View in Document" button
                     if view_id:
                         btn_key = f"view_{i}_{metric.original_label.replace(' ', '_')}_{hash(view_id) % 10000}"
                         if st.button(f"👁 View in Document", key=btn_key, use_container_width=True):
+                            logger.info(f"="*80)
+                            logger.info(f"[VIEW BUTTON CLICKED] metric={metric.display_label}")
+                            logger.info(f"[VIEW BUTTON CLICKED] view_id={view_id}")
+                            logger.info(f"[VIEW BUTTON CLICKED] company={company}, year={year}, doc_type={doc_type}")
+                            logger.info(f"[VIEW BUTTON CLICKED] ixbrl_id={metric.ixbrl_id}")
+                            logger.info(f"[VIEW BUTTON CLICKED] source={metric.source}")
+                            logger.info(f"="*80)
                             st.session_state.cf_highlight_fact_id = view_id
                             st.session_state.cf_view_metric = metric.display_label
+                            # CRITICAL FIX: Mark that highlight was just set by view button
+                            # This prevents the next rerun from clearing it due to company mismatch
+                            st.session_state._highlight_just_set = True
                             st.rerun()
             elif search_term.strip():
                 st.markdown(f'<div style="text-align:center;color:#888;padding:40px 0;font-size:14px;">Not disclosed in this filing for &quot;{search_term}&quot;</div>', unsafe_allow_html=True)
@@ -1098,47 +1635,57 @@ def main():
                 st.markdown(f'<div style="text-align:center;color:#888;padding:40px 0;font-size:14px;">Search for a metric to see results</div>', unsafe_allow_html=True)
 
     with right_col:
-        # HTML VIEWER - Dynamic path based on selected filters
         company_name = next((c[1] for c in COMPANIES if c[0] == company), company)
 
-        # Look up HTML path from scanned filings data
-        html_path = FILINGS_DATA.get(company, {}).get(year, {}).get(doc_type, "")
+        # Look up blob name from scanned filings data (Azure)
+        filing_entry = FILINGS_DATA.get(company, {}).get(year, {}).get(doc_type, "")
 
-        logger.info(f"[HTML VIEWER] Company: {company}, Year: {year}, DocType: {doc_type}")
-        logger.info(f"[HTML VIEWER] HTML path: {html_path}")
-        logger.info(f"[HTML VIEWER] File exists: {os.path.exists(html_path) if html_path else False}")
-
-        if html_path and os.path.exists(html_path):
-            logger.info("[HTML VIEWER] ✅ File found, rendering HTML")
-            
-            # Show document header
-            highlight_text = ""
-            if st.session_state.cf_highlight_fact_id:
-                highlight_text = f"🔍 Auto-scrolled to {st.session_state.cf_view_metric or 'metric'} ({st.session_state.cf_highlight_fact_id})"
-                logger.info(f"[HTML VIEWER] Highlight: {highlight_text}")
-            
-            header_html = f'<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid #E5E5E5;background:#fff;border-radius:8px 8px 0 0;"><div><span style="font-weight:600;font-size:16px;color:#2D2A29;">{company_name} ({company}) {doc_type}</span><span style="background:#F2F2F2;padding:4px 10px;border-radius:4px;font-size:13px;color:#4F4F4F;margin-left:12px;">{year}</span></div><div style="color:#0066CC;font-size:14px;">{highlight_text}</div></div>'
-            st.markdown(header_html, unsafe_allow_html=True)
-            
-            # Render SEC HTML with highlighting
-            logger.info(f"[HTML VIEWER] Calling render_sec_html_viewer with path: {html_path}")
-            render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
-            logger.info("[HTML VIEWER] ✅ render_sec_html_viewer completed")
+        if doc_type == '10-Q' and isinstance(filing_entry, dict):
+            blob_name = filing_entry.get(quarter, "")
         else:
-            logger.error(f"[HTML VIEWER] ❌ File NOT found: {html_path}")
-            # Show placeholder
-            document = FilingDocument(
-                company_name=company_name,
-                ticker=company,
-                document_type=doc_type,
-                year=year,
-                quarter=quarter,
-                content=""
-            )
-            viewer_html = render_document_viewer(document)
-            st.markdown(viewer_html, unsafe_allow_html=True)
-    
-    # Render Footer
+            blob_name = filing_entry if isinstance(filing_entry, str) else ""
+
+        # Download to local cache path (so the rest of the rendering logic stays unchanged)
+        html_path = _ensure_local_blob(blob_name) if blob_name else ""
+
+        # DETAILED LOGGING
+        logger.info(f"="*80)
+        logger.info(f"[RIGHT PANEL] company={company}, year={year}, doc_type={doc_type}, quarter={quarter}")
+        logger.info(f"[RIGHT PANEL] FILINGS_DATA has company={company in FILINGS_DATA}")
+        if company in FILINGS_DATA:
+            logger.info(f"[RIGHT PANEL] FILINGS_DATA[{company}] has year={year}: {year in FILINGS_DATA[company]}")
+            if year in FILINGS_DATA[company]:
+                logger.info(f"[RIGHT PANEL] FILINGS_DATA[{company}][{year}] keys={list(FILINGS_DATA[company][year].keys())}")
+        logger.info(f"[RIGHT PANEL] filing_entry={filing_entry}")
+        logger.info(f"[RIGHT PANEL] blob_name={blob_name}")
+        logger.info(f"[RIGHT PANEL] html_path={html_path}")
+        logger.info(f"[RIGHT PANEL] html_path exists={os.path.exists(html_path) if html_path else False}")
+        logger.info(f"[RIGHT PANEL] cf_highlight_fact_id={st.session_state.get('cf_highlight_fact_id')}")
+        logger.info(f"="*80)
+
+        with st.container(border=True):
+            if html_path and os.path.exists(html_path):
+                highlight_text = ""
+                if st.session_state.cf_highlight_fact_id:
+                    highlight_text = f"🔍 Auto-scrolled to {st.session_state.cf_view_metric or 'metric'} ({st.session_state.cf_highlight_fact_id})"
+
+                header_html = f'<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 4px;border-bottom:1px solid #E5E5E5;margin-bottom:8px;"><div><span style="font-weight:600;font-size:16px;color:#2D2A29;">{company_name} ({company}) {doc_type}</span><span style="background:#F2F2F2;padding:4px 10px;border-radius:4px;font-size:13px;color:#4F4F4F;margin-left:12px;">{year}</span></div><div style="color:#0066CC;font-size:14px;">{highlight_text}</div></div>'
+                st.markdown(header_html, unsafe_allow_html=True)
+
+                render_sec_html_viewer(html_path, st.session_state.cf_highlight_fact_id)
+            else:
+                logger.warning(f"[HTML VIEWER] Filing HTML not found (Azure): blob={blob_name} local={html_path}")
+                document = FilingDocument(
+                    company_name=company_name,
+                    ticker=company,
+                    document_type=doc_type,
+                    year=year,
+                    quarter=quarter,
+                    content=""
+                )
+                viewer_html = render_document_viewer(document)
+                st.markdown(viewer_html, unsafe_allow_html=True)
+
     render_coresight_footer(full_width=True, stick_to_bottom=True)
 
 

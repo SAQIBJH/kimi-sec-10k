@@ -1,7 +1,22 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python:*)"
-    ]
+      "Bash(curl:*)",
+      "Bash(npm run dev:*)",
+      "Bash(node:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run generate-types:*)",
+      "Bash(npx tsc:*)",
+      "Bash(find:*)",
+      "Bash(cp:*)",
+      "Bash(sed:*)",
+      "Bash(test:*)",
+      "Bash(npm install:*)",
+      "Bash(git checkout:*)",
+      "Bash(python:*)",
+      "Bash(mysql -h localhost -P 3306 -u root -pSecPlatform2024 chainxydata_stg -e \"ALTER TABLE user_login_sessions MODIFY COLUMN session_id INT NOT NULL AUTO_INCREMENT, ADD PRIMARY KEY \\(session_id\\);\")"
+    ],
+    "deny": [],
+    "ask": []
   }
 }

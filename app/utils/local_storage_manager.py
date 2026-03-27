@@ -8,6 +8,8 @@ import logging
 import streamlit.components.v1 as components
 from streamlit_local_storage import LocalStorage
 
+logger = logging.getLogger(__name__)
+
 class LocalStorageManager:
     """Manages syncing between Streamlit session state and browser local storage"""
     
@@ -35,7 +37,7 @@ class LocalStorageManager:
                     try:
                         all_pages_state = json.loads(stored_data)
                     except json.JSONDecodeError as e:
-                        logging.warning(f"Invalid JSON in local storage: {stored_data}")
+                        logger.warning(f"Invalid JSON in local storage: {e}")
                         return False
                 else:
                     all_pages_state = stored_data
@@ -80,20 +82,18 @@ class LocalStorageManager:
                                 st.session_state[session_key] = deserialized_filters
                                 loaded_count += len(deserialized_filters)
                         
-                        logging.info(f"Loaded {loaded_count} items for page '{self.page_name}' from local storage")
+                        logger.debug(f"Loaded {loaded_count} items for page '{self.page_name}' from local storage")
                         return True
                     else:
-                        print(f"Page data is not a valid dict")
+                        logger.warning(f"Page data for '{self.page_name}' is not a valid dict")
                 else:
-                    logging.info(f"No data for page '{self.page_name}' in local storage")
+                    logger.debug(f"No data for page '{self.page_name}' in local storage")
             else:
-                logging.info(f"No data in local storage")
+                logger.debug("No data in local storage")
             
             return False
         except Exception as e:
-            logging.warning(f"Failed to load from local storage: {e}")
-            import traceback
-            logging.warning(traceback.format_exc())
+            logger.warning(f"Failed to load from local storage: {e}")
             return False
     
     def save_to_local_storage(self, page_name=None):
@@ -134,13 +134,13 @@ class LocalStorageManager:
                 page_data[ticker_selection_key] = st.session_state[ticker_selection_key]
             
             # Look for all tab-specific date ranges
-            for key in st.session_state.keys():
-                if key.startswith(f'date_range_{page}_'):  # e.g., date_range_market_data_income_statement
+            for key in st.session_state.keys():  # type: ignore
+                if key.startswith(f'date_range_{page}_'):  # type: ignore  # e.g., date_range_market_data_income_statement
                     page_data[key] = st.session_state[key]
             
             # Look for all tab-specific sort orders
-            for key in st.session_state.keys():
-                if key.startswith(f'sort_order_{page}_'):  # e.g., sort_order_market_data_income_statement
+            for key in st.session_state.keys():  # type: ignore
+                if key.startswith(f'sort_order_{page}_'):  # type: ignore  # e.g., sort_order_market_data_income_statement
                     page_data[key] = st.session_state[key]
             
             # Look for general date range state (legacy support)
@@ -164,10 +164,10 @@ class LocalStorageManager:
             # Look for all filters_<page>_<tab> keys in session state
             filter_prefix = f"filters_{page}_"
             
-            for key in st.session_state.keys():
-                if key.startswith(filter_prefix):
+            for key in st.session_state.keys():  # type: ignore
+                if key.startswith(filter_prefix):  # type: ignore
                     # Extract tab name from key (e.g., "filters_market_data_income_statement" -> "income_statement")
-                    tab_name = key[len(filter_prefix):]
+                    tab_name = key[len(filter_prefix):]  # type: ignore
                     
                     # Get the filter data for this tab
                     tab_filters = st.session_state[key]
@@ -185,7 +185,7 @@ class LocalStorageManager:
                 json_data = json.dumps(all_pages_state)
                 
                 self.local_storage.setItem(self.STORAGE_KEY, json_data)
-                logging.info(f"Successfully saved page '{page}' with {len(page_data)} items to local storage")
+                logger.debug(f"Saved {len(page_data)} items for page '{page}' to local storage")
                 
                 # Also save using JavaScript as fallback
                 save_to_local_storage_js(self.STORAGE_KEY, all_pages_state)
@@ -194,9 +194,7 @@ class LocalStorageManager:
                 return False
                 
         except Exception as e:
-            logging.warning(f"Failed to save to local storage: {e}")
-            import traceback
-            logging.warning(traceback.format_exc())
+            logger.warning(f"Failed to save to local storage: {e}")
             return False
     
     def clear_local_storage(self, page_name=None, tab_name=None):
@@ -228,10 +226,10 @@ class LocalStorageManager:
                         return True
             else:
                 # Clear entire storage
-                self.local_storage.removeItem(self.STORAGE_KEY)
+                self.local_storage.removeItem(self.STORAGE_KEY)  # type: ignore
                 return True
         except Exception as e:
-            logging.warning(f"Failed to clear local storage: {e}")
+            logger.warning(f"Failed to clear local storage: {e}")
             return False
     
     def _serialize_value(self, value):
@@ -332,7 +330,7 @@ def load_earnings_calls_state():
                             st.session_state[key] = page_data[key]
                     return True
     except Exception as e:
-        logging.warning(f"Failed to load earnings calls state: {e}")
+        logger.warning(f"Failed to load earnings calls state: {e}")
     return False
 
 
@@ -364,5 +362,5 @@ def save_earnings_calls_state():
             save_to_local_storage_js(manager.STORAGE_KEY, all_pages)
             return True
     except Exception as e:
-        logging.warning(f"Failed to save earnings calls state: {e}")
+        logger.warning(f"Failed to save earnings calls state: {e}")
     return False
